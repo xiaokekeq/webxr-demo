@@ -62,12 +62,12 @@
 			mode: 'cubemap',
 			panoramaUrl: './assets/panorama/environment.jpg',
 			cubemapUrls: [
-				'./assets/cubemap/px.jpg',
-				'./assets/cubemap/nx.jpg',
-				'./assets/cubemap/py.jpg',
-				'./assets/cubemap/ny.jpg',
-				'./assets/cubemap/pz.jpg',
-				'./assets/cubemap/nz.jpg'
+				'./assets/cubemap/square_px.jpg',
+				'./assets/cubemap/square_nx.jpg',
+				'./assets/cubemap/square_py.jpg',
+				'./assets/cubemap/square_ny.jpg',
+				'./assets/cubemap/square_pz.jpg',
+				'./assets/cubemap/square_nz.jpg'
 			]
 		};
 
@@ -115,12 +115,12 @@
 
 				const envTexture = await loadEnvironment( pmremGenerator );
 				scene.environment = envTexture;
-				statusMessage.textContent = 'Environment loaded successfully. Left ball should look mirror-like, middle ball softer, right ball should stay visible even if reflections are weak.';
+				statusMessage.textContent = 'Environment loaded successfully. White balls use the cubemap; the blue ball is a visibility test and should always be visible.';
 
 			} catch ( error ) {
 
 				console.error( 'Environment load failed:', error );
-				statusMessage.textContent = 'Environment load failed. The right test ball should still be visible because it does not depend heavily on reflections. Check the cubemap files and refresh.';
+				statusMessage.textContent = 'Environment load failed. The blue test ball should still be visible. If only the blue ball shows, the cubemap is the problem.';
 
 			}
 
@@ -192,6 +192,17 @@
 			);
 			diffuseBall.position.x = 0.34;
 			group.add( diffuseBall );
+
+			// Extra visibility test: MeshBasicMaterial ignores lights and environment.
+			// If this blue ball is also not visible, the issue is no longer just the cubemap.
+			const debugBall = new THREE.Mesh(
+				new THREE.SphereGeometry( 0.08, 24, 24 ),
+				new THREE.MeshBasicMaterial( {
+					color: 0x3399ff
+				} )
+			);
+			debugBall.position.set( 0, 0.32, 0 );
+			group.add( debugBall );
 
 			// A floor helps you judge whether there is at least some lighting in the scene.
 			const floor = new THREE.Mesh(

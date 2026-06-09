@@ -76,6 +76,7 @@
 		let reflectiveGroup;
 		let modeMessage;
 		let statusMessage;
+		let fallbackLight;
 
 		init();
 
@@ -96,7 +97,7 @@
 			camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 0.01, 20 );
 
 			// Fallback light so the scene is still visible if the environment map fails.
-			const fallbackLight = new THREE.HemisphereLight( 0xffffff, 0x667788, 1.5 );
+			fallbackLight = new THREE.HemisphereLight( 0xffffff, 0x667788, 1.5 );
 			fallbackLight.position.set( 0.5, 1, 0.25 );
 			scene.add( fallbackLight );
 
@@ -114,12 +115,12 @@
 
 				const envTexture = await loadEnvironment( pmremGenerator );
 				scene.environment = envTexture;
-				statusMessage.textContent = 'Environment loaded successfully. The two metal balls should now show clearer reflections.';
+				statusMessage.textContent = 'Environment loaded successfully. Left ball should look mirror-like, middle ball softer, right ball should stay visible even if reflections are weak.';
 
 			} catch ( error ) {
 
 				console.error( 'Environment load failed:', error );
-				statusMessage.textContent = 'Environment load failed. Check that the files exist in custom_environment_ar/assets and refresh the page.';
+				statusMessage.textContent = 'Environment load failed. The right test ball should still be visible because it does not depend heavily on reflections. Check the cubemap files and refresh.';
 
 			}
 
@@ -164,10 +165,10 @@
 					roughness: 0.02
 				} )
 			);
-			mirrorBall.position.x = - 0.22;
+			mirrorBall.position.x = - 0.34;
 			group.add( mirrorBall );
 
-			// Right: rougher metal ball for comparing how roughness softens reflections.
+			// Middle: rougher metal ball for comparing how roughness softens reflections.
 			const roughMetalBall = new THREE.Mesh(
 				new THREE.SphereGeometry( 0.16, 48, 48 ),
 				new THREE.MeshStandardMaterial( {
@@ -176,8 +177,34 @@
 					roughness: 0.35
 				} )
 			);
-			roughMetalBall.position.x = 0.22;
+			roughMetalBall.position.x = 0;
 			group.add( roughMetalBall );
+
+			// Right: non-metal reference ball.
+			// Even if the environment map fails, this one should still be lit by fallbackLight.
+			const diffuseBall = new THREE.Mesh(
+				new THREE.SphereGeometry( 0.16, 48, 48 ),
+				new THREE.MeshStandardMaterial( {
+					color: 0xffcc88,
+					metalness: 0.05,
+					roughness: 0.7
+				} )
+			);
+			diffuseBall.position.x = 0.34;
+			group.add( diffuseBall );
+
+			// A floor helps you judge whether there is at least some lighting in the scene.
+			const floor = new THREE.Mesh(
+				new THREE.CircleGeometry( 0.9, 48 ),
+				new THREE.MeshStandardMaterial( {
+					color: 0x808080,
+					metalness: 0,
+					roughness: 1
+				} )
+			);
+			floor.rotation.x = - Math.PI / 2;
+			floor.position.y = - 0.22;
+			group.add( floor );
 
 			return group;
 

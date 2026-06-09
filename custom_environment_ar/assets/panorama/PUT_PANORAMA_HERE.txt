@@ -1,0 +1,6 @@
+把你的全景图改名为 environment.jpg 然后放到这个目录。
+
+推荐：
+- 比例尽量是 2:1
+- 尺寸越高，反射越清晰
+- 如果后面你想换 png，也可以同步修改 index.html 里的 panoramaUrl

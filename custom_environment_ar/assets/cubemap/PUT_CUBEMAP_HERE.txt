@@ -1,0 +1,16 @@
+把你的六张 cubemap 图片放到这个目录，并命名为：
+
+- px.jpg
+- nx.jpg
+- py.jpg
+- ny.jpg
+- pz.jpg
+- nz.jpg
+
+它们分别对应：
+- px: 朝 +X
+- nx: 朝 -X
+- py: 朝 +Y
+- ny: 朝 -Y
+- pz: 朝 +Z
+- nz: 朝 -Z

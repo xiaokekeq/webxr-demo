@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>three.js ar - lighting estimation</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+		<link type="text/css" rel="stylesheet" href="main.css">
+	</head>
+	<body>
+
+		<div id="info">
+			<a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> ar - lighting estimation<br/>
+		</div>
+
+		<script type="importmap">
+			<!-- {
+				"imports": {
+					"three": "../build/three.module.js",
+					"three/addons/": "./jsm/"
+				}
+			} -->
+			{
+				"imports": {
+					"three": "https://unpkg.com/three@0.177.0/build/three.module.js",
+					"three/addons/": "https://unpkg.com/three@0.177.0/examples/jsm/"
+				}
+			}
+		</script>
+
+		<script type="module">
+
+			import * as THREE from 'three';
+			// UltraHDRLoader 用来加载高动态范围环境图。
+			// 这类贴图常用来给 PBR 材质提供更真实的环境反射来源。
+			import { UltraHDRLoader } from 'three/addons/loaders/UltraHDRLoader.js';
+			// ARButton 帮我们创建“进入 AR”按钮，并负责发起 WebXR AR 会话。
+			import { ARButton } from 'three/addons/webxr/ARButton.js';
+			// XREstimatedLight 是 three.js 对 WebXR 光照估计能力的封装。
+			// 它会在 AR 会话中尽量根据真实环境估计出可用光照。
+			import { XREstimatedLight } from 'three/addons/webxr/XREstimatedLight.js';
+
+			// three.js 的基础三件套：
+			// camera: 从哪里观察场景
+			// scene: 场景中有哪些物体
+			// renderer: 负责把场景绘制出来
+			let camera, scene, renderer;
+			// controller 表示 XR 输入源。手机 AR 中通常会把点击屏幕映射成 select 事件。
+			let controller;
+			// defaultEnvironment 保存默认 HDR 环境图。
+			// 如果 XR 没有提供实时环境估计，就回退到它。
+			let defaultEnvironment;
+
+			init();
+
+			function init() {
+
+				// 创建一个容器，把 three.js 的 canvas 插进去。
+				const container = document.createElement( 'div' );
+				document.body.appendChild( container );
+
+				scene = new THREE.Scene();
+
+				// 透视相机：
+				// 70 是视野角度
+				// 0.01 / 20 是近裁剪面和远裁剪面
+				// 在 XR 中，相机姿态会由设备追踪系统实时更新
+				camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 0.01, 20 );
+
+				// 先放一个“默认灯光”。
+				// 原因是：在 AR 光照估计还没生效前，场景里仍然需要基本照明。
+				// HemisphereLight 很适合作为示例默认光，因为它简单、稳定。
+				const defaultLight = new THREE.HemisphereLight( 0xffffff, 0xbbbbff, 1 );
+				defaultLight.position.set( 0.5, 1, 0.25 );
+				scene.add( defaultLight );
+
+				// WebGLRenderer:
+				// antialias: 抗锯齿，让边缘更平滑
+				// alpha: 允许背景透明。AR 模式下虚拟内容需要叠加在真实相机画面之上
+				renderer = new THREE.WebGLRenderer( { antialias: true, alpha: true } );
+				renderer.setPixelRatio( window.devicePixelRatio );
+				renderer.setSize( window.innerWidth, window.innerHeight );
+				// setAnimationLoop 是 XR 友好的渲染循环。
+				// 进入 WebXR 后，浏览器会按 XR 会话节奏调用 animate。
+				renderer.setAnimationLoop( animate );
+				// 开启 renderer 的 XR 能力。
+				renderer.xr.enabled = true;
+				container.appendChild( renderer.domElement );
+
+				// 先不要把 XREstimatedLight 直接加进场景。
+				// 因为在 AR 会话启动前，它还没有真实环境的估计值。
+				// 也就是说，这个对象虽然创建出来了，但暂时还“不完整”。
+
+				const xrLight = new XREstimatedLight( renderer );
+
+				xrLight.addEventListener( 'estimationstart', () => {
+
+					// estimationstart 表示：设备已经开始成功提供光照估计数据。
+					// 这时我们就可以把默认灯换成 XR 估计灯。
+					scene.add( xrLight );
+					scene.remove( defaultLight );
+
+					// xrLight 除了提供“灯光强度/颜色”之外，
+					// 还可能提供 environment，也就是环境反射信息。
+					//
+					// scene.environment 不是给人直接看的背景，而是给 PBR 材质
+					// （比如 MeshStandardMaterial）拿去计算环境反射和间接光照的。
+					//
+					// 你可以把它理解成：
+					// “告诉材质，它周围的世界大概长什么样，这样它才能算出更真实的反光。”
+					if ( xrLight.environment ) {
+
+						// 切换成 XR 提供的环境 cubemap 后，
+						// 金属球、光滑球的反光会更贴近真实现场环境。
+						scene.environment = xrLight.environment;
+
+					}
+
+				} );
+
+				xrLight.addEventListener( 'estimationend', () => {
+
+					// estimationend 表示：设备停止提供光照估计了。
+					// 可能是 AR 会话结束，也可能是底层能力不可用了。
+					// 这时我们回退到默认灯光。
+					scene.add( defaultLight );
+					scene.remove( xrLight );
+
+					// 同时把 environment 恢复成默认 HDR 环境图。
+					// 这样即使没有实时光照估计，PBR 材质仍然有一个合理的反射来源。
+					scene.environment = defaultEnvironment;
+
+				} );
+
+				// 加载一张默认 HDR 环境图。
+				// 这张图不是拿来当页面背景，而是作为材质的环境反射参考。
+				new UltraHDRLoader()
+					.setPath( 'textures/equirectangular/' )
+					.load( 'royal_esplanade_2k.hdr.jpg', function ( texture ) {
+
+						// 告诉 three.js：这是一个等距柱状环境贴图，
+						// 需要按环境反射的方式使用。
+						texture.mapping = THREE.EquirectangularReflectionMapping;
+
+						defaultEnvironment = texture;
+
+						// 在 XR 估计环境还没接管前，先用默认环境图。
+						scene.environment = defaultEnvironment;
+
+					} );
+
+				// 要想让 WebXR 尝试提供光照估计能力，
+				// 必须在 ARButton 里声明 'light-estimation'。
+				//
+				// 这里用 optionalFeatures，而不是 requiredFeatures，
+				// 意思是：如果设备支持这个能力就启用，不支持也允许 AR 正常进入，
+				// 只是效果退回到默认灯光 + 默认环境图。
+				document.body.appendChild( ARButton.createButton( renderer, { optionalFeatures: [ 'light-estimation' ] } ) );
+
+				// 创建一个球体几何体。
+				// 球很适合观察光照和反射，因为表面各个方向都连续变化，效果很直观。
+				const ballGeometry = new THREE.SphereGeometry( 0.175, 32, 32 );
+				// 用 Group 把 9 个球装在一起，方便整体移动和旋转。
+				const ballGroup = new THREE.Group();
+				// 默认先放在相机前方 2 米左右的位置。
+				ballGroup.position.z = - 2;
+
+				const rows = 3;
+				const cols = 3;
+
+				// 这里不是随便摆 9 个球，而是在做一个“材质观察矩阵”：
+				// roughness = 粗糙度，越高越像磨砂，反射越散
+				// metalness = 金属度，越高越像金属，越依赖环境反射
+				//
+				// 通过不同 roughness / metalness 的组合，
+				// 我们能直观看到 XR 光照估计和环境反射对材质的影响。
+				for ( let i = 0; i < rows; i ++ ) {
+
+					for ( let j = 0; j < cols; j ++ ) {
+
+						const ballMaterial = new THREE.MeshStandardMaterial( {
+							color: 0xdddddd,
+							// 行方向改变粗糙度
+							roughness: i / rows,
+							// 列方向改变金属度
+							metalness: j / cols
+						} );
+						const ballMesh = new THREE.Mesh( ballGeometry, ballMaterial );
+						// 把球摆成 3x3 网格，方便横向纵向比较材质差异。
+						ballMesh.position.set( ( i + 0.5 - rows * 0.5 ) * 0.4, ( j + 0.5 - cols * 0.5 ) * 0.4, 0 );
+						ballGroup.add( ballMesh );
+
+					}
+
+				}
+
+				scene.add( ballGroup );
+
+				function onSelect() {
+
+					// 这里没有使用 hit-test。
+					// 这个示例的重点不是“放在真实平面上”，而是“观察光照效果”。
+					//
+					// 所以点击时的逻辑是：
+					// 先在 controller 的局部空间中取一个“前方 2 米”的点
+					ballGroup.position.set( 0, 0, - 2 ).applyMatrix4( controller.matrixWorld );
+					// applyMatrix4(controller.matrixWorld) 会把这个局部点转换到世界空间，
+					// 也就是把球组真正放到“当前控制器前方 2 米”的位置。
+					//
+					// 然后再让球组的朝向跟随 controller 的朝向，
+					// 这样整个球阵列会朝向你当前放置时的方向。
+					ballGroup.quaternion.setFromRotationMatrix( controller.matrixWorld );
+
+				}
+
+				// 获取第一个 XR 输入源，并监听 select 事件。
+				controller = renderer.xr.getController( 0 );
+				controller.addEventListener( 'select', onSelect );
+				scene.add( controller );
+
+				window.addEventListener( 'resize', onWindowResize );
+
+			}
+
+			function onWindowResize() {
+
+				// 窗口尺寸变化时，同步更新相机纵横比和渲染器尺寸。
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+
+				renderer.setSize( window.innerWidth, window.innerHeight );
+
+			}
+
+			function animate() {
+
+				// 这个示例的每帧逻辑很简单，只负责渲染。
+				// 和 hit-test 示例不同，这里不需要你手动每帧去取命中结果。
+				// XREstimatedLight 内部已经封装了对 WebXR 光照估计的处理。
+				renderer.render( scene, camera );
+
+			}
+
+		</script>
+	</body>
+</html>

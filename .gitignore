@@ -1,6 +1,6 @@
 node_modules/
 dist/
-load-model/
+/load-model/
 
 .DS_Store
 Thumbs.db

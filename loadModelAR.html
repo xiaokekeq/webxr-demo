@@ -47,16 +47,38 @@
 			left: 14px;
 			z-index: 20;
 			width: min(340px, calc(100vw - 28px));
-			padding: 16px;
+			padding: 14px;
 			border: 1px solid var(--line);
 			border-radius: 18px;
 			background: var(--panel);
 			backdrop-filter: blur(14px);
 		}
 
-		h1 {
-			margin: 0 0 8px;
-			font-size: 22px;
+		.overlay-header {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 12px;
+		}
+
+		.overlay-title {
+			margin: 0;
+			font-size: 20px;
+		}
+
+		.overlay-toggle {
+			display: none;
+			padding: 6px 10px;
+			border: 1px solid var(--line);
+			border-radius: 999px;
+			background: rgba(255, 255, 255, 0.04);
+			color: var(--text);
+			font: inherit;
+			cursor: pointer;
+		}
+
+		.overlay-body {
+			margin-top: 10px;
 		}
 
 		p {
@@ -97,7 +119,8 @@
 			font: inherit;
 		}
 
-		.action-button:hover {
+		.action-button:hover,
+		.overlay-toggle:hover {
 			border-color: rgba(78, 162, 255, 0.6);
 		}
 
@@ -122,6 +145,15 @@
 				top: 10px;
 				left: 10px;
 				width: calc(100vw - 20px);
+				padding: 12px;
+			}
+
+			.overlay-toggle {
+				display: inline-flex;
+			}
+
+			.overlay.mobile-collapsed .overlay-body {
+				display: none;
 			}
 
 			.xr-button-wrap :is(button, a) {
@@ -133,21 +165,27 @@
 </head>
 <body>
 	<div id="app">
-		<div class="overlay">
-			<h1>GLB Pipe Viewer AR</h1>
-			<p>这个页面专门学习 WebXR AR 放置流程：进入 AR、寻找地面、显示准星、点击屏幕放置模型。</p>
-
-			<div class="meta">
-				<div><strong>模型文件：</strong><span id="model-name"></span></div>
-				<div><strong>状态：</strong><span id="status">正在初始化...</span></div>
+		<div id="overlay" class="overlay">
+			<div class="overlay-header">
+				<h1 class="overlay-title">GLB Pipe Viewer AR</h1>
+				<button id="overlay-toggle" class="overlay-toggle" type="button" hidden aria-expanded="true">收起</button>
 			</div>
 
-			<div class="actions">
-				<button id="reset-placement" class="action-button" type="button">重置放置</button>
-			</div>
+			<div id="overlay-body" class="overlay-body">
+				<p>这个页面专门学习 WebXR AR 放置流程：进入 AR、寻找地面、显示准星、点击屏幕放置模型。</p>
 
-			<div class="hint">
-				进入 AR 后，先缓慢移动手机帮助系统识别平面。看到蓝色准星贴在地面上时，点击屏幕即可把模型放在现实地面上。
+				<div class="meta">
+					<div><strong>模型文件：</strong><span id="model-name"></span></div>
+					<div><strong>状态：</strong><span id="status">正在初始化...</span></div>
+				</div>
+
+				<div class="actions">
+					<button id="reset-placement" class="action-button" type="button">重置放置</button>
+				</div>
+
+				<div class="hint">
+					进入 AR 后，先缓慢移动手机帮助系统识别平面。看到蓝色准星贴在地面上时，点击屏幕即可把模型放在现实地面上。
+				</div>
 			</div>
 		</div>
 

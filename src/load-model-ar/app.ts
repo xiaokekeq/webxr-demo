@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { MODEL_URL } from '../load-model/config.js';
-import { createStatusUpdater, getARDomElements } from './dom.js';
+import { createStatusUpdater, getARDomElements, setupOverlayToggle } from './dom.js';
 import { clearPlacedModel, loadModelTemplate, placeModelAt } from './model.js';
 import { createARScene, resizeARScene } from './scene.js';
 import { createXRHitTestController } from './xr.js';
@@ -35,6 +35,7 @@ bootstrap();
 
 async function bootstrap(): Promise<void> {
 
+	setupOverlayToggle( dom );
 	setStatus( '正在初始化...' );
 	xrSelectController.addEventListener( 'select', onSelect );
 	sceneBundle.renderer.setAnimationLoop( render );

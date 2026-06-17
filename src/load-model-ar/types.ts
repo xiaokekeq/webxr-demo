@@ -3,6 +3,9 @@ import type * as THREE from 'three';
 export type SetStatus = (message: string) => void;
 
 export interface ARDomElements {
+	overlayEl: HTMLElement;
+	overlayToggleButton: HTMLButtonElement;
+	overlayBodyEl: HTMLElement;
 	modelNameEl: HTMLElement;
 	statusEl: HTMLElement;
 	canvasContainer: HTMLElement;

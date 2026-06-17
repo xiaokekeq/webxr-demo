@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>GLB Pipe Viewer</title>
+	<style>
+		:root {
+			--bg: #101216;
+			--card: rgba(23, 26, 32, 0.92);
+			--card-deep: #0f1217;
+			--line: rgba(255, 255, 255, 0.08);
+			--line-strong: rgba(255, 255, 255, 0.12);
+			--text: #e8edf2;
+			--muted: #8ea4bd;
+			--accent: #2c7cff;
+			--shadow: 0 14px 34px rgba(0, 0, 0, 0.24);
+		}
+
+		* {
+			box-sizing: border-box;
+		}
+
+		body {
+			margin: 0;
+			font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+			background: radial-gradient(circle at top, #19202a 0%, var(--bg) 48%);
+			color: var(--text);
+		}
+
+		.viewer {
+			position: relative;
+			min-height: 100vh;
+		}
+
+		#canvas-container {
+			width: 100%;
+			height: 100vh;
+		}
+
+		.control-panel {
+			position: fixed;
+			top: 16px;
+			left: 16px;
+			z-index: 20;
+			width: min(360px, calc(100vw - 32px));
+			padding: 18px;
+			background: var(--card);
+			border: 1px solid var(--line);
+			border-radius: 16px;
+			backdrop-filter: blur(14px);
+			box-shadow: var(--shadow);
+		}
+
+		h1 {
+			margin: 0 0 10px;
+			font-size: 22px;
+		}
+
+		h2 {
+			margin: 16px 0 10px;
+			font-size: 15px;
+		}
+
+		p {
+			margin: 0 0 12px;
+			line-height: 1.6;
+		}
+
+		.meta {
+			margin: 12px 0 16px;
+			padding: 12px;
+			background: var(--card-deep);
+			border-radius: 12px;
+			line-height: 1.7;
+		}
+
+		.mode-buttons {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 8px;
+			margin-bottom: 12px;
+		}
+
+		.mode-button {
+			padding: 9px 12px;
+			border: 1px solid var(--line-strong);
+			border-radius: 10px;
+			background: #151922;
+			color: #d9e3ee;
+			cursor: pointer;
+			font: inherit;
+			transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+		}
+
+		.mode-button:hover {
+			transform: translateY(-1px);
+		}
+
+		.mode-button.active {
+			background: var(--accent);
+			border-color: var(--accent);
+			color: #fff;
+		}
+
+		.mode-note,
+		.tip {
+			font-size: 13px;
+			line-height: 1.6;
+			color: var(--muted);
+		}
+
+		.property-popup {
+			position: fixed;
+			left: 0;
+			top: 0;
+			z-index: 25;
+			width: min(248px, calc(100vw - 20px));
+			padding: 10px;
+			background: rgba(15, 18, 23, 0.96);
+			border: 1px solid var(--line);
+			border-radius: 14px;
+			box-shadow: var(--shadow);
+			backdrop-filter: blur(14px);
+			transform: translate(-50%, -100%);
+			transform-origin: bottom center;
+			opacity: 1;
+			transition: opacity 140ms ease, transform 140ms ease;
+		}
+
+		.property-popup.hidden {
+			opacity: 0;
+			transform: translate(-50%, calc(-100% + 8px));
+			pointer-events: none;
+		}
+
+		.property-header {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 8px;
+			margin-bottom: 8px;
+		}
+
+		.property-title {
+			margin: 0;
+			font-size: 14px;
+		}
+
+		.close-button {
+			width: 28px;
+			height: 28px;
+			border: 1px solid var(--line-strong);
+			border-radius: 999px;
+			background: transparent;
+			color: var(--text);
+			cursor: pointer;
+			font-size: 16px;
+			line-height: 1;
+		}
+
+		.property-list {
+			display: grid;
+			grid-template-columns: 48px 1fr;
+			gap: 6px 8px;
+			margin: 0;
+			padding: 10px;
+			background: #141922;
+			border-radius: 10px;
+			font-size: 12px;
+		}
+
+		.property-list dt {
+			color: var(--muted);
+		}
+
+		.property-list dd {
+			margin: 0;
+			word-break: break-word;
+		}
+
+		@media (max-width: 900px) {
+			.control-panel {
+				top: 12px;
+				left: 12px;
+				width: calc(100vw - 24px);
+			}
+
+			.property-popup {
+				width: min(220px, calc(100vw - 20px));
+			}
+		}
+	</style>
+</head>
+<body>
+	<main class="viewer">
+		<section class="control-panel">
+			<h1>GLB Pipe Viewer</h1>
+			<p>这里先做普通 Three.js 版交互：点击管线、查询属性、切换显示模式，后面再平滑迁到 AR。</p>
+
+			<div class="meta">
+				<div><strong>模型文件：</strong><span id="model-name"></span></div>
+				<div><strong>数据文件：</strong><span id="data-name">/pipe-viewer/pipes.json</span></div>
+				<div><strong>状态：</strong><span id="status">正在初始化...</span></div>
+			</div>
+
+			<h2>显示模式</h2>
+			<div class="mode-buttons">
+				<button class="mode-button active" type="button" data-mode="solid">普通模式</button>
+				<button class="mode-button" type="button" data-mode="transparent">透视模式</button>
+				<button class="mode-button" type="button" data-mode="structure">结构模式</button>
+			</div>
+			<div class="mode-note">结构模式会按管线类别着色，并弱化材质贴图，便于核查。</div>
+
+			<h2>交互提示</h2>
+			<div class="tip">鼠标左键点击模型进行选择，拖拽继续使用 OrbitControls 旋转查看。点中管线后，属性卡片会直接出现在该对象上方。</div>
+		</section>
+
+		<section id="property-panel" class="property-popup hidden">
+			<div class="property-header">
+				<h2 class="property-title">管线属性</h2>
+				<button id="property-close" class="close-button" type="button" aria-label="关闭属性面板">×</button>
+			</div>
+
+			<dl class="property-list">
+				<dt>名称</dt><dd id="prop-name">未选择</dd>
+				<dt>类型</dt><dd id="prop-type">-</dd>
+				<dt>管径</dt><dd id="prop-diameter">-</dd>
+				<dt>材质</dt><dd id="prop-material">-</dd>
+				<dt>埋深</dt><dd id="prop-depth">-</dd>
+				<dt>状态</dt><dd id="prop-status">-</dd>
+				<dt>备注</dt><dd id="prop-remark">点击模型后显示</dd>
+			</dl>
+		</section>
+
+		<div id="canvas-container"></div>
+	</main>
+
+	<script type="module" src="/src/load-model/app.ts"></script>
+</body>
+</html>

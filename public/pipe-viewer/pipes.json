@@ -1,0 +1,67 @@
+{
+  "pipes": [
+    {
+      "name": "tripo_part_0",
+      "type": "main-pipe",
+      "diameter": "DN300",
+      "material": "steel",
+      "depth": "1.20m",
+      "status": "normal",
+      "remark": "sample data, replace with real business fields"
+    },
+    {
+      "name": "tripo_part_1",
+      "type": "branch-pipe",
+      "diameter": "DN150",
+      "material": "steel",
+      "depth": "0.80m",
+      "status": "normal",
+      "remark": "sample data, replace with real business fields"
+    },
+    {
+      "name": "tripo_part_2",
+      "type": "branch-pipe",
+      "diameter": "DN120",
+      "material": "steel",
+      "depth": "0.95m",
+      "status": "pending-inspection",
+      "remark": "sample data, replace with real business fields"
+    },
+    {
+      "name": "tripo_part_3",
+      "type": "riser",
+      "diameter": "DN100",
+      "material": "steel",
+      "depth": "0.40m",
+      "status": "normal",
+      "remark": "sample data, replace with real business fields"
+    },
+    {
+      "name": "tripo_part_4",
+      "type": "terminal",
+      "diameter": "DN80",
+      "material": "steel",
+      "depth": "1.35m",
+      "status": "maintenance",
+      "remark": "sample data, replace with real business fields"
+    },
+    {
+      "name": "tripo_part_5",
+      "type": "valve-section",
+      "diameter": "DN90",
+      "material": "alloy",
+      "depth": "1.05m",
+      "status": "normal",
+      "remark": "sample data, replace with real business fields"
+    },
+    {
+      "name": "tripo_part_6",
+      "type": "joint-section",
+      "diameter": "DN90",
+      "material": "alloy",
+      "depth": "1.10m",
+      "status": "normal",
+      "remark": "sample data, replace with real business fields"
+    }
+  ]
+}

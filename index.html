@@ -1,178 +1,91 @@
 <!DOCTYPE html>
-<html lang="en">
-
+<html lang="zh-CN">
 <head>
-	<title>three.js ar - lighting estimation</title>
-	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-	<link type="text/css" rel="stylesheet" href="main.css">
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>WebXR Workspace</title>
+	<style>
+		body {
+			margin: 0;
+			font-family: system-ui, sans-serif;
+			background: linear-gradient(180deg, #0d1117 0%, #161b22 100%);
+			color: #e6edf3;
+		}
+
+		.page {
+			max-width: 920px;
+			margin: 0 auto;
+			padding: 48px 20px 80px;
+		}
+
+		h1 {
+			margin: 0 0 12px;
+			font-size: 32px;
+		}
+
+		p {
+			line-height: 1.6;
+			color: #b7c2cf;
+		}
+
+		.grid {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+			gap: 16px;
+			margin-top: 28px;
+		}
+
+		.card {
+			padding: 18px;
+			border: 1px solid rgba(255, 255, 255, 0.08);
+			border-radius: 16px;
+			background: rgba(255, 255, 255, 0.03);
+		}
+
+		.card h2 {
+			margin: 0 0 8px;
+			font-size: 18px;
+		}
+
+		.card a {
+			color: #7cc0ff;
+			text-decoration: none;
+		}
+
+		.card a:hover {
+			text-decoration: underline;
+		}
+
+		code {
+			padding: 2px 6px;
+			border-radius: 6px;
+			background: rgba(255, 255, 255, 0.08);
+		}
+	</style>
 </head>
-
 <body>
+	<div class="page">
+		<h1>WebXR Workspace</h1>
+		<p>这个工作区已经改成 Vite 结构。你的模型查看器使用 TypeScript 模块，官方示例统一放在 <code>official-demos/</code> 里单独学习。</p>
 
-	<div id="info">
-		<a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> ar - lighting estimation<br />
+		<div class="grid">
+			<section class="card">
+				<h2>Pipe Viewer</h2>
+				<p>普通 Three.js 版模型查看器，保留属性查询、模式切换和对象上方属性卡片。</p>
+				<a href="/loadModel.html">打开 loadModel.html</a>
+			</section>
+
+			<section class="card">
+				<h2>Pipe Viewer AR</h2>
+				<p>AR 放置版模型查看器。进入 AR 后移动手机寻找地面，看到准星后点击屏幕放置模型。</p>
+				<a href="/loadModelAR.html">打开 loadModelAR.html</a>
+			</section>
+
+			<section class="card">
+				<h2>Official Demos</h2>
+				<p>three.js 官方学习示例已经归档，避免和业务代码混在一起。</p>
+			</section>
+		</div>
 	</div>
-
-	<script type="importmap">
-			{
-				"imports": {
-					"three": "https://unpkg.com/three@0.177.0/build/three.module.js",
-					"three/addons/": "https://unpkg.com/three@0.177.0/examples/jsm/"
-				}
-			}
-		</script>
-
-	<script type="module">
-
-		import * as THREE from 'three';
-		import { UltraHDRLoader } from 'three/addons/loaders/UltraHDRLoader.js';
-		import { ARButton } from 'three/addons/webxr/ARButton.js';
-		import { XREstimatedLight } from 'three/addons/webxr/XREstimatedLight.js';
-
-		let camera, scene, renderer;
-		let controller;
-		let defaultEnvironment;
-
-		init();
-
-		function init() {
-
-			const container = document.createElement('div');
-			document.body.appendChild(container);
-
-			scene = new THREE.Scene();
-
-			camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
-
-			const defaultLight = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
-			defaultLight.position.set(0.5, 1, 0.25);
-			scene.add(defaultLight);
-
-			//
-
-			renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-			renderer.setPixelRatio(window.devicePixelRatio);
-			renderer.setSize(window.innerWidth, window.innerHeight);
-			renderer.setAnimationLoop(animate);
-			renderer.xr.enabled = true;
-			container.appendChild(renderer.domElement);
-
-			// Don't add the XREstimatedLight to the scene initially.
-			// It doesn't have any estimated lighting values until an AR session starts.
-
-			const xrLight = new XREstimatedLight(renderer);
-
-			xrLight.addEventListener('estimationstart', () => {
-
-				// Swap the default light out for the estimated one once we start getting some estimated values.
-				scene.add(xrLight);
-				scene.remove(defaultLight);
-
-				// The estimated lighting also provides an environment cubemap, which we can apply here.
-				if (xrLight.environment) {
-
-					scene.environment = xrLight.environment;
-
-				}
-
-			});
-
-			xrLight.addEventListener('estimationend', () => {
-
-				// Swap the lights back when we stop receiving estimated values.
-				scene.add(defaultLight);
-				scene.remove(xrLight);
-
-				// Revert back to the default environment.
-				scene.environment = defaultEnvironment;
-
-			});
-
-			//
-
-			new UltraHDRLoader()
-				.setPath('textures/equirectangular/')
-				.load('royal_esplanade_2k.hdr.jpg', function (texture) {
-
-					texture.mapping = THREE.EquirectangularReflectionMapping;
-
-					defaultEnvironment = texture;
-
-					scene.environment = defaultEnvironment;
-
-				});
-
-			//
-
-			// In order for lighting estimation to work, 'light-estimation' must be included as either an optional or required feature.
-			document.body.appendChild(ARButton.createButton(renderer, { optionalFeatures: ['light-estimation'] }));
-
-			//
-
-			const ballGeometry = new THREE.SphereGeometry(0.175, 32, 32);
-			const ballGroup = new THREE.Group();
-			ballGroup.position.z = - 2;
-
-			const rows = 3;
-			const cols = 3;
-
-			for (let i = 0; i < rows; i++) {
-
-				for (let j = 0; j < cols; j++) {
-
-					const ballMaterial = new THREE.MeshStandardMaterial({
-						color: 0xdddddd,
-						roughness: i / rows,
-						metalness: j / cols
-					});
-					const ballMesh = new THREE.Mesh(ballGeometry, ballMaterial);
-					ballMesh.position.set((i + 0.5 - rows * 0.5) * 0.4, (j + 0.5 - cols * 0.5) * 0.4, 0);
-					ballGroup.add(ballMesh);
-
-				}
-
-			}
-
-			scene.add(ballGroup);
-
-			//
-
-			function onSelect() {
-
-				ballGroup.position.set(0, 0, - 2).applyMatrix4(controller.matrixWorld);
-				ballGroup.quaternion.setFromRotationMatrix(controller.matrixWorld);
-
-			}
-
-			controller = renderer.xr.getController(0);
-			controller.addEventListener('select', onSelect);
-			scene.add(controller);
-
-			//
-
-			window.addEventListener('resize', onWindowResize);
-
-		}
-
-		function onWindowResize() {
-
-			camera.aspect = window.innerWidth / window.innerHeight;
-			camera.updateProjectionMatrix();
-
-			renderer.setSize(window.innerWidth, window.innerHeight);
-
-		}
-
-		//
-
-		function animate() {
-
-			renderer.render(scene, camera);
-
-		}
-
-	</script>
 </body>
-
 </html>

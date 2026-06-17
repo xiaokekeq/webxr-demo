@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<title>three.js ar - hit test</title>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+	<meta property="og:title" content="three.js ar - hit test">
+	<meta property="og:type" content="website">
+	<meta property="og:url" content="https://threejs.org/examples/webxr_ar_hittest.html">
+	<meta property="og:image" content="https://threejs.org/examples/screenshots/webxr_ar_hittest.jpg">
+	<link type="text/css" rel="stylesheet" href="main.css">
+</head>
+
+<body>
+
+	<div id="info">
+		<a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> ar - hit test<br />
+		<span id="support-message">如果没有出现 AR 按钮，请使用 Android Chrome 并通过 HTTPS 打开。</span>
+	</div>
+
+	<script type="importmap">
+			{
+				"imports": {
+					"three": "https://unpkg.com/three@0.177.0/build/three.module.js",
+					"three/addons/": "https://unpkg.com/three@0.177.0/examples/jsm/"
+				}
+			}
+		</script>
+
+	<script type="module">
+
+		import * as THREE from 'three';
+		import { ARButton } from 'three/addons/webxr/ARButton.js';
+
+		// container: 用来挂载 three.js 渲染出来的 canvas
+		let container;
+		// camera/scene/renderer 是 three.js 最核心的三件套：
+		// camera 负责“从哪里看”，scene 负责“场景里有什么”，renderer 负责“怎么画出来”
+		let camera, scene, renderer;
+		// XR 输入源。手机 AR 场景里通常会把屏幕点击映射成 select 事件
+		let controller1, controller2;
+
+		// reticle 是落点提示圆环，用来表示当前 hit-test 命中的可放置位置
+		let reticle;
+
+		// hitTestSource 可以理解成“可复用的命中检测器”
+		let hitTestSource = null;
+		// 防止每一帧都重复申请 hitTestSource
+		let hitTestSourceRequested = false;
+
+		init();
+
+		function init() {
+
+			container = document.createElement('div');
+			document.body.appendChild(container);
+
+			scene = new THREE.Scene();
+
+			// 透视相机。70 是视野角度，0.01 和 20 是近远裁剪面
+			camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+
+			// 半球光：从天空和地面两个方向给出基础照明，适合示例场景
+			const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 3);
+			light.position.set(0.5, 1, 0.25);
+			scene.add(light);
+
+			// alpha: true 让画布支持透明，AR 模式下虚拟内容才能叠加到真实相机画面上
+			// setAnimationLoop 会在普通渲染和 XR 渲染里都使用同一个动画循环
+			renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+			renderer.setPixelRatio(window.devicePixelRatio);
+			renderer.setSize(window.innerWidth, window.innerHeight);
+			renderer.setAnimationLoop(animate);
+			renderer.xr.enabled = true;
+			container.appendChild(renderer.domElement);
+
+			// 创建进入 AR 的按钮，并声明本示例必须依赖 hit-test 能力
+			// dom-overlay 允许在 AR 时继续显示 HTML 界面
+			const button = ARButton.createButton(renderer, {
+				requiredFeatures: ['hit-test'],
+				optionalFeatures: ['dom-overlay'],
+				domOverlay: { root: document.body }
+			});
+			document.body.appendChild(button);
+
+			if ('xr' in navigator === false) {
+
+				document.getElementById('support-message').textContent = '当前浏览器不支持 WebXR，所以不会显示可用的 AR 按钮。';
+
+			}
+
+			// 圆柱默认以“自身中心”为原点：
+			// 如果直接把它放到命中点，会有一半埋到地面下
+			// translate(0, 0.1, 0) 把几何体整体上移半个高度，让底面落在局部原点
+			const geometry = new THREE.CylinderGeometry(0.1, 0.1, 0.2, 32).translate(0, 0.1, 0);
+
+			function onSelect() {
+
+				// 只有检测到了真实表面，才允许放置物体
+				if (reticle.visible) {
+
+					const material = new THREE.MeshPhongMaterial({ color: 0xffffff * Math.random() });
+					const mesh = new THREE.Mesh(geometry, material);
+					// reticle.matrix 里已经包含了命中点的位置和朝向
+					// decompose 会把矩阵拆成 position / quaternion / scale 赋给模型
+					reticle.matrix.decompose(mesh.position, mesh.quaternion, mesh.scale);
+					mesh.scale.y = Math.random() * 2 + 1;
+					scene.add(mesh);
+
+				}
+
+			}
+
+			controller1 = renderer.xr.getController(0);
+			controller1.addEventListener('select', onSelect);
+			scene.add(controller1);
+
+			controller2 = renderer.xr.getController(1);
+			controller2.addEventListener('select', onSelect);
+			scene.add(controller2);
+
+			// 创建一个平躺在地面上的圆环，作为“可以放这里”的提示器
+			reticle = new THREE.Mesh(
+				new THREE.RingGeometry(0.15, 0.2, 32).rotateX(- Math.PI / 2),
+				new THREE.MeshBasicMaterial()
+			);
+			// 我们会直接把 hit-test 返回的矩阵赋给 reticle，所以关闭自动矩阵更新
+			reticle.matrixAutoUpdate = false;
+			reticle.visible = false;
+			scene.add(reticle);
+
+			window.addEventListener('resize', onWindowResize);
+
+		}
+
+		function onWindowResize() {
+
+			// 窗口尺寸变化后，要同步更新相机宽高比和渲染尺寸
+			camera.aspect = window.innerWidth / window.innerHeight;
+			camera.updateProjectionMatrix();
+
+			renderer.setSize(window.innerWidth, window.innerHeight);
+
+		}
+
+		function animate(timestamp, frame) {
+
+			// 只有进入 XR 会话后，frame 才会带有 WebXR 的空间信息
+			if (frame) {
+
+				const referenceSpace = renderer.xr.getReferenceSpace();
+				const session = renderer.xr.getSession();
+
+				// 这里只申请一次 hitTestSource
+				// 注意：不是只检测一次，而是“检测器”只创建一次
+				// 真正的命中检测结果会在下面每一帧通过 getHitTestResults() 获取
+				if (hitTestSourceRequested === false) {
+
+					// viewer 空间表示“以当前设备/相机视角为参考”
+					session.requestReferenceSpace('viewer').then(function (referenceSpace) {
+
+						session.requestHitTestSource({ space: referenceSpace }).then(function (source) {
+
+							hitTestSource = source;
+
+						});
+
+					});
+
+					session.addEventListener('end', function () {
+
+						// 退出 AR 会话后，原来的检测器也失效了，下次进入时要重新申请
+						hitTestSourceRequested = false;
+						hitTestSource = null;
+
+					});
+
+					hitTestSourceRequested = true;
+
+				}
+
+				if (hitTestSource) {
+
+					// 每一帧都向 WebXR 取一次当前命中结果
+					const hitTestResults = frame.getHitTestResults(hitTestSource);
+
+					if (hitTestResults.length) {
+
+						const hit = hitTestResults[0];
+
+						reticle.visible = true;
+						// 把“命中点在当前参考空间中的位姿矩阵”直接赋给 reticle
+						// 所以 reticle 会随着设备移动，持续吸附在检测到的表面上
+						reticle.matrix.fromArray(hit.getPose(referenceSpace).transform.matrix);
+
+					} else {
+
+						// 当前没有检测到可放置表面，就隐藏提示器
+						reticle.visible = false;
+
+					}
+
+				}
+
+			}
+
+			// 每一帧都渲染场景。进入 AR 后，相机位姿由 WebXR 追踪系统自动驱动
+			renderer.render(scene, camera);
+
+		}
+
+	</script>
+</body>
+
+</html>

@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+	<title>GLB Pipe Viewer AR</title>
+	<style>
+		:root {
+			--bg: #0f141c;
+			--panel: rgba(15, 20, 28, 0.82);
+			--line: rgba(255, 255, 255, 0.12);
+			--text: #edf3fa;
+			--muted: #a8b6c8;
+			--accent: #4ea2ff;
+		}
+
+		* {
+			box-sizing: border-box;
+		}
+
+		body {
+			margin: 0;
+			font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+			background:
+				radial-gradient(circle at top, rgba(78, 162, 255, 0.16), transparent 36%),
+				linear-gradient(180deg, #111722 0%, var(--bg) 100%);
+			color: var(--text);
+			overflow: hidden;
+		}
+
+		#app {
+			position: relative;
+			width: 100vw;
+			height: 100vh;
+		}
+
+		#canvas-container,
+		canvas {
+			width: 100%;
+			height: 100%;
+			display: block;
+		}
+
+		.overlay {
+			position: fixed;
+			top: 14px;
+			left: 14px;
+			z-index: 20;
+			width: min(340px, calc(100vw - 28px));
+			padding: 16px;
+			border: 1px solid var(--line);
+			border-radius: 18px;
+			background: var(--panel);
+			backdrop-filter: blur(14px);
+		}
+
+		h1 {
+			margin: 0 0 8px;
+			font-size: 22px;
+		}
+
+		p {
+			margin: 0 0 12px;
+			line-height: 1.6;
+			color: var(--muted);
+		}
+
+		.meta {
+			padding: 12px;
+			border-radius: 12px;
+			background: rgba(255, 255, 255, 0.04);
+			line-height: 1.7;
+			font-size: 14px;
+		}
+
+		.hint {
+			margin-top: 12px;
+			font-size: 13px;
+			line-height: 1.6;
+			color: var(--muted);
+		}
+
+		.actions {
+			display: flex;
+			gap: 8px;
+			margin-top: 12px;
+			flex-wrap: wrap;
+		}
+
+		.action-button {
+			padding: 8px 12px;
+			border: 1px solid var(--line);
+			border-radius: 999px;
+			background: rgba(255, 255, 255, 0.04);
+			color: var(--text);
+			cursor: pointer;
+			font: inherit;
+		}
+
+		.action-button:hover {
+			border-color: rgba(78, 162, 255, 0.6);
+		}
+
+		.xr-button-wrap :is(button, a) {
+			position: fixed !important;
+			left: 14px !important;
+			bottom: 14px !important;
+			right: auto !important;
+			margin: 0 !important;
+			border: 1px solid rgba(78, 162, 255, 0.5) !important;
+			border-radius: 999px !important;
+			background: rgba(26, 38, 54, 0.92) !important;
+			color: #f4f8fc !important;
+			font-family: inherit !important;
+			font-size: 14px !important;
+			padding: 0.9em 1.4em !important;
+			opacity: 1 !important;
+		}
+
+		@media (max-width: 720px) {
+			.overlay {
+				top: 10px;
+				left: 10px;
+				width: calc(100vw - 20px);
+			}
+
+			.xr-button-wrap :is(button, a) {
+				left: 10px !important;
+				bottom: 10px !important;
+			}
+		}
+	</style>
+</head>
+<body>
+	<div id="app">
+		<div class="overlay">
+			<h1>GLB Pipe Viewer AR</h1>
+			<p>这个页面专门学习 WebXR AR 放置流程：进入 AR、寻找地面、显示准星、点击屏幕放置模型。</p>
+
+			<div class="meta">
+				<div><strong>模型文件：</strong><span id="model-name"></span></div>
+				<div><strong>状态：</strong><span id="status">正在初始化...</span></div>
+			</div>
+
+			<div class="actions">
+				<button id="reset-placement" class="action-button" type="button">重置放置</button>
+			</div>
+
+			<div class="hint">
+				进入 AR 后，先缓慢移动手机帮助系统识别平面。看到蓝色准星贴在地面上时，点击屏幕即可把模型放在现实地面上。
+			</div>
+		</div>
+
+		<div id="canvas-container"></div>
+		<div class="xr-button-wrap" id="xr-button-wrap"></div>
+	</div>
+
+	<script type="module" src="/src/load-model-ar/app.ts"></script>
+</body>
+</html>

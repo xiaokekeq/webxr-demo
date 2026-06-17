@@ -9,6 +9,7 @@ interface CreateXRHitTestControllerOptions {
 	setStatus: SetStatus;
 	onSessionStart?: () => void;
 	onSessionEnd?: () => void;
+	canReportStatus?: () => boolean;
 }
 
 const reticlePosition = new THREE.Vector3();
@@ -17,7 +18,15 @@ export function createXRHitTestController(
 	options: CreateXRHitTestControllerOptions
 ): XRHitTestController {
 
-	const { renderer, reticle, xrButtonWrap, setStatus, onSessionStart, onSessionEnd } = options;
+	const {
+		renderer,
+		reticle,
+		xrButtonWrap,
+		setStatus,
+		onSessionStart,
+		onSessionEnd,
+		canReportStatus
+	} = options;
 
 	let hitTestSource: XRHitTestSource | null = null;
 	let hitTestSourceRequested = false;
@@ -93,7 +102,9 @@ export function createXRHitTestController(
 
 		if ( hitTestResults.length === 0 ) {
 			reticle.visible = false;
-			setStatus( '继续移动手机，等待识别现实地面...' );
+			if ( canReportStatus?.() !== false ) {
+				setStatus( '继续移动手机，等待识别现实地面...' );
+			}
 			return;
 		}
 
@@ -106,7 +117,9 @@ export function createXRHitTestController(
 
 		reticle.visible = true;
 		reticle.matrix.fromArray( pose.transform.matrix );
-		setStatus( '已找到地面，点击屏幕即可放置模型' );
+		if ( canReportStatus?.() !== false ) {
+			setStatus( '已找到地面，点击屏幕即可放置模型' );
+		}
 
 	}
 

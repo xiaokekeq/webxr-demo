@@ -10,6 +10,8 @@ export interface ARDomElements {
 	statusEl: HTMLElement;
 	canvasContainer: HTMLElement;
 	xrButtonWrap: HTMLElement;
+	enableCoarseButton: HTMLButtonElement;
+	refreshGeoButton: HTMLButtonElement;
 	resetPlacementButton: HTMLButtonElement;
 }
 
@@ -27,4 +29,13 @@ export interface XRHitTestController {
 	update(frame: XRFrame): void;
 	canPlace(): boolean;
 	getReticlePosition(target: THREE.Vector3): THREE.Vector3 | null;
+}
+
+export interface CoarsePlacementEstimate {
+	position: THREE.Vector3;
+	yawRad: number;
+	distanceMeters: number;
+	headingDeg: number;
+	accuracyMeters: number | null;
+	sourceLabel: string;
 }

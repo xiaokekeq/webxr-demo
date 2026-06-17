@@ -10,6 +10,8 @@ export function getARDomElements(): ARDomElements {
 		statusEl: getElement( 'status' ),
 		canvasContainer: getElement( 'canvas-container' ),
 		xrButtonWrap: getElement( 'xr-button-wrap' ),
+		enableCoarseButton: getElement( 'enable-coarse' ) as HTMLButtonElement,
+		refreshGeoButton: getElement( 'refresh-geo' ) as HTMLButtonElement,
 		resetPlacementButton: getElement( 'reset-placement' ) as HTMLButtonElement
 	};
 

@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone } from 'three/addons/utils/SkeletonUtils.js';
+import { MODEL_SCALE_CALIBRATION } from './model-scale-config.js';
 import type { SetStatus } from './types.js';
-
-const TARGET_MODEL_SIZE = 0.9;
 
 const templateBounds = new THREE.Box3();
 const templateSize = new THREE.Vector3();
 const templateCenter = new THREE.Vector3();
+const scaledSize = new THREE.Vector3();
 const cameraWorldPosition = new THREE.Vector3();
 
 export async function loadModelTemplate(url: string, setStatus: SetStatus): Promise<THREE.Group> {
@@ -20,8 +20,25 @@ export async function loadModelTemplate(url: string, setStatus: SetStatus): Prom
 		loader.load(
 			url,
 			( gltf ) => {
-				setStatus( '模型加载成功，点击 Enter AR 进入现实放置模式' );
-				resolve( createPlaceableTemplate( gltf.scene ) );
+				const { template, report } = createPlaceableTemplate( gltf.scene );
+
+				console.info(
+					'[Model Scale]',
+					{
+						originalSizeMeters: report.originalSize,
+						originalLongestEdgeMeters: report.originalLongestEdgeMeters,
+						appliedScaleFactor: report.appliedScaleFactor,
+						scaledSizeMeters: report.scaledSize,
+						calibrationMode: report.calibrationMode,
+						note: MODEL_SCALE_CALIBRATION.note
+					}
+				);
+
+				setStatus(
+					`模型加载成功，原始包围盒 ${formatSize( report.originalSize )}，固定缩放 ${report.appliedScaleFactor.toFixed( 3 )}x`
+				);
+
+				resolve( template );
 			},
 			( event ) => {
 				if ( event.total > 0 ) {
@@ -44,7 +61,8 @@ export function placeModelAt(
 	currentModel: THREE.Group | null,
 	parent: THREE.Group,
 	position: THREE.Vector3,
-	camera: THREE.Camera
+	camera: THREE.Camera,
+	yawRad?: number
 ): THREE.Group {
 
 	let targetModel = currentModel;
@@ -55,7 +73,12 @@ export function placeModelAt(
 	}
 
 	targetModel.position.copy( position );
-	alignModelYawToCamera( targetModel, position, camera );
+	if ( yawRad === undefined ) {
+		alignModelYawToCamera( targetModel, position, camera );
+	} else {
+		targetModel.rotation.set( 0, yawRad, 0 );
+	}
+
 	return targetModel;
 
 }
@@ -73,7 +96,16 @@ export function clearPlacedModel(
 
 }
 
-function createPlaceableTemplate(source: THREE.Object3D): THREE.Group {
+function createPlaceableTemplate(source: THREE.Object3D): {
+	template: THREE.Group;
+	report: {
+		originalSize: THREE.Vector3;
+		originalLongestEdgeMeters: number;
+		appliedScaleFactor: number;
+		scaledSize: THREE.Vector3;
+		calibrationMode: string;
+	};
+} {
 
 	const wrapper = new THREE.Group();
 	const content = clone( source );
@@ -82,7 +114,16 @@ function createPlaceableTemplate(source: THREE.Object3D): THREE.Group {
 
 	if ( templateBounds.isEmpty() ) {
 		wrapper.add( content );
-		return wrapper;
+		return {
+			template: wrapper,
+			report: {
+				originalSize: new THREE.Vector3(),
+				originalLongestEdgeMeters: 0,
+				appliedScaleFactor: 1,
+				scaledSize: new THREE.Vector3(),
+				calibrationMode: 'empty-bounds'
+			}
+		};
 	}
 
 	templateBounds.getCenter( templateCenter );
@@ -96,12 +137,36 @@ function createPlaceableTemplate(source: THREE.Object3D): THREE.Group {
 
 	wrapper.add( content );
 
-	const maxDimension = Math.max( templateSize.x, templateSize.y, templateSize.z );
-	if ( maxDimension > 0 ) {
-		wrapper.scale.setScalar( TARGET_MODEL_SIZE / maxDimension );
+	const originalLongestEdgeMeters = Math.max( templateSize.x, templateSize.y, templateSize.z );
+	const appliedScaleFactor = getAppliedScaleFactor( originalLongestEdgeMeters );
+	wrapper.scale.setScalar( appliedScaleFactor );
+
+	scaledSize.copy( templateSize ).multiplyScalar( appliedScaleFactor );
+
+	return {
+		template: wrapper,
+		report: {
+			originalSize: templateSize.clone(),
+			originalLongestEdgeMeters,
+			appliedScaleFactor,
+			scaledSize: scaledSize.clone(),
+			calibrationMode: MODEL_SCALE_CALIBRATION.mode
+		}
+	};
+
+}
+
+function getAppliedScaleFactor(originalLongestEdgeMeters: number): number {
+
+	if ( originalLongestEdgeMeters <= 0 ) {
+		return 1;
 	}
 
-	return wrapper;
+	if ( MODEL_SCALE_CALIBRATION.mode === 'fixed-factor' ) {
+		return MODEL_SCALE_CALIBRATION.factor;
+	}
+
+	return MODEL_SCALE_CALIBRATION.longestEdgeMeters / originalLongestEdgeMeters;
 
 }
 
@@ -115,5 +180,11 @@ function alignModelYawToCamera(
 	const dx = cameraWorldPosition.x - origin.x;
 	const dz = cameraWorldPosition.z - origin.z;
 	object.rotation.set( 0, Math.atan2( dx, dz ), 0 );
+
+}
+
+function formatSize(size: THREE.Vector3): string {
+
+	return `${size.x.toFixed( 2 )} × ${size.y.toFixed( 2 )} × ${size.z.toFixed( 2 )}m`;
 
 }

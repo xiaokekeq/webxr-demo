@@ -172,7 +172,7 @@
 			</div>
 
 			<div id="overlay-body" class="overlay-body">
-				<p>这个页面专门学习 WebXR AR 放置流程：进入 AR、寻找地面、显示准星、点击屏幕放置模型。</p>
+				<p>这个页面专门用于学习 WebXR AR 的自动粗配准流程：进入 AR、识别地面、读取 GPS 和 IMU，并自动把模型放到大致正确的位置。</p>
 
 				<div class="meta">
 					<div><strong>模型文件：</strong><span id="model-name"></span></div>
@@ -186,7 +186,7 @@
 				</div>
 
 				<div class="hint">
-					进入 AR 后，先缓慢移动手机帮助系统识别平面。点击“启用粗配准”后，系统会尝试用 GPS 和 IMU 自动给模型一个粗初值；看到蓝色准星贴在地面上时，也可以手动点击屏幕放置模型。
+					进入 AR 后，请先缓慢移动手机帮助系统识别平面。点击“启用粗配准”后，系统会尝试结合 GPS、IMU 和 hit-test 地面结果，自动生成模型的初始位置与朝向。
 				</div>
 			</div>
 		</div>

@@ -22,13 +22,10 @@ export function createARScene(canvasContainer: HTMLElement): ARSceneBundle {
 	const reticle = createReticle();
 	scene.add( reticle );
 
-	const controller = renderer.xr.getController( 0 );
-	scene.add( controller );
-
 	const modelAnchor = new THREE.Group();
 	scene.add( modelAnchor );
 
-	return { scene, camera, renderer, reticle, controller, modelAnchor };
+	return { scene, camera, renderer, reticle, modelAnchor };
 
 }
 

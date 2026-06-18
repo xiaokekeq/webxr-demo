@@ -20,15 +20,14 @@ export interface ARSceneBundle {
 	camera: THREE.PerspectiveCamera;
 	renderer: THREE.WebGLRenderer;
 	reticle: THREE.Group;
-	controller: THREE.Group;
 	modelAnchor: THREE.Group;
 }
 
 export interface XRHitTestController {
 	setup(): void;
 	update(frame: XRFrame): void;
-	canPlace(): boolean;
-	getReticlePosition(target: THREE.Vector3): THREE.Vector3 | null;
+	hasGroundHit(): boolean;
+	getHitPosition(target: THREE.Vector3): THREE.Vector3 | null;
 }
 
 export interface CoarsePlacementEstimate {

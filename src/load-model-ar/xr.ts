@@ -50,7 +50,7 @@ export function createXRHitTestController(
 
 		onSessionStart?.();
 		reticle.visible = false;
-		setStatus( '进入 AR 成功，请移动手机寻找现实地面' );
+		setStatus( '已进入 AR，请缓慢移动手机寻找现实地面' );
 
 		const session = renderer.xr.getSession();
 		if ( session === null ) {
@@ -61,7 +61,7 @@ export function createXRHitTestController(
 		const requestHitTestSource = session.requestHitTestSource;
 
 		if ( requestHitTestSource === undefined ) {
-			setStatus( '当前设备不支持 hit-test，无法识别地面' );
+			setStatus( '当前设备不支持 hit-test，无法识别现实地面' );
 			return;
 		}
 
@@ -82,7 +82,7 @@ export function createXRHitTestController(
 		hitTestSource = null;
 		hitTestSourceRequested = false;
 		onSessionEnd?.();
-		setStatus( 'AR 会话已结束，可再次点击 Enter AR 重新开始' );
+		setStatus( 'AR 会话已结束，可以再次点击 Enter AR 重新开始' );
 
 	}
 
@@ -103,7 +103,7 @@ export function createXRHitTestController(
 		if ( hitTestResults.length === 0 ) {
 			reticle.visible = false;
 			if ( canReportStatus?.() !== false ) {
-				setStatus( '继续移动手机，等待识别现实地面...' );
+				setStatus( '继续移动手机，等待系统识别现实地面…' );
 			}
 			return;
 		}
@@ -118,20 +118,20 @@ export function createXRHitTestController(
 		reticle.visible = true;
 		reticle.matrix.fromArray( pose.transform.matrix );
 		if ( canReportStatus?.() !== false ) {
-			setStatus( '已找到地面，点击屏幕即可放置模型' );
+			setStatus( '已找到可用地面，系统可据此自动生成粗配准初值' );
 		}
 
 	}
 
-	function canPlace(): boolean {
+	function hasGroundHit(): boolean {
 
 		return renderer.xr.isPresenting && reticle.visible;
 
 	}
 
-	function getReticlePosition(target: THREE.Vector3): THREE.Vector3 | null {
+	function getHitPosition(target: THREE.Vector3): THREE.Vector3 | null {
 
-		if ( canPlace() === false ) {
+		if ( hasGroundHit() === false ) {
 			return null;
 		}
 
@@ -144,8 +144,8 @@ export function createXRHitTestController(
 	return {
 		setup,
 		update,
-		canPlace,
-		getReticlePosition
+		hasGroundHit,
+		getHitPosition
 	};
 
 }

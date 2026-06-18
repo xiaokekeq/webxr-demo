@@ -10,7 +10,11 @@ const templateCenter = new THREE.Vector3();
 const scaledSize = new THREE.Vector3();
 const cameraWorldPosition = new THREE.Vector3();
 
-export async function loadModelTemplate(url: string, setStatus: SetStatus): Promise<THREE.Group> {
+export async function loadModelTemplate(
+	url: string,
+	setStatus: SetStatus,
+	perModelScaleFactor = 1
+): Promise<THREE.Group> {
 
 	setStatus( '正在加载模型...' );
 
@@ -20,7 +24,7 @@ export async function loadModelTemplate(url: string, setStatus: SetStatus): Prom
 		loader.load(
 			url,
 			( gltf ) => {
-				const { template, report } = createPlaceableTemplate( gltf.scene );
+				const { template, report } = createPlaceableTemplate( gltf.scene, perModelScaleFactor );
 
 				console.info(
 					'[Model Scale]',
@@ -28,6 +32,7 @@ export async function loadModelTemplate(url: string, setStatus: SetStatus): Prom
 						originalSizeMeters: report.originalSize,
 						originalLongestEdgeMeters: report.originalLongestEdgeMeters,
 						appliedScaleFactor: report.appliedScaleFactor,
+						perModelScaleFactor: report.perModelScaleFactor,
 						scaledSizeMeters: report.scaledSize,
 						calibrationMode: report.calibrationMode,
 						note: MODEL_SCALE_CALIBRATION.note
@@ -96,12 +101,16 @@ export function clearPlacedModel(
 
 }
 
-function createPlaceableTemplate(source: THREE.Object3D): {
+function createPlaceableTemplate(
+	source: THREE.Object3D,
+	perModelScaleFactor: number
+): {
 	template: THREE.Group;
 	report: {
 		originalSize: THREE.Vector3;
 		originalLongestEdgeMeters: number;
 		appliedScaleFactor: number;
+		perModelScaleFactor: number;
 		scaledSize: THREE.Vector3;
 		calibrationMode: string;
 	};
@@ -120,6 +129,7 @@ function createPlaceableTemplate(source: THREE.Object3D): {
 				originalSize: new THREE.Vector3(),
 				originalLongestEdgeMeters: 0,
 				appliedScaleFactor: 1,
+				perModelScaleFactor: 1,
 				scaledSize: new THREE.Vector3(),
 				calibrationMode: 'empty-bounds'
 			}
@@ -138,7 +148,7 @@ function createPlaceableTemplate(source: THREE.Object3D): {
 	wrapper.add( content );
 
 	const originalLongestEdgeMeters = Math.max( templateSize.x, templateSize.y, templateSize.z );
-	const appliedScaleFactor = getAppliedScaleFactor( originalLongestEdgeMeters );
+	const appliedScaleFactor = getAppliedScaleFactor( originalLongestEdgeMeters ) * perModelScaleFactor;
 	wrapper.scale.setScalar( appliedScaleFactor );
 
 	scaledSize.copy( templateSize ).multiplyScalar( appliedScaleFactor );
@@ -149,6 +159,7 @@ function createPlaceableTemplate(source: THREE.Object3D): {
 			originalSize: templateSize.clone(),
 			originalLongestEdgeMeters,
 			appliedScaleFactor,
+			perModelScaleFactor,
 			scaledSize: scaledSize.clone(),
 			calibrationMode: MODEL_SCALE_CALIBRATION.mode
 		}
@@ -185,6 +196,6 @@ function alignModelYawToCamera(
 
 function formatSize(size: THREE.Vector3): string {
 
-	return `${size.x.toFixed( 2 )} × ${size.y.toFixed( 2 )} × ${size.z.toFixed( 2 )}m`;
+	return `${size.x.toFixed( 2 )} x ${size.y.toFixed( 2 )} x ${size.z.toFixed( 2 )}m`;
 
 }

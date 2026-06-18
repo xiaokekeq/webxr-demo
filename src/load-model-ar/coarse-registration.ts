@@ -118,15 +118,21 @@ export function createCoarseRegistrationController(
 
 	function getReadyMessage(): string {
 
-		if ( target.mode === 'absolute-site' && lastGeolocation !== null && lastHeadingDeg !== null ) {
-			return `粗配准已准备：GPS 精度约 ${Math.round( lastGeolocation.coords.accuracy )}m，朝向 ${Math.round( lastHeadingDeg )}°`;
+		if ( lastHeadingDeg === null ) {
+			return '传感器已启用，等待有效朝向数据';
 		}
 
-		if ( lastHeadingDeg !== null ) {
-			return `粗配准已准备：朝向 ${Math.round( lastHeadingDeg )}°，可自动生成初值`;
+		const parts = [ `朝向 ${Math.round( lastHeadingDeg )}°` ];
+
+		if ( target.mode === 'absolute-site' && lastGeolocation !== null ) {
+			parts.unshift( `GPS 精度约 ${Math.round( lastGeolocation.coords.accuracy )}m` );
 		}
 
-		return '传感器已启用，等待有效朝向数据';
+		if ( target.mode !== 'absolute-site' ) {
+			parts.push( '可自动生成粗配准初值' );
+		}
+
+		return `粗配准已准备：${parts.join( '，' )}`;
 
 	}
 

@@ -16,6 +16,12 @@ const setStatus = createStatusUpdater( dom.statusEl );
 const sceneBundle = createARScene( dom.canvasContainer );
 const coarseGroundPosition = new THREE.Vector3();
 const cameraWorldPosition = new THREE.Vector3();
+const previewForward = new THREE.Vector3();
+const previewPosition = new THREE.Vector3();
+
+const MAX_VISIBLE_AUTO_PLACEMENT_DISTANCE_METERS = 8;
+const MAX_RELIABLE_GPS_ACCURACY_METERS = 15;
+const PREVIEW_PLACEMENT_DISTANCE_METERS = 2.5;
 
 let modelTemplate: THREE.Group | null = null;
 let demoModelConfig: DemoModelConfig | null = null;
@@ -47,7 +53,7 @@ bootstrap();
 async function bootstrap(): Promise<void> {
 
 	setupOverlayToggle( dom );
-	setStatus( '正在初始化 AR 管线...' );
+	setStatus( 'Initializing AR placement...' );
 	sceneBundle.renderer.setAnimationLoop( render );
 	xrHitTest.setup();
 
@@ -55,11 +61,11 @@ async function bootstrap(): Promise<void> {
 		resetPlacement();
 		if ( sceneBundle.renderer.xr.isPresenting ) {
 			requestAutoPlacement();
-			setStatus( '已重置模型，等待重新识别地面后自动放置' );
+			setStatus( 'Model reset. Waiting for a stable plane to auto-place again.' );
 			return;
 		}
 
-		setStatus( '已重置模型位置' );
+		setStatus( 'Model placement reset.' );
 	} );
 
 	dom.enableCoarseButton.addEventListener( 'click', async () => {
@@ -68,7 +74,7 @@ async function bootstrap(): Promise<void> {
 			requestAutoPlacement();
 		} catch ( error ) {
 			console.error( 'Coarse registration enable failed:', error );
-			const message = error instanceof Error ? error.message : '启用粗配准失败';
+			const message = error instanceof Error ? error.message : 'Failed to enable coarse registration.';
 			setStatus( message );
 		}
 	} );
@@ -80,7 +86,7 @@ async function bootstrap(): Promise<void> {
 			requestAutoPlacement();
 		} catch ( error ) {
 			console.error( 'Geolocation refresh failed:', error );
-			const message = error instanceof Error ? error.message : '刷新定位失败';
+			const message = error instanceof Error ? error.message : 'Failed to refresh geolocation.';
 			setStatus( message );
 		}
 	} );
@@ -106,7 +112,7 @@ async function bootstrap(): Promise<void> {
 			} );
 	} catch ( error ) {
 		console.error( 'AR bootstrap failed:', error );
-		const message = error instanceof Error ? error.message : 'AR 初始化失败';
+		const message = error instanceof Error ? error.message : 'Failed to initialize AR.';
 		setStatus( message );
 	}
 
@@ -171,11 +177,23 @@ function attemptCoarsePlacement(): void {
 		return;
 	}
 
+	const shouldUsePreviewPlacement = (
+		estimate.distanceMeters > MAX_VISIBLE_AUTO_PLACEMENT_DISTANCE_METERS
+		|| (
+			estimate.accuracyMeters !== null
+			&& estimate.accuracyMeters > MAX_RELIABLE_GPS_ACCURACY_METERS
+		)
+	);
+
+	const targetPosition = shouldUsePreviewPlacement
+		? getPreviewPlacementPosition( sceneBundle.camera, cameraWorldPosition, groundPosition.y )
+		: estimate.position;
+
 	placedModel = placeModelAt(
 		modelTemplate,
 		placedModel,
 		sceneBundle.modelAnchor,
-		estimate.position,
+		targetPosition,
 		sceneBundle.camera,
 		estimate.yawRad
 	);
@@ -183,11 +201,41 @@ function attemptCoarsePlacement(): void {
 	coarsePlacementPending = false;
 
 	const accuracyText = estimate.accuracyMeters === null
-		? '无 GPS 精度信息'
-		: `GPS 精度约 ${Math.round( estimate.accuracyMeters )}m`;
+		? 'no GPS accuracy info'
+		: `GPS accuracy about ${Math.round( estimate.accuracyMeters )}m`;
+
+	if ( shouldUsePreviewPlacement ) {
+		setStatus(
+			`Target is about ${Math.round( estimate.distanceMeters )}m away and ${accuracyText}. Switched to nearby preview mode so the model stays visible.`
+		);
+		return;
+	}
 
 	setStatus(
-		`粗配准完成：${estimate.sourceLabel}，距离约 ${Math.round( estimate.distanceMeters )}m，朝向 ${Math.round( estimate.headingDeg )}°，${accuracyText}`
+		`Coarse placement ready: ${estimate.sourceLabel}, distance about ${Math.round( estimate.distanceMeters )}m, heading ${Math.round( estimate.headingDeg )}deg, ${accuracyText}`
 	);
+
+}
+
+function getPreviewPlacementPosition(
+	camera: THREE.Camera,
+	cameraPosition: THREE.Vector3,
+	groundY: number
+): THREE.Vector3 {
+
+	camera.getWorldDirection( previewForward );
+	previewForward.y = 0;
+
+	if ( previewForward.lengthSq() < 1e-6 ) {
+		previewForward.set( 0, 0, -1 );
+	} else {
+		previewForward.normalize();
+	}
+
+	previewPosition.copy( cameraPosition );
+	previewPosition.addScaledVector( previewForward, PREVIEW_PLACEMENT_DISTANCE_METERS );
+	previewPosition.y = groundY;
+
+	return previewPosition;
 
 }

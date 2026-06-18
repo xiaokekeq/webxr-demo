@@ -140,6 +140,60 @@
 			opacity: 1 !important;
 		}
 
+		.property-panel {
+			position: fixed;
+			right: 14px;
+			bottom: 84px;
+			z-index: 25;
+			width: min(300px, calc(100vw - 28px));
+			padding: 14px;
+			border: 1px solid var(--line);
+			border-radius: 18px;
+			background: rgba(12, 18, 28, 0.9);
+			backdrop-filter: blur(16px);
+			box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+		}
+
+		.property-panel.hidden {
+			display: none;
+		}
+
+		.property-header {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 10px;
+			margin-bottom: 10px;
+		}
+
+		.property-title {
+			margin: 0;
+			font-size: 16px;
+		}
+
+		.property-close {
+			padding: 4px 10px;
+			border: 1px solid var(--line);
+			border-radius: 999px;
+			background: rgba(255, 255, 255, 0.04);
+			color: var(--text);
+			font: inherit;
+			cursor: pointer;
+		}
+
+		.property-grid {
+			display: grid;
+			grid-template-columns: 72px 1fr;
+			gap: 8px 10px;
+			font-size: 13px;
+			line-height: 1.5;
+		}
+
+		.property-grid strong {
+			color: var(--muted);
+			font-weight: 600;
+		}
+
 		@media (max-width: 720px) {
 			.overlay {
 				top: 10px;
@@ -159,6 +213,12 @@
 			.xr-button-wrap :is(button, a) {
 				left: 10px !important;
 				bottom: 10px !important;
+			}
+
+			.property-panel {
+				right: 10px;
+				bottom: 72px;
+				width: calc(100vw - 20px);
 			}
 		}
 	</style>
@@ -193,6 +253,23 @@
 
 		<div id="canvas-container"></div>
 		<div class="xr-button-wrap" id="xr-button-wrap"></div>
+
+		<div id="ar-property-panel" class="property-panel hidden">
+			<div class="property-header">
+				<h2 class="property-title">管线属性</h2>
+				<button id="ar-property-close" class="property-close" type="button">关闭</button>
+			</div>
+
+			<div class="property-grid">
+				<strong>名称</strong><span id="ar-prop-name">-</span>
+				<strong>类型</strong><span id="ar-prop-type">-</span>
+				<strong>管径</strong><span id="ar-prop-diameter">-</span>
+				<strong>材质</strong><span id="ar-prop-material">-</span>
+				<strong>埋深</strong><span id="ar-prop-depth">-</span>
+				<strong>状态</strong><span id="ar-prop-status">-</span>
+				<strong>备注</strong><span id="ar-prop-remark">-</span>
+			</div>
+		</div>
 	</div>
 
 	<script type="module" src="./src/load-model-ar/app.ts"></script>

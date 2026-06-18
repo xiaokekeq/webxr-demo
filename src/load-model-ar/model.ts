@@ -8,7 +8,6 @@ const templateBounds = new THREE.Box3();
 const templateSize = new THREE.Vector3();
 const templateCenter = new THREE.Vector3();
 const scaledSize = new THREE.Vector3();
-const cameraWorldPosition = new THREE.Vector3();
 
 export async function loadModelTemplate(
 	url: string,
@@ -66,8 +65,7 @@ export function placeModelAt(
 	currentModel: THREE.Group | null,
 	parent: THREE.Group,
 	position: THREE.Vector3,
-	camera: THREE.Camera,
-	yawRad?: number
+	yawRad = 0
 ): THREE.Group {
 
 	let targetModel = currentModel;
@@ -78,11 +76,7 @@ export function placeModelAt(
 	}
 
 	targetModel.position.copy( position );
-	if ( yawRad === undefined ) {
-		alignModelYawToCamera( targetModel, position, camera );
-	} else {
-		targetModel.rotation.set( 0, yawRad, 0 );
-	}
+	targetModel.rotation.set( 0, yawRad, 0 );
 
 	return targetModel;
 
@@ -178,19 +172,6 @@ function getAppliedScaleFactor(originalLongestEdgeMeters: number): number {
 	}
 
 	return MODEL_SCALE_CALIBRATION.longestEdgeMeters / originalLongestEdgeMeters;
-
-}
-
-function alignModelYawToCamera(
-	object: THREE.Object3D,
-	origin: THREE.Vector3,
-	camera: THREE.Camera
-): void {
-
-	camera.getWorldPosition( cameraWorldPosition );
-	const dx = cameraWorldPosition.x - origin.x;
-	const dz = cameraWorldPosition.z - origin.z;
-	object.rotation.set( 0, Math.atan2( dx, dz ), 0 );
 
 }
 

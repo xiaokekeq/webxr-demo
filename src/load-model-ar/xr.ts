@@ -13,6 +13,7 @@ interface CreateXRHitTestControllerOptions {
 }
 
 const reticlePosition = new THREE.Vector3();
+const RETICLE_PERSIST_MS = 350;
 
 export function createXRHitTestController(
 	options: CreateXRHitTestControllerOptions
@@ -30,6 +31,7 @@ export function createXRHitTestController(
 
 	let hitTestSource: XRHitTestSource | null = null;
 	let hitTestSourceRequested = false;
+	let lastSuccessfulHitTime = 0;
 
 	function setup(): void {
 
@@ -50,7 +52,8 @@ export function createXRHitTestController(
 
 		onSessionStart?.();
 		reticle.visible = false;
-		setStatus( '已进入 AR，请缓慢移动手机寻找现实地面' );
+		lastSuccessfulHitTime = 0;
+		setStatus( '已进入 AR，请缓慢移动手机，让系统持续识别地面或墙面' );
 
 		const session = renderer.xr.getSession();
 		if ( session === null ) {
@@ -61,14 +64,14 @@ export function createXRHitTestController(
 		const requestHitTestSource = session.requestHitTestSource;
 
 		if ( requestHitTestSource === undefined ) {
-			setStatus( '当前设备不支持 hit-test，无法识别现实地面' );
+			setStatus( '当前设备不支持 hit-test，无法识别现实平面' );
 			return;
 		}
 
-		hitTestSource = await requestHitTestSource.call( session, { space: viewerSpace } ) ?? null;
+		hitTestSource = await createBestEffortHitTestSource( session, viewerSpace );
 
 		if ( hitTestSource === null ) {
-			setStatus( '未能创建 hit-test 数据源，无法识别地面' );
+			setStatus( '未能创建 hit-test 数据源，无法识别地面或墙面' );
 			return;
 		}
 
@@ -81,6 +84,7 @@ export function createXRHitTestController(
 		reticle.visible = false;
 		hitTestSource = null;
 		hitTestSourceRequested = false;
+		lastSuccessfulHitTime = 0;
 		onSessionEnd?.();
 		setStatus( 'AR 会话已结束，可以再次点击 Enter AR 重新开始' );
 
@@ -101,24 +105,37 @@ export function createXRHitTestController(
 		const hitTestResults = frame.getHitTestResults( hitTestSource );
 
 		if ( hitTestResults.length === 0 ) {
-			reticle.visible = false;
-			if ( canReportStatus?.() !== false ) {
-				setStatus( '继续移动手机，等待系统识别现实地面…' );
-			}
+			handleMissingHit();
 			return;
 		}
 
 		const firstHit = hitTestResults[ 0 ];
 		const pose = firstHit?.getPose( referenceSpace );
 		if ( pose === undefined || pose === null ) {
-			reticle.visible = false;
+			handleMissingHit();
 			return;
 		}
 
+		lastSuccessfulHitTime = performance.now();
 		reticle.visible = true;
 		reticle.matrix.fromArray( pose.transform.matrix );
+
 		if ( canReportStatus?.() !== false ) {
-			setStatus( '已找到可用地面，系统可据此自动生成粗配准初值' );
+			setStatus( '已找到可用平面，可继续观察地面或墙面上的命中效果' );
+		}
+
+	}
+
+	function handleMissingHit(): void {
+
+		const elapsed = performance.now() - lastSuccessfulHitTime;
+		if ( reticle.visible && elapsed < RETICLE_PERSIST_MS ) {
+			return;
+		}
+
+		reticle.visible = false;
+		if ( canReportStatus?.() !== false ) {
+			setStatus( '当前帧未命中平面，请缓慢移动手机并保持墙面或地面在视野中' );
 		}
 
 	}
@@ -147,5 +164,37 @@ export function createXRHitTestController(
 		hasGroundHit,
 		getHitPosition
 	};
+
+}
+
+async function createBestEffortHitTestSource(
+	session: XRSession,
+	viewerSpace: XRReferenceSpace
+): Promise<XRHitTestSource | null> {
+
+	const requestHitTestSource = session.requestHitTestSource;
+	if ( requestHitTestSource === undefined ) {
+		return null;
+	}
+
+	const optionVariants: Array<Record<string, unknown>> = [
+		{ space: viewerSpace, entityTypes: [ 'plane', 'mesh', 'point' ] },
+		{ space: viewerSpace, entityTypes: [ 'plane', 'point' ] },
+		{ space: viewerSpace, entityTypes: [ 'plane' ] },
+		{ space: viewerSpace }
+	];
+
+	for ( const options of optionVariants ) {
+		try {
+			const source = await requestHitTestSource.call( session, options as unknown as XRHitTestOptionsInit );
+			if ( source !== undefined && source !== null ) {
+				return source;
+			}
+		} catch {
+			// Try the next less-demanding option set.
+		}
+	}
+
+	return null;
 
 }

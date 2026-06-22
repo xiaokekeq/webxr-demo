@@ -3,7 +3,7 @@
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-	<title>绉诲姩绔?AR 绠＄綉鐜板満杈呭姪鏍告煡绯荤粺</title>
+	<title>移动端 AR 管网现场辅助核查系统</title>
 	<style>
 		:root {
 			--brand: #2f6df6;
@@ -1241,33 +1241,33 @@
 			<div id="mobile-pre-ar-shell" class="mobile-pre-ar-shell">
 				<div class="pre-ar-stack">
 					<section class="pre-ar-card pre-ar-summary-card">
-						<h1 id="mobile-pre-ar-project-name" class="pre-ar-summary-title">绠＄綉鐜板満鏍告煡椤圭洰</h1>
+						<h1 id="mobile-pre-ar-project-name" class="pre-ar-summary-title">管网现场核查项目</h1>
 						<div class="pre-ar-summary-meta">
 							<div class="pre-ar-meta-row">
-								<strong>褰撳墠妯″瀷</strong>
+								<strong>当前模型</strong>
 								<span id="mobile-pre-ar-current-model">-</span>
 							</div>
 							<div class="pre-ar-meta-row">
-								<strong>褰撳墠闃舵</strong>
+								<strong>当前阶段</strong>
 								<span id="mobile-pre-ar-current-stage">-</span>
 							</div>
 							<div class="pre-ar-meta-row">
-								<strong>鍔犺浇鐘舵€?/strong>
-								<span id="mobile-pre-ar-runtime-status">绛夊緟鍒濆鍖?/span>
+								<strong>加载状态</strong>
+								<span id="mobile-pre-ar-runtime-status">等待初始化</span>
 							</div>
 						</div>
 					</section>
 
 					<section class="pre-ar-card pre-ar-preview-card">
 						<div class="pre-ar-preview-header">
-							<div class="pre-ar-preview-title">3D 妯″瀷棰勮</div>
-							<div class="pre-ar-preview-status">鍑嗗闃舵</div>
+							<div class="pre-ar-preview-title">3D 模型预览</div>
+							<div class="pre-ar-preview-status">准备阶段</div>
 						</div>
 						<div class="pre-ar-preview-surface">
 							<div id="mobile-pre-ar-canvas-container"></div>
 							<div class="pre-ar-preview-overlay">
-								<div class="pre-ar-chip">鎷栧姩鏃嬭浆</div>
-								<div class="pre-ar-chip">鍙屾寚缂╂斁锛岃繘鍏?AR 鍚庡垏鎹㈠埌鐜板満瑙嗗浘</div>
+								<div class="pre-ar-chip">拖动旋转</div>
+								<div class="pre-ar-chip">双指缩放，进入 AR 后切换到现场视图</div>
 							</div>
 						</div>
 					</section>
@@ -1275,30 +1275,31 @@
 					<section class="pre-ar-card pre-ar-config-card">
 						<div class="pre-ar-field-grid">
 							<div class="pre-ar-field">
-								<label for="mobile-pre-ar-model-select">妯″瀷閫夋嫨</label>
+								<label for="mobile-pre-ar-model-select">模型选择</label>
 								<select id="mobile-pre-ar-model-select"></select>
 							</div>
 							<div class="pre-ar-field">
-								<label for="mobile-pre-ar-stage-select">闃舵閫夋嫨</label>
+								<label for="mobile-pre-ar-stage-select">阶段选择</label>
 								<select id="mobile-pre-ar-stage-select"></select>
 							</div>
 							<div class="pre-ar-field full">
-								<label>鍙敤鍥惧眰</label>
+								<label>可用图层</label>
 								<div id="mobile-pre-ar-layer-list" class="pre-ar-layer-list"></div>
 							</div>
 						</div>
 
 						<div class="pre-ar-support-row">
 							<div class="pre-ar-support-copy">
-								<div class="pre-ar-support-title">AR 璁惧鐘舵€?/div>
+								<div class="pre-ar-support-title">AR 设备状态</div>
 								<div id="mobile-pre-ar-support-message" class="pre-ar-support-message">
-									姝ｅ湪妫€娴嬪綋鍓嶈澶囨槸鍚︽敮鎸?WebXR AR銆?								</div>
+									正在检测当前设备是否支持 WebXR AR。
+								</div>
 							</div>
-							<div id="mobile-pre-ar-support-badge" class="pre-ar-support-badge">妫€娴嬩腑</div>
+							<div id="mobile-pre-ar-support-badge" class="pre-ar-support-badge">检测中</div>
 						</div>
 
 						<button id="mobile-pre-ar-enter-ar" class="pre-ar-enter-button" type="button" disabled>
-							杩涘叆 AR
+							进入 AR
 						</button>
 					</section>
 				</div>
@@ -1567,108 +1568,108 @@
 			<div class="desktop-scroll-content">
 				<div class="desktop-topbar">
 					<div class="desktop-project-block">
-						<h1>绉诲姩绔?AR 绠＄綉鐜板満杈呭姪鏍告煡绯荤粺</h1>
-						<div class="desktop-project-meta">椤圭洰鍚嶇О锛?span id="desktop-project-name">绠＄綉鐜板満鏍告煡椤圭洰</span></div>
+						<h1>移动端 AR 管网现场辅助核查系统</h1>
+						<div class="desktop-project-meta">项目名称：<span id="desktop-project-name">管网现场核查项目</span></div>
 					</div>
 
 					<div class="desktop-status-bar">
-						<div class="pill">褰撳墠妯″瀷锛?span id="desktop-current-model">-</span></div>
-						<div class="pill">杩愯鐘舵€侊細<span id="desktop-runtime-status">绛夊緟鍒濆鍖?/span></div>
+						<div class="pill">当前模型：<span id="desktop-current-model">-</span></div>
+						<div class="pill">运行状态：<span id="desktop-runtime-status">等待初始化</span></div>
 					</div>
 				</div>
 
 				<div class="desktop-main">
 					<aside class="desktop-panel">
 						<div class="desktop-panel-header">
-							<h2 class="desktop-panel-title">妯″瀷涓庢暟鎹?/h2>
-							<div class="desktop-panel-subtitle">绠＄悊妯″瀷鏂囦欢銆佺绾垮璞°€佸浘灞傚拰鏃堕棿闃舵鍒楄〃銆?/div>
+							<h2 class="desktop-panel-title">模型与数据</h2>
+							<div class="desktop-panel-subtitle">管理模型文件、管线对象、图层和时间阶段列表。</div>
 						</div>
 						<div class="desktop-panel-body">
 							<div class="desktop-list-block">
-								<h3 class="desktop-list-title">妯″瀷閫夋嫨</h3>
+								<h3 class="desktop-list-title">模型选择</h3>
 								<div class="form-grid">
 									<div class="form-field full">
-										<label for="desktop-model-select">妯″瀷鐩綍</label>
+										<label for="desktop-model-select">模型目录</label>
 										<select id="desktop-model-select"></select>
 									</div>
 								</div>
 							</div>
 
 							<div class="desktop-list-block">
-								<h3 class="desktop-list-title">妯″瀷鏂囦欢</h3>
+								<h3 class="desktop-list-title">模型文件</h3>
 								<div class="desktop-list">
 									<div class="desktop-list-item" id="desktop-model-file">-</div>
 								</div>
 							</div>
 
 							<div class="desktop-list-block">
-								<h3 class="desktop-list-title">绠＄嚎瀵硅薄鍒楄〃</h3>
+								<h3 class="desktop-list-title">管线对象列表</h3>
 								<div id="desktop-pipe-list" class="desktop-list"></div>
 							</div>
 
 							<div class="desktop-list-block">
-								<h3 class="desktop-list-title">鍥惧眰鍒楄〃</h3>
+								<h3 class="desktop-list-title">图层列表</h3>
 								<div id="desktop-layer-list" class="desktop-list"></div>
 							</div>
 
 							<div class="desktop-list-block">
-								<h3 class="desktop-list-title">鏃堕棿闃舵鍒楄〃</h3>
+								<h3 class="desktop-list-title">时间阶段列表</h3>
 								<div id="desktop-stage-list" class="desktop-list"></div>
 							</div>
 						</div>
 					</aside>
 
 					<section class="desktop-panel desktop-preview-panel">
-						<div class="desktop-preview-badge" id="desktop-preview-badge">3D 棰勮鍖哄煙</div>
+						<div class="desktop-preview-badge" id="desktop-preview-badge">3D 预览区域</div>
 						<div id="desktop-canvas-container" class="desktop-center-canvas"></div>
 					</section>
 
 					<aside class="desktop-panel">
 						<div class="desktop-panel-header">
-							<h2 class="desktop-panel-title">鍙傛暟闈㈡澘</h2>
-							<div class="desktop-panel-subtitle">灞曠ず GPS 鍒濆鐐广€丒NU 鍘熺偣銆佸綋鍓嶄綅濮裤€佸昂搴﹀拰 RMS 璇樊銆?/div>
+							<h2 class="desktop-panel-title">参数面板</h2>
+							<div class="desktop-panel-subtitle">展示 GPS 初始点、ENU 原点、当前位置、尺度和 RMS 误差。</div>
 						</div>
 						<div class="desktop-panel-body">
 							<div class="param-grid">
-								<div class="param-card"><strong>GPS 鍒濆鐐?/strong><span id="desktop-param-gps">-</span></div>
+								<div class="param-card"><strong>GPS 初始点</strong><span id="desktop-param-gps">-</span></div>
 								<div class="param-card"><strong>ENU 鍘熺偣</strong><span id="desktop-param-enu">-</span></div>
 								<div class="param-card"><strong>position</strong><span id="desktop-param-position">-</span></div>
 								<div class="param-card"><strong>quaternion</strong><span id="desktop-param-quaternion">-</span></div>
 								<div class="param-card"><strong>scale</strong><span id="desktop-param-scale">-</span></div>
-								<div class="param-card"><strong>RMS 璇樊</strong><span id="desktop-param-rms">-</span></div>
+								<div class="param-card"><strong>RMS 误差</strong><span id="desktop-param-rms">-</span></div>
 							</div>
 
 							<div class="desktop-actions">
-								<button id="desktop-save-registration" class="action-button primary" type="button">淇濆瓨</button>
-								<button id="desktop-export-json" class="action-button secondary" type="button">瀵煎嚭 JSON</button>
+								<button id="desktop-save-registration" class="action-button primary" type="button">保存</button>
+								<button id="desktop-export-json" class="action-button secondary" type="button">导出 JSON</button>
 							</div>
 
 							<div class="precision-section">
-								<h3 class="desktop-list-title">绮鹃厤鍑?/ 鎺у埗鐐归噰闆?/h3>
+								<h3 class="desktop-list-title">精配准 / 控制点采集</h3>
 								<div class="form-grid">
 									<div class="form-field full">
-										<label for="desktop-precision-source-select">妯″瀷鎺у埗鐐?/label>
+										<label for="desktop-precision-source-select">模型控制点</label>
 										<select id="desktop-precision-source-select"></select>
 									</div>
 								</div>
 
 								<div class="precision-action-grid">
-									<button id="desktop-precision-source-arm" class="action-button" type="button">閿佸畾妯″瀷鐐?/button>
-									<button id="desktop-precision-target-confirm" class="action-button" type="button">纭鐜板疄鐐?/button>
-									<button id="desktop-precision-pair-add" class="action-button secondary" type="button">鍔犲叆鐐瑰</button>
-									<button id="desktop-precision-solve" class="action-button primary" type="button">閲嶆柊姹傝В</button>
-									<button id="desktop-precision-save" class="action-button" type="button">淇濆瓨绮鹃厤鍑?/button>
-									<button id="desktop-precision-clear" class="action-button" type="button">娓呯┖鐐瑰</button>
+									<button id="desktop-precision-source-arm" class="action-button" type="button">锁定模型点</button>
+									<button id="desktop-precision-target-confirm" class="action-button" type="button">确认现实点</button>
+									<button id="desktop-precision-pair-add" class="action-button secondary" type="button">加入点对</button>
+									<button id="desktop-precision-solve" class="action-button primary" type="button">重新求解</button>
+									<button id="desktop-precision-save" class="action-button" type="button">保存精配准</button>
+									<button id="desktop-precision-clear" class="action-button" type="button">清空点对</button>
 								</div>
 
 								<div class="property-remark">
-									褰撳墠妯″瀷鐐癸細<span id="desktop-precision-source-current">鏈€夋嫨</span><br>
-									褰撳墠鐜板疄鐐癸細<span id="desktop-precision-target-current">鏈‘璁?/span><br>
-									宸查噰闆嗙偣瀵癸細<span id="desktop-precision-pair-count">0 / 寤鸿鑷冲皯 4 缁?/span><br>
-									RMS锛?span id="desktop-precision-rms">--</span>
+									当前模型点：<span id="desktop-precision-source-current">未选择</span><br>
+									当前现实点：<span id="desktop-precision-target-current">未确认</span><br>
+									已采集点对：<span id="desktop-precision-pair-count">0 / 建议至少 4 组</span><br>
+									RMS：<span id="desktop-precision-rms">--</span>
 								</div>
 
-								<div id="desktop-precision-workflow-status" class="property-remark">宸叉湁绮楅厤鍑嗙粨鏋滐紝鎺ヤ笅鏉ュ彲閲囬泦鎺у埗鐐广€?/div>
+								<div id="desktop-precision-workflow-status" class="property-remark">已有粗配准结果，接下来可采集控制点。</div>
 								<div id="desktop-precision-pair-list" class="desktop-list precision-list"></div>
 							</div>
 						</div>
@@ -1677,8 +1678,8 @@
 
 				<section class="desktop-log">
 					<div class="desktop-panel-header">
-						<h2 class="desktop-panel-title">鏃ュ織</h2>
-						<div class="desktop-panel-subtitle">妯″瀷鍔犺浇銆丄R 鑳藉姏鐘舵€佸拰閰嶅噯缁撴灉鐨勮皟璇曡緭鍑恒€?/div>
+						<h2 class="desktop-panel-title">日志</h2>
+						<div class="desktop-panel-subtitle">模型加载、AR 能力状态和配准结果的调试输出。</div>
 					</div>
 					<div id="desktop-log-list" class="desktop-log-list"></div>
 				</section>

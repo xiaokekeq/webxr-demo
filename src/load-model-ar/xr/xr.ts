@@ -88,7 +88,7 @@ export function createXRHitTestController(
 		onSessionStart?.();
 		reticle.visible = false;
 		lastSuccessfulHitTime = 0;
-		setStatus( '已进入 AR，请缓慢移动手机，让系统持续识别地面或墙面' );
+		setStatus( '已进入 AR，请缓慢移动手机，让系统持续识别地面或墙面。' );
 
 		const session = renderer.xr.getSession();
 		if ( session === null ) {
@@ -99,14 +99,14 @@ export function createXRHitTestController(
 		const requestHitTestSource = session.requestHitTestSource;
 
 		if ( requestHitTestSource === undefined ) {
-			setStatus( '当前设备不支持 hit-test，无法识别现实平面' );
+			setStatus( '当前设备不支持 hit-test，无法识别现实平面。' );
 			return;
 		}
 
 		hitTestSource = await createBestEffortHitTestSource( session, viewerSpace );
 
 		if ( hitTestSource === null ) {
-			setStatus( '未能创建 hit-test 数据源，无法识别地面或墙面' );
+			setStatus( '未能创建 hit-test 数据源，无法识别地面或墙面。' );
 			return;
 		}
 
@@ -121,7 +121,7 @@ export function createXRHitTestController(
 		hitTestSourceRequested = false;
 		lastSuccessfulHitTime = 0;
 		onSessionEnd?.();
-		setStatus( 'AR 会话已结束，可以再次点击 Enter AR 重新开始' );
+		setStatus( 'AR 会话已结束，可以再次点击 Enter AR 重新开始。' );
 
 	}
 
@@ -156,7 +156,7 @@ export function createXRHitTestController(
 		reticle.matrix.fromArray( pose.transform.matrix );
 
 		if ( canReportStatus?.() !== false ) {
-			setStatus( '已找到可用平面，可继续观察地面或墙面上的命中效果' );
+			setStatus( '已找到可用平面，可继续观察地面或墙面上的命中效果。' );
 		}
 
 	}
@@ -170,7 +170,7 @@ export function createXRHitTestController(
 
 		reticle.visible = false;
 		if ( canReportStatus?.() !== false ) {
-			setStatus( '当前帧未命中平面，请缓慢移动手机并保持墙面或地面在视野中' );
+			setStatus( '当前未命中平面，请缓慢移动手机并保持墙面或地面在视野中。' );
 		}
 
 	}

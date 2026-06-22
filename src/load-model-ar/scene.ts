@@ -1,16 +1,26 @@
 import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import type { ARSceneBundle } from './types.js';
 
 export function createARScene(canvasContainer: HTMLElement): ARSceneBundle {
 
 	const scene = new THREE.Scene();
-	const camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 0.01, 30 );
+	const initialSize = getHostSize( canvasContainer );
+	const camera = new THREE.PerspectiveCamera( 70, initialSize.width / initialSize.height, 0.01, 30 );
 
 	const renderer = new THREE.WebGLRenderer( { antialias: true, alpha: true } );
-	renderer.setPixelRatio( window.devicePixelRatio );
-	renderer.setSize( window.innerWidth, window.innerHeight );
+	renderer.setPixelRatio( Math.min( window.devicePixelRatio, 2 ) );
+	renderer.setSize( initialSize.width, initialSize.height, false );
 	renderer.xr.enabled = true;
 	canvasContainer.appendChild( renderer.domElement );
+
+	const controls = new OrbitControls( camera, renderer.domElement );
+	controls.enableDamping = true;
+	controls.enablePan = true;
+	controls.rotateSpeed = 0.85;
+	controls.zoomSpeed = 0.9;
+	controls.panSpeed = 0.8;
+	controls.enabled = false;
 
 	const hemiLight = new THREE.HemisphereLight( 0xffffff, 0x7a8ba8, 2.2 );
 	scene.add( hemiLight );
@@ -25,18 +35,31 @@ export function createARScene(canvasContainer: HTMLElement): ARSceneBundle {
 	const modelAnchor = new THREE.Group();
 	scene.add( modelAnchor );
 
-	return { scene, camera, renderer, reticle, modelAnchor };
+	return { scene, camera, renderer, controls, reticle, modelAnchor };
 
 }
 
 export function resizeARScene(
 	camera: THREE.PerspectiveCamera,
-	renderer: THREE.WebGLRenderer
+	renderer: THREE.WebGLRenderer,
+	hostElement = renderer.domElement.parentElement
 ): void {
 
-	camera.aspect = window.innerWidth / window.innerHeight;
+	const size = getHostSize( hostElement );
+	camera.aspect = size.width / size.height;
 	camera.updateProjectionMatrix();
-	renderer.setSize( window.innerWidth, window.innerHeight );
+	renderer.setPixelRatio( Math.min( window.devicePixelRatio, 2 ) );
+	renderer.setSize( size.width, size.height, false );
+
+}
+
+function getHostSize(hostElement: Element | null): { width: number; height: number } {
+
+	const rect = hostElement?.getBoundingClientRect();
+	const width = Math.max( 1, Math.round( rect?.width || window.innerWidth ) );
+	const height = Math.max( 1, Math.round( rect?.height || window.innerHeight ) );
+
+	return { width, height };
 
 }
 

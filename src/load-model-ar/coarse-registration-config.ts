@@ -3,6 +3,7 @@ export interface AbsoluteSiteTarget {
 	label: string;
 	latitude: number;
 	longitude: number;
+	altitude?: number;
 	targetHeadingDeg: number;
 	assetYawOffsetDeg?: number;
 }

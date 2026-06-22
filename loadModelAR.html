@@ -3,15 +3,26 @@
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-	<title>GLB Pipe Viewer AR</title>
+	<title>移动端 AR 管网现场辅助核查系统</title>
 	<style>
 		:root {
-			--bg: #0f141c;
-			--panel: rgba(15, 20, 28, 0.82);
-			--line: rgba(255, 255, 255, 0.12);
-			--text: #edf3fa;
-			--muted: #a8b6c8;
-			--accent: #4ea2ff;
+			--brand: #2f6df6;
+			--brand-deep: #1f4fd3;
+			--brand-soft: rgba(47, 109, 246, 0.12);
+			--bg: #eef4ff;
+			--card: rgba(255, 255, 255, 0.96);
+			--card-soft: #f8fbff;
+			--glass: rgba(15, 23, 42, 0.48);
+			--ink: #16336e;
+			--text: #1f2937;
+			--muted: #6b7280;
+			--line: rgba(15, 23, 42, 0.08);
+			--shadow: 0 18px 48px rgba(15, 23, 42, 0.16);
+			--radius-xl: 26px;
+			--radius-lg: 18px;
+			--radius-md: 14px;
+			--desktop-top: 74px;
+			--desktop-bottom: 150px;
 		}
 
 		* {
@@ -20,18 +31,58 @@
 
 		body {
 			margin: 0;
-			font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-			background:
-				radial-gradient(circle at top, rgba(78, 162, 255, 0.16), transparent 36%),
-				linear-gradient(180deg, #111722 0%, var(--bg) 100%);
+			font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+			background: var(--bg);
 			color: var(--text);
 			overflow: hidden;
+		}
+
+		button,
+		input,
+		select,
+		textarea {
+			font: inherit;
 		}
 
 		#app {
 			position: relative;
 			width: 100vw;
 			height: 100vh;
+		}
+
+		#canvas-container {
+			position: absolute;
+			inset: 0;
+			z-index: 0;
+		}
+
+		.hidden {
+			display: none !important;
+		}
+
+		#desktop-shell {
+			display: none;
+			width: 100%;
+			height: 100%;
+			overflow: hidden;
+			background: linear-gradient(180deg, #edf3ff 0%, #dfe9fb 100%);
+			position: relative;
+			z-index: 2;
+		}
+
+		.desktop-scroll-content {
+			width: 100%;
+			height: 100%;
+			min-height: 0;
+			display: flex;
+			flex-direction: column;
+			overflow: hidden;
+		}
+
+		#mobile-shell {
+			position: relative;
+			width: 100%;
+			height: 100%;
 		}
 
 		#canvas-container,
@@ -41,233 +92,984 @@
 			display: block;
 		}
 
-		.overlay {
+		.mobile-topbar {
 			position: fixed;
 			top: 14px;
 			left: 14px;
-			z-index: 20;
-			width: min(340px, calc(100vw - 28px));
-			padding: 14px;
-			border: 1px solid var(--line);
-			border-radius: 18px;
-			background: var(--panel);
-			backdrop-filter: blur(14px);
-		}
-
-		.overlay-header {
+			right: 14px;
+			z-index: 30;
 			display: flex;
 			align-items: center;
 			justify-content: space-between;
 			gap: 12px;
+			padding: 12px 14px;
+			border-radius: 18px;
+			background: rgba(15, 23, 42, 0.42);
+			backdrop-filter: blur(16px);
+			color: #ffffff;
+			box-shadow: 0 12px 32px rgba(15, 23, 42, 0.24);
 		}
 
-		.overlay-title {
-			margin: 0;
-			font-size: 20px;
+		.mobile-top-main {
+			min-width: 0;
 		}
 
-		.overlay-toggle {
-			display: none;
-			padding: 6px 10px;
-			border: 1px solid var(--line);
-			border-radius: 999px;
-			background: rgba(255, 255, 255, 0.04);
-			color: var(--text);
-			font: inherit;
-			cursor: pointer;
+		.mobile-top-title {
+			font-size: 19px;
+			font-weight: 700;
+			line-height: 1.2;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
 		}
 
-		.overlay-body {
-			margin-top: 10px;
-		}
-
-		p {
-			margin: 0 0 12px;
-			line-height: 1.6;
-			color: var(--muted);
-		}
-
-		.meta {
-			padding: 12px;
-			border-radius: 12px;
-			background: rgba(255, 255, 255, 0.04);
-			line-height: 1.7;
-			font-size: 14px;
-		}
-
-		.hint {
-			margin-top: 12px;
+		.mobile-top-subtitle {
+			margin-top: 4px;
 			font-size: 13px;
-			line-height: 1.6;
-			color: var(--muted);
+			line-height: 1.4;
+			color: rgba(255, 255, 255, 0.82);
 		}
 
-		.actions {
-			display: flex;
-			gap: 8px;
-			margin-top: 12px;
-			flex-wrap: wrap;
-		}
-
-		.action-button {
+		.mobile-top-status {
 			padding: 8px 12px;
-			border: 1px solid var(--line);
 			border-radius: 999px;
-			background: rgba(255, 255, 255, 0.04);
-			color: var(--text);
-			cursor: pointer;
-			font: inherit;
+			background: rgba(255, 255, 255, 0.16);
+			font-size: 12px;
+			font-weight: 600;
+			line-height: 1.2;
+			text-align: center;
 		}
 
-		.action-button:hover,
-		.overlay-toggle:hover {
-			border-color: rgba(78, 162, 255, 0.6);
+		.mobile-right-tools {
+			position: fixed;
+			top: 132px;
+			right: 14px;
+			z-index: 29;
+			display: flex;
+			flex-direction: column;
+			gap: 10px;
+		}
+
+		.tool-button {
+			width: 64px;
+			padding: 10px 8px;
+			border: 0;
+			border-radius: 18px;
+			background: rgba(255, 255, 255, 0.94);
+			box-shadow: var(--shadow);
+			color: #334155;
+			font-size: 12px;
+			font-weight: 600;
+			line-height: 1.35;
+			cursor: pointer;
+		}
+
+		.tool-button.primary {
+			background: linear-gradient(180deg, #3d7bff 0%, #2f6df6 100%);
+			color: #ffffff;
 		}
 
 		.xr-button-wrap :is(button, a) {
 			position: fixed !important;
 			left: 14px !important;
-			bottom: 14px !important;
+			bottom: 172px !important;
 			right: auto !important;
 			margin: 0 !important;
-			border: 1px solid rgba(78, 162, 255, 0.5) !important;
-			border-radius: 999px !important;
-			background: rgba(26, 38, 54, 0.92) !important;
-			color: #f4f8fc !important;
+			border: 0 !important;
+			border-radius: 18px !important;
+			background: rgba(255, 255, 255, 0.94) !important;
+			box-shadow: var(--shadow) !important;
+			color: #16336e !important;
 			font-family: inherit !important;
-			font-size: 14px !important;
-			padding: 0.9em 1.4em !important;
+			font-size: 13px !important;
+			font-weight: 700 !important;
+			padding: 0.95em 1.15em !important;
 			opacity: 1 !important;
 		}
 
-		.property-panel {
+		.mobile-drawer-area {
 			position: fixed;
-			right: 14px;
-			bottom: 84px;
-			z-index: 25;
-			width: min(300px, calc(100vw - 28px));
-			padding: 14px;
-			border: 1px solid var(--line);
-			border-radius: 18px;
-			background: rgba(12, 18, 28, 0.9);
-			backdrop-filter: blur(16px);
-			box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+			left: 12px;
+			right: 12px;
+			bottom: 96px;
+			z-index: 28;
+			display: flex;
+			justify-content: center;
+			pointer-events: none;
 		}
 
-		.property-panel.hidden {
-			display: none;
+		.mobile-drawer-area > * {
+			pointer-events: auto;
 		}
 
-		.property-header {
+		.drawer-card {
+			width: min(420px, calc(100vw - 24px));
+			padding: 18px;
+			border-radius: var(--radius-xl);
+			background: var(--card);
+			box-shadow: var(--shadow);
+			border: 1px solid rgba(255, 255, 255, 0.72);
+		}
+
+		.drawer-header {
 			display: flex;
 			align-items: center;
 			justify-content: space-between;
-			gap: 10px;
-			margin-bottom: 10px;
+			gap: 12px;
+			margin-bottom: 12px;
 		}
 
-		.property-title {
+		.drawer-title {
 			margin: 0;
-			font-size: 16px;
+			font-size: 20px;
+			font-weight: 700;
+			color: var(--ink);
 		}
 
-		.property-close {
-			padding: 4px 10px;
-			border: 1px solid var(--line);
+		.drawer-subtitle {
+			margin: -4px 0 14px;
+			font-size: 13px;
+			line-height: 1.6;
+			color: var(--muted);
+		}
+
+		.pill {
+			display: inline-flex;
+			align-items: center;
+			gap: 6px;
+			padding: 5px 10px;
 			border-radius: 999px;
-			background: rgba(255, 255, 255, 0.04);
-			color: var(--text);
-			font: inherit;
-			cursor: pointer;
+			background: var(--brand-soft);
+			color: var(--brand);
+			font-size: 12px;
+			font-weight: 700;
 		}
 
 		.property-grid {
 			display: grid;
-			grid-template-columns: 72px 1fr;
-			gap: 8px 10px;
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+			gap: 12px;
+		}
+
+		.property-item {
+			padding: 11px 12px;
+			border-radius: var(--radius-md);
+			background: var(--card-soft);
+		}
+
+		.property-item strong {
+			display: block;
+			margin-bottom: 4px;
+			font-size: 12px;
+			font-weight: 600;
+			color: var(--muted);
+		}
+
+		.property-item span {
+			font-size: 14px;
+			font-weight: 700;
+			color: #0f172a;
+		}
+
+		.property-remark {
+			margin-top: 12px;
+			padding: 12px 14px;
+			border-radius: var(--radius-md);
+			background: #eef5ff;
+			font-size: 13px;
+			line-height: 1.75;
+			color: #2450a6;
+		}
+
+		.property-remark.offset-top {
+			margin-top: 12px;
+		}
+
+		.registration-status-row {
+			display: flex;
+			gap: 10px;
+			margin-bottom: 12px;
+			flex-wrap: wrap;
+		}
+
+		.status-chip {
+			padding: 8px 12px;
+			border-radius: 999px;
+			background: #edf7ef;
+			color: #217346;
+			font-size: 12px;
+			font-weight: 700;
+		}
+
+		.status-chip.secondary {
+			background: #eff6ff;
+			color: #2450a6;
+		}
+
+		.registration-groups {
+			display: grid;
+			grid-template-columns: 1.2fr 1fr;
+			gap: 12px;
+		}
+
+		.registration-group {
+			padding: 14px;
+			border-radius: 18px;
+			background: var(--card-soft);
+		}
+
+		.registration-group-title {
+			margin: 0 0 10px;
+			font-size: 14px;
+			font-weight: 700;
+			color: var(--ink);
+		}
+
+		.registration-button-grid {
+			display: grid;
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+			gap: 8px;
+		}
+
+		.registration-button-grid.offset-top {
+			margin-top: 12px;
+		}
+
+		.registration-button-grid .wide {
+			grid-column: span 3;
+		}
+
+		.action-grid {
+			display: grid;
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+			gap: 8px;
+		}
+
+		.action-button {
+			min-height: 42px;
+			border: 0;
+			border-radius: 14px;
+			background: #ffffff;
+			box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.24);
+			color: #0f172a;
+			font-weight: 700;
+			cursor: pointer;
+		}
+
+		.action-button.primary {
+			background: linear-gradient(180deg, #3d7bff 0%, #2f6df6 100%);
+			color: #ffffff;
+			box-shadow: none;
+		}
+
+		.action-button.secondary {
+			background: #edf4ff;
+			color: #2450a6;
+			box-shadow: none;
+		}
+
+		.manual-save-row {
+			display: grid;
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+			gap: 10px;
+			margin-top: 12px;
+		}
+
+		.timeline-stage-bar {
+			display: grid;
+			grid-template-columns: repeat(5, minmax(0, 1fr));
+			gap: 8px;
+			margin-top: 12px;
+		}
+
+		.timeline-stage-button {
+			padding: 10px 8px;
+			border: 0;
+			border-radius: 14px;
+			background: #f3f6fb;
+			color: #64748b;
+			font-size: 12px;
+			font-weight: 700;
+			line-height: 1.4;
+			cursor: pointer;
+		}
+
+		.timeline-stage-button.active {
+			background: linear-gradient(180deg, #3d7bff 0%, #2f6df6 100%);
+			color: #ffffff;
+		}
+
+		.timeline-control-row {
+			display: grid;
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+			gap: 10px;
+			margin-top: 14px;
+		}
+
+		.form-grid {
+			display: grid;
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+			gap: 12px;
+		}
+
+		.form-field {
+			display: flex;
+			flex-direction: column;
+			gap: 6px;
+		}
+
+		.form-field.full {
+			grid-column: span 2;
+		}
+
+		.form-field label {
+			font-size: 12px;
+			font-weight: 700;
+			color: var(--muted);
+		}
+
+		.form-field select,
+		.form-field textarea {
+			border: 0;
+			border-radius: 14px;
+			background: var(--card-soft);
+			padding: 12px 14px;
+			color: #0f172a;
+			box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.24);
+		}
+
+		.form-field textarea {
+			min-height: 110px;
+			resize: vertical;
+		}
+
+		.mobile-bottom-nav {
+			position: fixed;
+			left: 12px;
+			right: 12px;
+			bottom: 12px;
+			z-index: 29;
+			display: grid;
+			grid-template-columns: repeat(4, minmax(0, 1fr));
+			gap: 10px;
+			padding: 12px 14px;
+			border-radius: 24px;
+			background: rgba(255, 255, 255, 0.95);
+			backdrop-filter: blur(16px);
+			box-shadow: var(--shadow);
+		}
+
+		.mode-button {
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			gap: 6px;
+			min-height: 56px;
+			border: 0;
+			border-radius: 18px;
+			background: transparent;
+			color: #64748b;
+			cursor: pointer;
+		}
+
+		.mode-button .icon {
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			width: 28px;
+			height: 28px;
+			border-radius: 50%;
+			background: #eff6ff;
+			color: var(--brand);
+			font-size: 14px;
+			font-weight: 700;
+		}
+
+		.mode-button .label {
+			font-size: 12px;
+			font-weight: 700;
+		}
+
+		.mode-button.active {
+			background: rgba(47, 109, 246, 0.08);
+			color: var(--brand);
+		}
+
+		.mode-button.active .icon {
+			background: var(--brand);
+			color: #ffffff;
+		}
+
+		.desktop-topbar {
+			height: var(--desktop-top);
+			flex: 0 0 var(--desktop-top);
+			padding: 0 22px;
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			border-bottom: 1px solid var(--line);
+			background: rgba(255, 255, 255, 0.9);
+			backdrop-filter: blur(14px);
+		}
+
+		.desktop-project-block h1 {
+			margin: 0;
+			font-size: 22px;
+			font-weight: 700;
+			color: var(--ink);
+		}
+
+		.desktop-project-meta {
+			margin-top: 4px;
+			font-size: 13px;
+			color: var(--muted);
+		}
+
+		.desktop-status-bar {
+			display: flex;
+			align-items: center;
+			gap: 10px;
+			font-size: 13px;
+			flex-wrap: wrap;
+			justify-content: flex-end;
+		}
+
+		.desktop-main {
+			display: grid;
+			grid-template-columns: 340px minmax(760px, 1fr) 360px;
+			gap: 16px;
+			padding: 16px;
+			width: 100%;
+			flex: 1 1 auto;
+			min-height: 0;
+			overflow: hidden;
+			align-items: stretch;
+		}
+
+		.desktop-panel {
+			border-radius: 24px;
+			background: rgba(255, 255, 255, 0.96);
+			box-shadow: var(--shadow);
+			overflow: hidden;
+			display: flex;
+			flex-direction: column;
+			width: 100%;
+		}
+
+		.desktop-main > .desktop-panel {
+			height: 100%;
+			min-height: 0;
+		}
+
+		.desktop-panel-header {
+			padding: 18px 18px 14px;
+			border-bottom: 1px solid var(--line);
+		}
+
+		.desktop-panel-title {
+			margin: 0;
+			font-size: 18px;
+			font-weight: 700;
+			color: var(--ink);
+		}
+
+		.desktop-panel-subtitle {
+			margin-top: 6px;
+			font-size: 12px;
+			line-height: 1.6;
+			color: var(--muted);
+		}
+
+		.desktop-panel-body {
+			padding: 16px 18px 18px;
+			overflow: auto;
+			flex: 1 1 auto;
+			min-height: 0;
+		}
+
+		.desktop-list-block + .desktop-list-block {
+			margin-top: 18px;
+		}
+
+		.desktop-list-title {
+			margin: 0 0 10px;
+			font-size: 13px;
+			font-weight: 700;
+			color: var(--ink);
+		}
+
+		.desktop-list {
+			display: flex;
+			flex-direction: column;
+			gap: 8px;
+		}
+
+		.desktop-list-item {
+			padding: 10px 12px;
+			border-radius: 14px;
+			background: var(--card-soft);
 			font-size: 13px;
 			line-height: 1.5;
+			color: #334155;
 		}
 
-		.property-grid strong {
+		.desktop-preview-panel {
+			position: relative;
+			overflow: hidden;
+			background: rgba(255, 255, 255, 0.12);
+			backdrop-filter: blur(2px);
+			min-width: 760px;
+			min-height: 0;
+		}
+
+		.desktop-preview-badge {
+			position: absolute;
+			top: 16px;
+			left: 16px;
+			z-index: 2;
+			padding: 8px 12px;
+			border-radius: 999px;
+			background: rgba(15, 23, 42, 0.54);
+			color: #ffffff;
+			font-size: 12px;
+			font-weight: 700;
+			backdrop-filter: blur(10px);
+		}
+
+		.desktop-center-canvas {
+			position: absolute;
+			inset: 0;
+		}
+
+		.param-grid {
+			display: grid;
+			grid-template-columns: 1fr;
+			gap: 10px;
+		}
+
+		.param-card {
+			padding: 12px 14px;
+			border-radius: 16px;
+			background: var(--card-soft);
+		}
+
+		.param-card strong {
+			display: block;
+			margin-bottom: 5px;
+			font-size: 12px;
+			font-weight: 700;
 			color: var(--muted);
-			font-weight: 600;
 		}
 
-		@media (max-width: 720px) {
-			.overlay {
-				top: 10px;
-				left: 10px;
-				width: calc(100vw - 20px);
-				padding: 12px;
+		.param-card span {
+			font-size: 13px;
+			font-weight: 600;
+			line-height: 1.6;
+			color: #0f172a;
+			word-break: break-word;
+		}
+
+		.desktop-actions {
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			gap: 10px;
+			margin-top: 16px;
+		}
+
+		.desktop-log {
+			flex: 0 0 188px;
+			height: 188px;
+			min-height: 0;
+			margin: 0 16px 16px;
+			border-radius: 24px;
+			background: rgba(255, 255, 255, 0.96);
+			box-shadow: var(--shadow);
+			display: flex;
+			flex-direction: column;
+			overflow: hidden;
+		}
+
+		.desktop-log-list {
+			padding: 14px 18px 18px;
+			overflow: auto;
+			display: flex;
+			flex-direction: column;
+			gap: 8px;
+			flex: 1 1 auto;
+			min-height: 0;
+		}
+
+		.log-item {
+			padding: 10px 12px;
+			border-radius: 14px;
+			background: var(--card-soft);
+			font-size: 12px;
+			line-height: 1.7;
+			color: #334155;
+		}
+
+		@media (max-width: 1023px) {
+			.registration-groups {
+				grid-template-columns: 1fr;
+			}
+		}
+
+		@media (any-pointer: fine) {
+			body {
+				overflow: hidden;
 			}
 
-			.overlay-toggle {
-				display: inline-flex;
-			}
-
-			.overlay.mobile-collapsed .overlay-body {
+			#mobile-shell {
 				display: none;
 			}
 
-			.xr-button-wrap :is(button, a) {
-				left: 10px !important;
-				bottom: 10px !important;
+			#desktop-shell {
+				display: flex;
 			}
 
-			.property-panel {
-				right: 10px;
-				bottom: 72px;
-				width: calc(100vw - 20px);
+			.xr-button-wrap,
+			.mobile-topbar,
+			.mobile-right-tools,
+			.mobile-drawer-area,
+			.mobile-bottom-nav {
+				display: none !important;
 			}
 		}
+
+		@media (any-pointer: fine) and (max-width: 1450px) {
+			body {
+				overflow-x: hidden;
+				overflow-y: auto;
+			}
+
+			#app {
+				height: auto;
+				min-height: 100vh;
+			}
+
+			#desktop-shell {
+				height: auto;
+				min-height: 100vh;
+				overflow-x: hidden;
+				overflow-y: visible;
+			}
+
+			.desktop-scroll-content {
+				height: auto;
+				min-height: 100vh;
+				overflow: visible;
+			}
+
+			.desktop-topbar {
+				height: auto;
+				padding: 16px 22px;
+				align-items: flex-start;
+				flex-wrap: wrap;
+				gap: 14px;
+			}
+
+			.desktop-main {
+				grid-template-columns: 1fr;
+				flex: 0 0 auto;
+				overflow: visible;
+			}
+
+			.desktop-main > .desktop-panel {
+				height: 400px;
+				min-height: 400px;
+				max-height: 400px;
+			}
+
+			.desktop-preview-panel {
+				min-width: 0;
+				height: 460px;
+				min-height: 460px;
+				max-height: 460px;
+			}
+
+			.desktop-log {
+				flex: 0 0 auto;
+				height: 220px;
+			}
+		}
+
+		@media (any-pointer: fine) and (max-width: 1100px) {
+			.desktop-main {
+				padding: 12px;
+				gap: 12px;
+			}
+
+			.desktop-main > .desktop-panel {
+				height: 340px;
+				min-height: 340px;
+				max-height: 340px;
+			}
+
+			.desktop-preview-panel {
+				height: 380px;
+				min-height: 380px;
+				max-height: 380px;
+			}
+
+			.desktop-log {
+				margin: 0 12px 12px;
+				height: 200px;
+			}
+		}
+
 	</style>
 </head>
 <body>
-	<div id="app">
-		<div id="overlay" class="overlay">
-			<div class="overlay-header">
-				<h1 class="overlay-title">GLB Pipe Viewer AR</h1>
-				<button id="overlay-toggle" class="overlay-toggle" type="button" hidden aria-expanded="true">收起</button>
+		<div id="app">
+			<div id="canvas-container"></div>
+			<div class="xr-button-wrap" id="xr-button-wrap"></div>
+
+		<div id="mobile-shell">
+			<div class="mobile-topbar">
+				<div class="mobile-top-main">
+					<div id="mobile-top-title" class="mobile-top-title">管网现场核查项目</div>
+					<div id="mobile-top-subtitle" class="mobile-top-subtitle">当前阶段：管线铺设</div>
+				</div>
+				<div id="registration-status" class="mobile-top-status">默认浏览</div>
 			</div>
 
-			<div id="overlay-body" class="overlay-body">
-				<p>这个页面专门用于学习 WebXR AR 的自动粗配准流程：进入 AR、识别地面、读取 GPS 和 IMU，并自动把模型放到大致正确的位置。</p>
+			<div class="mobile-right-tools">
+				<button id="reset-placement" class="tool-button primary" type="button">复位</button>
+				<button id="tool-layers" class="tool-button" type="button">图层</button>
+				<button id="tool-measure" class="tool-button" type="button">测距</button>
+			</div>
 
-				<div class="meta">
-					<div><strong>模型文件：</strong><span id="model-name"></span></div>
-					<div><strong>状态：</strong><span id="status">正在初始化...</span></div>
+			<div class="mobile-drawer-area">
+				<div id="browse-panel" class="drawer-card">
+					<div class="drawer-header">
+						<div>
+							<h2 id="ar-prop-name" class="drawer-title">请选择一段管线</h2>
+							<div id="ar-prop-status-badge" class="pill">待选择</div>
+						</div>
+						<button id="ar-property-close" class="action-button secondary" type="button">收起</button>
+					</div>
+
+					<div class="property-grid">
+						<div class="property-item"><strong>类型</strong><span id="ar-prop-type">-</span></div>
+						<div class="property-item"><strong>管径</strong><span id="ar-prop-diameter">-</span></div>
+						<div class="property-item"><strong>材质</strong><span id="ar-prop-material">-</span></div>
+						<div class="property-item"><strong>埋深</strong><span id="ar-prop-depth">-</span></div>
+						<div class="property-item"><strong>状态</strong><span id="ar-prop-status">-</span></div>
+						<div class="property-item"><strong>模型文件</strong><span id="model-name">-</span></div>
+					</div>
+
+					<div id="ar-prop-remark" class="property-remark">点击模型即可查看该管线的属性、埋深和备注信息。</div>
 				</div>
 
-				<div class="actions">
-					<button id="enable-coarse" class="action-button" type="button">启用粗配准</button>
-					<button id="refresh-geo" class="action-button" type="button">刷新定位</button>
-					<button id="reset-placement" class="action-button" type="button">重置放置</button>
+				<div id="manual-registration-panel" class="drawer-card hidden">
+					<h2 class="drawer-title">配准模式</h2>
+					<p class="drawer-subtitle">AR 画面中显示模型后，可在这里继续做位置、角度和尺度微调。</p>
+
+					<div class="registration-status-row">
+						<div class="status-chip">当前模式：配准</div>
+						<div id="registration-status-detail" class="status-chip secondary">状态：等待识别平面</div>
+					</div>
+
+					<div class="registration-groups">
+						<div class="registration-group">
+							<h3 class="registration-group-title">粗配准 / 位置微调</h3>
+							<div class="manual-save-row">
+								<button id="enable-coarse" class="action-button primary" type="button">启用粗配准</button>
+								<button id="refresh-geo" class="action-button secondary" type="button">刷新定位</button>
+							</div>
+							<div class="registration-button-grid offset-top">
+								<button id="manual-front" class="action-button wide" type="button">前移</button>
+								<button id="manual-left" class="action-button" type="button">左移</button>
+								<button id="manual-up" class="action-button" type="button">上移</button>
+								<button id="manual-right" class="action-button" type="button">右移</button>
+								<button id="manual-back" class="action-button wide" type="button">后移</button>
+								<button id="manual-down" class="action-button wide" type="button">下移</button>
+							</div>
+						</div>
+
+						<div class="registration-group">
+							<h3 class="registration-group-title">角度 / 尺度微调</h3>
+							<div class="action-grid">
+								<button id="manual-yaw-left" class="action-button" type="button">左旋</button>
+								<button id="manual-yaw-right" class="action-button" type="button">右旋</button>
+								<button id="manual-scale-up" class="action-button" type="button">放大</button>
+								<button id="manual-scale-down" class="action-button" type="button">缩小</button>
+							</div>
+
+							<div class="manual-save-row">
+								<button id="manual-save" class="action-button primary" type="button">保存配准</button>
+								<button id="manual-reset" class="action-button secondary" type="button">重置配准</button>
+							</div>
+
+							<div class="property-remark offset-top">
+								当前位置：<span id="manual-value-position">左移 0.00m / 上移 0.00m / 前移 0.00m</span><br>
+								当前角度：<span id="manual-value-yaw">0deg</span><br>
+								当前尺度：<span id="manual-value-scale">1.000x</span>
+							</div>
+						</div>
+					</div>
 				</div>
 
-				<div class="hint">
-					进入 AR 后，请先缓慢移动手机帮助系统识别平面。点击“启用粗配准”后，系统会尝试结合 GPS、IMU 和 hit-test 地面结果，自动生成模型的初始位置与朝向。
+				<div id="timeline-panel" class="drawer-card hidden">
+					<h2 class="drawer-title">时间模式</h2>
+					<p class="drawer-subtitle">当前阶段：<span id="timeline-current-stage">管线铺设</span></p>
+
+					<div class="timeline-stage-bar" id="timeline-stage-list">
+						<button class="timeline-stage-button" data-stage-index="0" type="button">开挖前</button>
+						<button class="timeline-stage-button" data-stage-index="1" type="button">管沟开挖</button>
+						<button class="timeline-stage-button active" data-stage-index="2" type="button">管线铺设</button>
+						<button class="timeline-stage-button" data-stage-index="3" type="button">回填前核查</button>
+						<button class="timeline-stage-button" data-stage-index="4" type="button">回填后</button>
+					</div>
+
+					<div class="timeline-control-row">
+						<button id="timeline-prev" class="action-button" type="button">上一阶段</button>
+						<button id="timeline-play" class="action-button primary" type="button">播放</button>
+						<button id="timeline-next" class="action-button" type="button">下一阶段</button>
+					</div>
+
+					<div class="property-remark">时间阶段模型切换还在开发中，当前先提供流程骨架与阶段切换状态提示。</div>
 				</div>
+
+				<div id="inspection-panel" class="drawer-card hidden">
+					<h2 class="drawer-title">核查模式</h2>
+					<p class="drawer-subtitle">记录现场问题、隐患与备注。后续可接入拍照、问题列表和闭环流程。</p>
+
+					<div class="form-grid">
+						<div class="form-field">
+							<label for="inspection-type">问题类型</label>
+							<select id="inspection-type">
+								<option value="位置偏差">位置偏差</option>
+								<option value="埋深异常">埋深异常</option>
+								<option value="材质不符">材质不符</option>
+								<option value="标识问题">标识问题</option>
+							</select>
+						</div>
+
+						<div class="form-field">
+							<label for="inspection-severity">严重程度</label>
+							<select id="inspection-severity">
+								<option value="一般">一般</option>
+								<option value="重要">重要</option>
+								<option value="紧急">紧急</option>
+							</select>
+						</div>
+
+						<div class="form-field full">
+							<label for="inspection-note">备注</label>
+							<textarea id="inspection-note" placeholder="请输入问题描述、核查结论或现场情况。"></textarea>
+						</div>
+					</div>
+
+					<div class="timeline-control-row">
+						<button id="inspection-photo" class="action-button" type="button">拍照</button>
+						<button id="inspection-save" class="action-button primary" type="button">保存</button>
+						<button id="status" class="action-button secondary" type="button" disabled>等待操作</button>
+					</div>
+				</div>
+			</div>
+
+			<div class="mobile-bottom-nav">
+				<button id="mode-browse" class="mode-button active" type="button">
+					<span class="icon">览</span>
+					<span class="label">浏览</span>
+				</button>
+				<button id="mode-registration" class="mode-button" type="button">
+					<span class="icon">配</span>
+					<span class="label">配准</span>
+				</button>
+				<button id="mode-timeline" class="mode-button" type="button">
+					<span class="icon">时</span>
+					<span class="label">时间</span>
+				</button>
+				<button id="mode-inspection" class="mode-button" type="button">
+					<span class="icon">核</span>
+					<span class="label">核查</span>
+				</button>
 			</div>
 		</div>
 
-		<div id="canvas-container"></div>
-		<div class="xr-button-wrap" id="xr-button-wrap"></div>
+		<div id="desktop-shell">
+			<div class="desktop-scroll-content">
+				<div class="desktop-topbar">
+					<div class="desktop-project-block">
+						<h1>移动端 AR 管网现场辅助核查系统</h1>
+						<div class="desktop-project-meta">项目名称：<span id="desktop-project-name">管网现场核查项目</span></div>
+					</div>
 
-		<div id="ar-property-panel" class="property-panel hidden">
-			<div class="property-header">
-				<h2 class="property-title">管线属性</h2>
-				<button id="ar-property-close" class="property-close" type="button">关闭</button>
-			</div>
+					<div class="desktop-status-bar">
+						<div class="pill">当前模型：<span id="desktop-current-model">-</span></div>
+						<div class="pill">运行状态：<span id="desktop-runtime-status">等待初始化</span></div>
+					</div>
+				</div>
 
-			<div class="property-grid">
-				<strong>名称</strong><span id="ar-prop-name">-</span>
-				<strong>类型</strong><span id="ar-prop-type">-</span>
-				<strong>管径</strong><span id="ar-prop-diameter">-</span>
-				<strong>材质</strong><span id="ar-prop-material">-</span>
-				<strong>埋深</strong><span id="ar-prop-depth">-</span>
-				<strong>状态</strong><span id="ar-prop-status">-</span>
-				<strong>备注</strong><span id="ar-prop-remark">-</span>
+				<div class="desktop-main">
+					<aside class="desktop-panel">
+						<div class="desktop-panel-header">
+							<h2 class="desktop-panel-title">模型与数据</h2>
+							<div class="desktop-panel-subtitle">管理模型文件、管线对象、图层和时间阶段列表。</div>
+						</div>
+						<div class="desktop-panel-body">
+							<div class="desktop-list-block">
+								<h3 class="desktop-list-title">模型文件</h3>
+								<div class="desktop-list">
+									<div class="desktop-list-item" id="desktop-model-file">-</div>
+								</div>
+							</div>
+
+							<div class="desktop-list-block">
+								<h3 class="desktop-list-title">管线对象列表</h3>
+								<div id="desktop-pipe-list" class="desktop-list"></div>
+							</div>
+
+							<div class="desktop-list-block">
+								<h3 class="desktop-list-title">图层列表</h3>
+								<div id="desktop-layer-list" class="desktop-list"></div>
+							</div>
+
+							<div class="desktop-list-block">
+								<h3 class="desktop-list-title">时间阶段列表</h3>
+								<div id="desktop-stage-list" class="desktop-list"></div>
+							</div>
+						</div>
+					</aside>
+
+					<section class="desktop-panel desktop-preview-panel">
+						<div class="desktop-preview-badge" id="desktop-preview-badge">3D 预览区域</div>
+						<div id="desktop-canvas-container" class="desktop-center-canvas"></div>
+					</section>
+
+					<aside class="desktop-panel">
+						<div class="desktop-panel-header">
+							<h2 class="desktop-panel-title">参数面板</h2>
+							<div class="desktop-panel-subtitle">展示 GPS 初始点、ENU 原点、当前位姿、尺度和 RMS 误差。</div>
+						</div>
+						<div class="desktop-panel-body">
+							<div class="param-grid">
+								<div class="param-card"><strong>GPS 初始点</strong><span id="desktop-param-gps">-</span></div>
+								<div class="param-card"><strong>ENU 原点</strong><span id="desktop-param-enu">-</span></div>
+								<div class="param-card"><strong>position</strong><span id="desktop-param-position">-</span></div>
+								<div class="param-card"><strong>quaternion</strong><span id="desktop-param-quaternion">-</span></div>
+								<div class="param-card"><strong>scale</strong><span id="desktop-param-scale">-</span></div>
+								<div class="param-card"><strong>RMS 误差</strong><span id="desktop-param-rms">-</span></div>
+							</div>
+
+							<div class="desktop-actions">
+								<button id="desktop-save-registration" class="action-button primary" type="button">保存</button>
+								<button id="desktop-export-json" class="action-button secondary" type="button">导出 JSON</button>
+							</div>
+						</div>
+					</aside>
+				</div>
+
+				<section class="desktop-log">
+					<div class="desktop-panel-header">
+						<h2 class="desktop-panel-title">日志</h2>
+						<div class="desktop-panel-subtitle">模型加载、AR 能力状态和配准结果的调试输出。</div>
+					</div>
+					<div id="desktop-log-list" class="desktop-log-list"></div>
+				</section>
 			</div>
 		</div>
 	</div>

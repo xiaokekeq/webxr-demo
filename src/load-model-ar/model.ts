@@ -65,18 +65,25 @@ export function placeModelAt(
 	currentModel: THREE.Group | null,
 	parent: THREE.Group,
 	position: THREE.Vector3,
-	yawRad = 0
+	orientation = new THREE.Quaternion(),
+	uniformScale = 1
 ): THREE.Group {
 
 	let targetModel = currentModel;
 
 	if ( targetModel === null ) {
 		targetModel = clone( modelTemplate ) as THREE.Group;
+		targetModel.userData.__baseScale = targetModel.scale.clone();
 		parent.add( targetModel );
 	}
 
 	targetModel.position.copy( position );
-	targetModel.rotation.set( 0, yawRad, 0 );
+	targetModel.quaternion.copy( orientation );
+
+	const baseScale = targetModel.userData.__baseScale instanceof THREE.Vector3
+		? targetModel.userData.__baseScale
+		: targetModel.scale.clone();
+	targetModel.scale.copy( baseScale ).multiplyScalar( uniformScale );
 
 	return targetModel;
 
@@ -144,6 +151,7 @@ function createPlaceableTemplate(
 	const originalLongestEdgeMeters = Math.max( templateSize.x, templateSize.y, templateSize.z );
 	const appliedScaleFactor = getAppliedScaleFactor( originalLongestEdgeMeters ) * perModelScaleFactor;
 	wrapper.scale.setScalar( appliedScaleFactor );
+	wrapper.userData.__bakedScaleFactor = appliedScaleFactor;
 
 	scaledSize.copy( templateSize ).multiplyScalar( appliedScaleFactor );
 

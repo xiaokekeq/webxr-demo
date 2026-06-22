@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { COARSE_REGISTRATION_TARGET, type CoarseRegistrationTarget } from './coarse-registration-config.js';
+import { createEnuFrame, geodeticToEnu } from './geodesy.js';
 import type { CoarsePlacementEstimate, SetStatus } from './types.js';
 
 interface CreateCoarseRegistrationControllerOptions {
@@ -12,6 +13,11 @@ interface DeviceOrientationEventWithCompass extends DeviceOrientationEvent {
 }
 
 const tempPosition = new THREE.Vector3();
+const tempEnuOffset = new THREE.Vector3();
+const tempArOffset = new THREE.Vector3();
+const tempRotationMatrix = new THREE.Matrix4();
+const tempScale = new THREE.Vector3( 1, 1, 1 );
+const tempQuaternion = new THREE.Quaternion();
 
 export function createCoarseRegistrationController(
 	options: CreateCoarseRegistrationControllerOptions
@@ -46,7 +52,7 @@ export function createCoarseRegistrationController(
 	async function refreshGeolocation(): Promise<void> {
 
 		if ( 'geolocation' in navigator === false ) {
-			throw new Error( '当前浏览器不支持 Geolocation API' );
+			throw new Error( 'Current browser does not support Geolocation API.' );
 		}
 
 		const position = await new Promise<GeolocationPosition>( ( resolve, reject ) => {
@@ -88,30 +94,26 @@ export function createCoarseRegistrationController(
 			return null;
 		}
 
-		const offset = getTargetOffsetMeters();
-		if ( offset === null ) {
+		const enuOffset = getTargetOffsetEnu();
+		if ( enuOffset === null ) {
 			return null;
 		}
 
-		const headingRad = THREE.MathUtils.degToRad( lastHeadingDeg );
-		const localX = offset.eastMeters * Math.cos( headingRad ) - offset.northMeters * Math.sin( headingRad );
-		const forwardMeters = offset.eastMeters * Math.sin( headingRad ) + offset.northMeters * Math.cos( headingRad );
-		const localZ = - forwardMeters;
+		const enuToArQuaternion = getEnuToArQuaternion( lastHeadingDeg, tempQuaternion );
+		convertEnuOffsetToArOffset( enuOffset, lastHeadingDeg, tempArOffset );
 
 		tempPosition.copy( cameraWorldPosition );
-		tempPosition.x += localX;
-		tempPosition.y = groundY;
-		tempPosition.z += localZ;
+		tempPosition.x += tempArOffset.x;
+		tempPosition.y = groundY + tempArOffset.y;
+		tempPosition.z += tempArOffset.z;
 
 		return {
 			position: tempPosition.clone(),
-			yawRad: THREE.MathUtils.degToRad(
-				offset.targetHeadingDeg - lastHeadingDeg + ( offset.assetYawOffsetDeg ?? 0 )
-			),
-			distanceMeters: Math.hypot( offset.eastMeters, offset.northMeters ),
+			orientation: enuToArQuaternion.clone(),
+			distanceMeters: enuOffset.length(),
 			headingDeg: lastHeadingDeg,
 			accuracyMeters: lastGeolocation?.coords.accuracy ?? null,
-			sourceLabel: offset.label
+			sourceLabel: target.label
 		};
 
 	}
@@ -119,34 +121,34 @@ export function createCoarseRegistrationController(
 	function getReadyMessage(): string {
 
 		if ( lastHeadingDeg === null ) {
-			return '传感器已启用，等待有效朝向数据';
+			return 'Sensors enabled. Waiting for a valid heading sample.';
 		}
 
-		const parts = [ `朝向 ${Math.round( lastHeadingDeg )}°` ];
+		const parts = [ `heading ${Math.round( lastHeadingDeg )}deg` ];
 
 		if ( target.mode === 'absolute-site' && lastGeolocation !== null ) {
-			parts.unshift( `GPS 精度约 ${Math.round( lastGeolocation.coords.accuracy )}m` );
+			parts.unshift( `GPS accuracy about ${Math.round( lastGeolocation.coords.accuracy )}m` );
 		}
 
 		if ( target.mode !== 'absolute-site' ) {
-			parts.push( '可自动生成粗配准初值' );
+			parts.push( 'ready to generate a coarse initial pose' );
 		}
 
-		return `粗配准已准备：${parts.join( '，' )}`;
+		return `Coarse registration ready: ${parts.join( ', ' )}`;
 
 	}
 
 	function getMissingRequirementMessage(): string {
 
 		if ( lastHeadingDeg === null ) {
-			return '粗配准缺少 IMU 朝向数据，请启用方向传感器';
+			return 'Coarse registration is missing IMU heading data.';
 		}
 
 		if ( target.mode === 'absolute-site' && lastGeolocation === null ) {
-			return '粗配准缺少 GPS 定位数据，请允许位置权限';
+			return 'Coarse registration is missing GPS data.';
 		}
 
-		return '粗配准条件尚未满足';
+		return 'Coarse registration requirements are not satisfied yet.';
 
 	}
 
@@ -175,13 +177,13 @@ export function createCoarseRegistrationController(
 		};
 
 		if ( typeof OrientationEventCtor === 'undefined' ) {
-			throw new Error( '当前浏览器不支持 DeviceOrientationEvent' );
+			throw new Error( 'Current browser does not support DeviceOrientationEvent.' );
 		}
 
 		if ( typeof OrientationEventCtor.requestPermission === 'function' ) {
 			const permission = await OrientationEventCtor.requestPermission();
 			if ( permission !== 'granted' ) {
-				throw new Error( '方向传感器权限被拒绝' );
+				throw new Error( 'Device orientation permission was denied.' );
 			}
 		}
 
@@ -223,36 +225,29 @@ export function createCoarseRegistrationController(
 
 	}
 
-	function getTargetOffsetMeters(): {
-		eastMeters: number;
-		northMeters: number;
-		targetHeadingDeg: number;
-		assetYawOffsetDeg?: number;
-		label: string;
-	} | null {
+	function getTargetOffsetEnu(): THREE.Vector3 | null {
 
 		if ( target.mode === 'demo-offset' ) {
-			return target;
+			return tempEnuOffset.set( target.eastMeters, target.northMeters, 0 );
 		}
 
 		if ( lastGeolocation === null ) {
 			return null;
 		}
 
-		const latitudeRad = THREE.MathUtils.degToRad( ( lastGeolocation.coords.latitude + target.latitude ) / 2 );
-		const metersPerLat = 111320;
-		const metersPerLon = 111320 * Math.cos( latitudeRad );
-
-		const northMeters = ( target.latitude - lastGeolocation.coords.latitude ) * metersPerLat;
-		const eastMeters = ( target.longitude - lastGeolocation.coords.longitude ) * metersPerLon;
-
-		return {
-			eastMeters,
-			northMeters,
-			targetHeadingDeg: target.targetHeadingDeg,
-			assetYawOffsetDeg: target.assetYawOffsetDeg,
-			label: target.label
+		const currentGeodetic = {
+			lat: lastGeolocation.coords.latitude,
+			lon: lastGeolocation.coords.longitude,
+			alt: lastGeolocation.coords.altitude ?? 0
 		};
+		const targetGeodetic = {
+			lat: target.latitude,
+			lon: target.longitude,
+			alt: target.altitude ?? currentGeodetic.alt
+		};
+		const currentEnuFrame = createEnuFrame( currentGeodetic );
+
+		return geodeticToEnu( targetGeodetic, currentEnuFrame, tempEnuOffset );
 
 	}
 
@@ -265,6 +260,46 @@ export function createCoarseRegistrationController(
 		getReadyMessage,
 		getMissingRequirementMessage
 	};
+
+}
+
+export function getEnuToArQuaternion(
+	headingDeg: number,
+	target = new THREE.Quaternion()
+): THREE.Quaternion {
+
+	const headingRad = THREE.MathUtils.degToRad( headingDeg );
+	const cosHeading = Math.cos( headingRad );
+	const sinHeading = Math.sin( headingRad );
+
+	tempRotationMatrix.set(
+		cosHeading, 0, sinHeading, 0,
+		0, 0, -1, 0,
+		-sinHeading, 0, cosHeading, 0,
+		0, 0, 0, 1
+	);
+
+	return target.setFromRotationMatrix( tempRotationMatrix );
+
+}
+
+function convertEnuOffsetToArOffset(
+	enuOffset: THREE.Vector3,
+	headingDeg: number,
+	target = new THREE.Vector3()
+): THREE.Vector3 {
+
+	const headingRad = THREE.MathUtils.degToRad( headingDeg );
+	const cosHeading = Math.cos( headingRad );
+	const sinHeading = Math.sin( headingRad );
+
+	target.set(
+		enuOffset.x * cosHeading - enuOffset.y * sinHeading,
+		enuOffset.z,
+		- ( enuOffset.x * sinHeading + enuOffset.y * cosHeading )
+	);
+
+	return target;
 
 }
 

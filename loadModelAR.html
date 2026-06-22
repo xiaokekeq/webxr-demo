@@ -83,6 +83,263 @@
 			position: relative;
 			width: 100%;
 			height: 100%;
+			--mobile-safe-top: max(14px, env(safe-area-inset-top, 0px));
+			--mobile-safe-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+			--mobile-nav-height: 86px;
+			--mobile-toggle-height: 46px;
+			--mobile-drawer-bottom: calc(var(--mobile-safe-bottom) + var(--mobile-nav-height) + var(--mobile-toggle-height) + 18px);
+		}
+
+		.mobile-pre-ar-shell,
+		.mobile-ar-shell {
+			position: absolute;
+			inset: 0;
+		}
+
+		.mobile-pre-ar-shell {
+			z-index: 22;
+			padding: var(--mobile-safe-top) 14px calc(var(--mobile-safe-bottom) + 18px);
+			overflow: auto;
+			-webkit-overflow-scrolling: touch;
+		}
+
+		.pre-ar-stack {
+			display: flex;
+			flex-direction: column;
+			gap: 14px;
+			min-height: 100%;
+		}
+
+		.pre-ar-card {
+			border-radius: 24px;
+			background: rgba(255, 255, 255, 0.94);
+			border: 1px solid rgba(255, 255, 255, 0.72);
+			box-shadow: var(--shadow);
+			backdrop-filter: blur(18px) saturate(140%);
+			-webkit-backdrop-filter: blur(18px) saturate(140%);
+		}
+
+		.pre-ar-summary-card,
+		.pre-ar-config-card {
+			padding: 18px;
+		}
+
+		.pre-ar-summary-title {
+			margin: 0;
+			font-size: 24px;
+			font-weight: 700;
+			color: var(--ink);
+		}
+
+		.pre-ar-summary-meta {
+			margin-top: 8px;
+			display: grid;
+			gap: 8px;
+		}
+
+		.pre-ar-meta-row {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 12px;
+			font-size: 14px;
+			color: #334155;
+		}
+
+		.pre-ar-meta-row strong {
+			font-weight: 700;
+			color: var(--ink);
+		}
+
+		.pre-ar-preview-card {
+			padding: 12px;
+		}
+
+		.pre-ar-preview-header {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 12px;
+			padding: 6px 6px 12px;
+		}
+
+		.pre-ar-preview-title {
+			font-size: 16px;
+			font-weight: 700;
+			color: var(--ink);
+		}
+
+		.pre-ar-preview-status {
+			font-size: 12px;
+			font-weight: 700;
+			color: #64748b;
+		}
+
+		.pre-ar-preview-surface {
+			position: relative;
+			height: min(34vh, 280px);
+			border-radius: 22px;
+			overflow: hidden;
+			background:
+				radial-gradient(circle at top, rgba(61, 123, 255, 0.18), transparent 55%),
+				linear-gradient(180deg, #f3f7ff 0%, #dbe7ff 100%);
+			box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.18);
+		}
+
+		#mobile-pre-ar-canvas-container,
+		#mobile-pre-ar-canvas-container canvas {
+			width: 100%;
+			height: 100%;
+			display: block;
+		}
+
+		#mobile-pre-ar-canvas-container {
+			touch-action: none;
+			cursor: grab;
+		}
+
+		#mobile-pre-ar-canvas-container:active {
+			cursor: grabbing;
+		}
+
+		.pre-ar-preview-overlay {
+			position: absolute;
+			left: 14px;
+			right: 14px;
+			bottom: 14px;
+			display: flex;
+			justify-content: space-between;
+			gap: 10px;
+			flex-wrap: wrap;
+			pointer-events: none;
+		}
+
+		.pre-ar-chip {
+			display: inline-flex;
+			align-items: center;
+			gap: 6px;
+			padding: 8px 12px;
+			border-radius: 999px;
+			background: rgba(15, 23, 42, 0.62);
+			color: #ffffff;
+			font-size: 12px;
+			font-weight: 700;
+			backdrop-filter: blur(12px);
+			-webkit-backdrop-filter: blur(12px);
+		}
+
+		.pre-ar-field-grid {
+			display: grid;
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+			gap: 12px;
+		}
+
+		.pre-ar-field.full {
+			grid-column: 1 / -1;
+		}
+
+		.pre-ar-field label {
+			display: block;
+			margin-bottom: 6px;
+			font-size: 12px;
+			font-weight: 700;
+			color: var(--muted);
+		}
+
+		.pre-ar-field select {
+			width: 100%;
+			border: 0;
+			border-radius: 12px;
+			background: var(--card-soft);
+			padding: 10px 12px;
+			color: #0f172a;
+			font-size: 13px;
+			min-height: 40px;
+			box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.24);
+		}
+
+		.pre-ar-layer-list {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 8px;
+			margin-top: 10px;
+		}
+
+		.pre-ar-layer-chip {
+			display: inline-flex;
+			align-items: center;
+			padding: 7px 11px;
+			border-radius: 999px;
+			background: #edf4ff;
+			color: #2450a6;
+			font-size: 12px;
+			font-weight: 700;
+		}
+
+		.pre-ar-support-row {
+			display: flex;
+			align-items: flex-start;
+			justify-content: space-between;
+			gap: 12px;
+			margin-top: 4px;
+		}
+
+		.pre-ar-support-copy {
+			flex: 1 1 auto;
+			min-width: 0;
+		}
+
+		.pre-ar-support-title {
+			font-size: 12px;
+			font-weight: 700;
+			color: var(--muted);
+		}
+
+		.pre-ar-support-message {
+			margin-top: 6px;
+			font-size: 13px;
+			line-height: 1.7;
+			color: #475569;
+		}
+
+		.pre-ar-support-badge {
+			flex: 0 0 auto;
+			padding: 8px 12px;
+			border-radius: 999px;
+			background: #eef2ff;
+			color: #3655c7;
+			font-size: 12px;
+			font-weight: 700;
+		}
+
+		.pre-ar-support-badge.supported {
+			background: #ecfdf3;
+			color: #16794b;
+		}
+
+		.pre-ar-support-badge.unsupported {
+			background: #fef2f2;
+			color: #c24141;
+		}
+
+		.pre-ar-enter-button {
+			width: 100%;
+			min-height: 50px;
+			margin-top: 16px;
+			border: 0;
+			border-radius: 16px;
+			background: linear-gradient(180deg, #3d7bff 0%, #2f6df6 100%);
+			color: #ffffff;
+			font-size: 15px;
+			font-weight: 700;
+			box-shadow: 0 14px 28px rgba(47, 109, 246, 0.26);
+			cursor: pointer;
+		}
+
+		.pre-ar-enter-button:disabled {
+			background: #cbd5e1;
+			box-shadow: none;
+			cursor: not-allowed;
 		}
 
 		#canvas-container,
@@ -94,7 +351,7 @@
 
 		.mobile-topbar {
 			position: fixed;
-			top: 14px;
+			top: var(--mobile-safe-top);
 			left: 14px;
 			right: 14px;
 			z-index: 30;
@@ -104,10 +361,21 @@
 			gap: 12px;
 			padding: 12px 14px;
 			border-radius: 18px;
-			background: rgba(15, 23, 42, 0.42);
-			backdrop-filter: blur(16px);
+			background:
+				linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.06) 100%),
+				rgba(15, 23, 42, 0.48);
+			backdrop-filter: blur(18px) saturate(140%);
+			-webkit-backdrop-filter: blur(18px) saturate(140%);
+			border: 1px solid rgba(255, 255, 255, 0.16);
 			color: #ffffff;
 			box-shadow: 0 12px 32px rgba(15, 23, 42, 0.24);
+			transition: opacity 180ms ease, transform 180ms ease;
+		}
+
+		.mobile-topbar.is-hidden {
+			opacity: 0;
+			transform: translateY(-10px);
+			pointer-events: none;
 		}
 
 		.mobile-top-main {
@@ -142,7 +410,7 @@
 
 		.mobile-right-tools {
 			position: fixed;
-			top: 132px;
+			top: calc(var(--mobile-safe-top) + 118px);
 			right: 14px;
 			z-index: 29;
 			display: flex;
@@ -169,37 +437,52 @@
 			color: #ffffff;
 		}
 
+		.xr-button-wrap {
+			position: fixed;
+			width: 0;
+			height: 0;
+			overflow: hidden;
+			opacity: 0;
+			pointer-events: none;
+			z-index: -1;
+		}
+
 		.xr-button-wrap :is(button, a) {
-			position: fixed !important;
-			left: 14px !important;
-			bottom: 172px !important;
-			right: auto !important;
+			position: absolute !important;
+			left: -9999px !important;
+			top: -9999px !important;
+			width: 1px !important;
+			height: 1px !important;
+			padding: 0 !important;
 			margin: 0 !important;
-			border: 0 !important;
-			border-radius: 18px !important;
-			background: rgba(255, 255, 255, 0.94) !important;
-			box-shadow: var(--shadow) !important;
-			color: #16336e !important;
-			font-family: inherit !important;
-			font-size: 13px !important;
-			font-weight: 700 !important;
-			padding: 0.95em 1.15em !important;
-			opacity: 1 !important;
+			opacity: 0 !important;
+			pointer-events: none !important;
 		}
 
 		.mobile-drawer-area {
 			position: fixed;
 			left: 12px;
 			right: 12px;
-			bottom: 96px;
+			bottom: var(--mobile-drawer-bottom);
 			z-index: 28;
 			display: flex;
 			justify-content: center;
+			align-items: flex-end;
 			pointer-events: none;
+			transition: opacity 180ms ease, transform 180ms ease;
 		}
 
 		.mobile-drawer-area > * {
 			pointer-events: auto;
+		}
+
+		.mobile-drawer-area.is-collapsed {
+			opacity: 0;
+			transform: translateY(14px);
+		}
+
+		.mobile-drawer-area.is-collapsed > * {
+			pointer-events: none;
 		}
 
 		.drawer-card {
@@ -209,6 +492,20 @@
 			background: var(--card);
 			box-shadow: var(--shadow);
 			border: 1px solid rgba(255, 255, 255, 0.72);
+			max-height: min(72vh, calc(100dvh - var(--mobile-drawer-bottom) - var(--mobile-safe-top) - 28px));
+			overflow: auto;
+			overscroll-behavior: contain;
+			-webkit-overflow-scrolling: touch;
+			scrollbar-gutter: stable;
+		}
+
+		.drawer-card::-webkit-scrollbar {
+			width: 6px;
+		}
+
+		.drawer-card::-webkit-scrollbar-thumb {
+			border-radius: 999px;
+			background: rgba(100, 116, 139, 0.35);
 		}
 
 		.drawer-header {
@@ -375,6 +672,26 @@
 			margin-top: 12px;
 		}
 
+		.precision-section {
+			margin-top: 12px;
+			padding: 14px;
+			border-radius: 18px;
+			background: var(--card-soft);
+		}
+
+		.precision-action-grid {
+			display: grid;
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+			gap: 8px;
+			margin-top: 12px;
+		}
+
+		.precision-list {
+			margin-top: 12px;
+			max-height: 180px;
+			overflow: auto;
+		}
+
 		.timeline-stage-bar {
 			display: grid;
 			grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -447,7 +764,7 @@
 			position: fixed;
 			left: 12px;
 			right: 12px;
-			bottom: 12px;
+			bottom: var(--mobile-safe-bottom);
 			z-index: 29;
 			display: grid;
 			grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -457,6 +774,48 @@
 			background: rgba(255, 255, 255, 0.95);
 			backdrop-filter: blur(16px);
 			box-shadow: var(--shadow);
+		}
+
+		.mobile-drawer-toggle {
+			position: fixed;
+			left: 50%;
+			bottom: calc(var(--mobile-safe-bottom) + var(--mobile-nav-height) + 10px);
+			transform: translateX(-50%);
+			z-index: 29;
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			gap: 8px;
+			min-height: var(--mobile-toggle-height);
+			padding: 0 16px;
+			border: 0;
+			border-radius: 999px;
+			background: rgba(255, 255, 255, 0.92);
+			backdrop-filter: blur(16px) saturate(140%);
+			-webkit-backdrop-filter: blur(16px) saturate(140%);
+			box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18);
+			color: #1e3a8a;
+			font-size: 13px;
+			font-weight: 700;
+			cursor: pointer;
+			transition: opacity 180ms ease, transform 180ms ease, background-color 180ms ease;
+		}
+
+		.mobile-drawer-toggle[aria-expanded="true"] {
+			background: rgba(237, 244, 255, 0.96);
+		}
+
+		.mobile-drawer-toggle .toggle-icon {
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			width: 22px;
+			height: 22px;
+			border-radius: 50%;
+			background: rgba(47, 109, 246, 0.12);
+			color: var(--brand);
+			font-size: 12px;
+			line-height: 1;
 		}
 
 		.mode-button {
@@ -732,6 +1091,7 @@
 			.mobile-topbar,
 			.mobile-right-tools,
 			.mobile-drawer-area,
+			.mobile-drawer-toggle,
 			.mobile-bottom-nav {
 				display: none !important;
 			}
@@ -826,7 +1186,75 @@
 			<div class="xr-button-wrap" id="xr-button-wrap"></div>
 
 		<div id="mobile-shell">
-			<div class="mobile-topbar">
+			<div id="mobile-pre-ar-shell" class="mobile-pre-ar-shell">
+				<div class="pre-ar-stack">
+					<section class="pre-ar-card pre-ar-summary-card">
+						<h1 id="mobile-pre-ar-project-name" class="pre-ar-summary-title">管网现场核查项目</h1>
+						<div class="pre-ar-summary-meta">
+							<div class="pre-ar-meta-row">
+								<strong>当前模型</strong>
+								<span id="mobile-pre-ar-current-model">-</span>
+							</div>
+							<div class="pre-ar-meta-row">
+								<strong>当前阶段</strong>
+								<span id="mobile-pre-ar-current-stage">-</span>
+							</div>
+							<div class="pre-ar-meta-row">
+								<strong>加载状态</strong>
+								<span id="mobile-pre-ar-runtime-status">等待初始化</span>
+							</div>
+						</div>
+					</section>
+
+					<section class="pre-ar-card pre-ar-preview-card">
+						<div class="pre-ar-preview-header">
+							<div class="pre-ar-preview-title">3D 模型预览</div>
+							<div class="pre-ar-preview-status">准备阶段</div>
+						</div>
+						<div class="pre-ar-preview-surface">
+							<div id="mobile-pre-ar-canvas-container"></div>
+							<div class="pre-ar-preview-overlay">
+								<div class="pre-ar-chip">拖动旋转</div>
+								<div class="pre-ar-chip">双指缩放，进入 AR 后切换到现场视图</div>
+							</div>
+						</div>
+					</section>
+
+					<section class="pre-ar-card pre-ar-config-card">
+						<div class="pre-ar-field-grid">
+							<div class="pre-ar-field">
+								<label for="mobile-pre-ar-model-select">模型选择</label>
+								<select id="mobile-pre-ar-model-select"></select>
+							</div>
+							<div class="pre-ar-field">
+								<label for="mobile-pre-ar-stage-select">阶段选择</label>
+								<select id="mobile-pre-ar-stage-select"></select>
+							</div>
+							<div class="pre-ar-field full">
+								<label>可用图层</label>
+								<div id="mobile-pre-ar-layer-list" class="pre-ar-layer-list"></div>
+							</div>
+						</div>
+
+						<div class="pre-ar-support-row">
+							<div class="pre-ar-support-copy">
+								<div class="pre-ar-support-title">AR 设备状态</div>
+								<div id="mobile-pre-ar-support-message" class="pre-ar-support-message">
+									正在检测当前设备是否支持 WebXR AR。
+								</div>
+							</div>
+							<div id="mobile-pre-ar-support-badge" class="pre-ar-support-badge">检测中</div>
+						</div>
+
+						<button id="mobile-pre-ar-enter-ar" class="pre-ar-enter-button" type="button" disabled>
+							进入 AR
+						</button>
+					</section>
+				</div>
+			</div>
+
+			<div id="mobile-ar-shell" class="mobile-ar-shell hidden">
+			<div id="mobile-topbar" class="mobile-topbar">
 				<div class="mobile-top-main">
 					<div id="mobile-top-title" class="mobile-top-title">管网现场核查项目</div>
 					<div id="mobile-top-subtitle" class="mobile-top-subtitle">当前阶段：管线铺设</div>
@@ -840,7 +1268,7 @@
 				<button id="tool-measure" class="tool-button" type="button">测距</button>
 			</div>
 
-			<div class="mobile-drawer-area">
+			<div id="mobile-drawer-area" class="mobile-drawer-area">
 				<div id="browse-panel" class="drawer-card">
 					<div class="drawer-header">
 						<div>
@@ -848,6 +1276,13 @@
 							<div id="ar-prop-status-badge" class="pill">待选择</div>
 						</div>
 						<button id="ar-property-close" class="action-button secondary" type="button">收起</button>
+					</div>
+
+					<div class="form-grid">
+						<div class="form-field full">
+							<label for="model-select">模型选择</label>
+							<select id="model-select"></select>
+						</div>
 					</div>
 
 					<div class="property-grid">
@@ -908,6 +1343,38 @@
 								当前尺度：<span id="manual-value-scale">1.000x</span>
 							</div>
 						</div>
+					</div>
+
+					<div class="precision-section">
+						<h3 class="registration-group-title">精配准 / 控制点采集</h3>
+						<div class="form-grid">
+							<div class="form-field full">
+								<label for="precision-source-select">模型控制点</label>
+								<select id="precision-source-select"></select>
+							</div>
+						</div>
+
+						<div class="precision-action-grid">
+							<button id="precision-source-arm" class="action-button" type="button">锁定模型点</button>
+							<button id="precision-target-confirm" class="action-button" type="button">确认现实点</button>
+						</div>
+
+						<div class="property-remark offset-top">
+							当前模型点：<span id="precision-source-current">未选择</span><br>
+							当前现实点：<span id="precision-target-current">未确认</span><br>
+							已采集点对：<span id="precision-pair-count">0 / 建议至少 4 组</span><br>
+							RMS：<span id="precision-rms">--</span>
+						</div>
+
+						<div class="precision-action-grid">
+							<button id="precision-pair-add" class="action-button secondary" type="button">加入点对</button>
+							<button id="precision-solve" class="action-button primary" type="button">重新求解</button>
+							<button id="precision-save" class="action-button" type="button">保存精配准</button>
+							<button id="precision-clear" class="action-button" type="button">清空点对</button>
+						</div>
+
+						<div id="precision-workflow-status" class="property-remark offset-top">已有粗配准结果，接下来可采集控制点。</div>
+						<div id="precision-pair-list" class="desktop-list precision-list"></div>
 					</div>
 				</div>
 
@@ -970,6 +1437,16 @@
 				</div>
 			</div>
 
+			<button
+				id="mobile-drawer-toggle"
+				class="mobile-drawer-toggle"
+				type="button"
+				aria-expanded="true"
+				aria-controls="browse-panel manual-registration-panel timeline-panel inspection-panel">
+				<span class="toggle-icon">^</span>
+				<span id="mobile-drawer-toggle-label">收起面板</span>
+			</button>
+
 			<div class="mobile-bottom-nav">
 				<button id="mode-browse" class="mode-button active" type="button">
 					<span class="icon">览</span>
@@ -987,6 +1464,7 @@
 					<span class="icon">核</span>
 					<span class="label">核查</span>
 				</button>
+			</div>
 			</div>
 		</div>
 
@@ -1011,6 +1489,16 @@
 							<div class="desktop-panel-subtitle">管理模型文件、管线对象、图层和时间阶段列表。</div>
 						</div>
 						<div class="desktop-panel-body">
+							<div class="desktop-list-block">
+								<h3 class="desktop-list-title">模型选择</h3>
+								<div class="form-grid">
+									<div class="form-field full">
+										<label for="desktop-model-select">模型目录</label>
+										<select id="desktop-model-select"></select>
+									</div>
+								</div>
+							</div>
+
 							<div class="desktop-list-block">
 								<h3 class="desktop-list-title">模型文件</h3>
 								<div class="desktop-list">
@@ -1058,6 +1546,35 @@
 							<div class="desktop-actions">
 								<button id="desktop-save-registration" class="action-button primary" type="button">保存</button>
 								<button id="desktop-export-json" class="action-button secondary" type="button">导出 JSON</button>
+							</div>
+
+							<div class="precision-section">
+								<h3 class="desktop-list-title">精配准 / 控制点采集</h3>
+								<div class="form-grid">
+									<div class="form-field full">
+										<label for="desktop-precision-source-select">模型控制点</label>
+										<select id="desktop-precision-source-select"></select>
+									</div>
+								</div>
+
+								<div class="precision-action-grid">
+									<button id="desktop-precision-source-arm" class="action-button" type="button">锁定模型点</button>
+									<button id="desktop-precision-target-confirm" class="action-button" type="button">确认现实点</button>
+									<button id="desktop-precision-pair-add" class="action-button secondary" type="button">加入点对</button>
+									<button id="desktop-precision-solve" class="action-button primary" type="button">重新求解</button>
+									<button id="desktop-precision-save" class="action-button" type="button">保存精配准</button>
+									<button id="desktop-precision-clear" class="action-button" type="button">清空点对</button>
+								</div>
+
+								<div class="property-remark">
+									当前模型点：<span id="desktop-precision-source-current">未选择</span><br>
+									当前现实点：<span id="desktop-precision-target-current">未确认</span><br>
+									已采集点对：<span id="desktop-precision-pair-count">0 / 建议至少 4 组</span><br>
+									RMS：<span id="desktop-precision-rms">--</span>
+								</div>
+
+								<div id="desktop-precision-workflow-status" class="property-remark">已有粗配准结果，接下来可采集控制点。</div>
+								<div id="desktop-precision-pair-list" class="desktop-list precision-list"></div>
 							</div>
 						</div>
 					</aside>

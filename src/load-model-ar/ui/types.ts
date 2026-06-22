@@ -6,8 +6,22 @@ export type SetStatus = (message: string) => void;
 export interface ARDomElements {
 	statusButton: HTMLButtonElement;
 	modelNameEl: HTMLElement;
+	modelSelectEl: HTMLSelectElement;
 	canvasContainer: HTMLElement;
 	desktopCanvasContainer: HTMLElement;
+	mobilePreArShellEl: HTMLElement;
+	mobileArShellEl: HTMLElement;
+	mobilePreArCanvasContainer: HTMLElement;
+	mobilePreArModelSelectEl: HTMLSelectElement;
+	mobilePreArStageSelectEl: HTMLSelectElement;
+	mobilePreArProjectNameEl: HTMLElement;
+	mobilePreArCurrentModelEl: HTMLElement;
+	mobilePreArCurrentStageEl: HTMLElement;
+	mobilePreArRuntimeStatusEl: HTMLElement;
+	mobilePreArSupportBadgeEl: HTMLElement;
+	mobilePreArSupportMessageEl: HTMLElement;
+	mobilePreArLayerListEl: HTMLElement;
+	mobilePreArEnterArButton: HTMLButtonElement;
 	xrButtonWrap: HTMLElement;
 	propertyCloseButton: HTMLButtonElement;
 	propertyNameEl: HTMLElement;
@@ -27,8 +41,12 @@ export interface ARDomElements {
 	modeRegistrationButton: HTMLButtonElement;
 	modeTimelineButton: HTMLButtonElement;
 	modeInspectionButton: HTMLButtonElement;
+	mobileTopbarEl: HTMLElement;
 	mobileTopTitleEl: HTMLElement;
 	mobileTopSubtitleEl: HTMLElement;
+	mobileDrawerAreaEl: HTMLElement;
+	mobileDrawerToggleButton: HTMLButtonElement;
+	mobileDrawerToggleLabelEl: HTMLElement;
 	registrationStatusEl: HTMLElement;
 	registrationStatusDetailEl: HTMLElement;
 	browsePanelEl: HTMLElement;
@@ -50,6 +68,19 @@ export interface ARDomElements {
 	manualValuePositionEl: HTMLElement;
 	manualValueYawEl: HTMLElement;
 	manualValueScaleEl: HTMLElement;
+	precisionSourceSelectEl: HTMLSelectElement;
+	precisionSourceArmButton: HTMLButtonElement;
+	precisionTargetConfirmButton: HTMLButtonElement;
+	precisionPairAddButton: HTMLButtonElement;
+	precisionSolveButton: HTMLButtonElement;
+	precisionSaveButton: HTMLButtonElement;
+	precisionClearButton: HTMLButtonElement;
+	precisionSourceCurrentEl: HTMLElement;
+	precisionTargetCurrentEl: HTMLElement;
+	precisionPairCountEl: HTMLElement;
+	precisionRmsEl: HTMLElement;
+	precisionWorkflowStatusEl: HTMLElement;
+	precisionPairListEl: HTMLElement;
 	timelineCurrentStageEl: HTMLElement;
 	timelinePrevButton: HTMLButtonElement;
 	timelineNextButton: HTMLButtonElement;
@@ -61,6 +92,7 @@ export interface ARDomElements {
 	inspectionPhotoButton: HTMLButtonElement;
 	inspectionSaveButton: HTMLButtonElement;
 	desktopProjectNameEl: HTMLElement;
+	desktopModelSelectEl: HTMLSelectElement;
 	desktopCurrentModelEl: HTMLElement;
 	desktopRuntimeStatusEl: HTMLElement;
 	desktopModelFileEl: HTMLElement;
@@ -74,6 +106,19 @@ export interface ARDomElements {
 	desktopParamQuaternionEl: HTMLElement;
 	desktopParamScaleEl: HTMLElement;
 	desktopParamRmsEl: HTMLElement;
+	desktopPrecisionSourceSelectEl: HTMLSelectElement;
+	desktopPrecisionSourceArmButton: HTMLButtonElement;
+	desktopPrecisionTargetConfirmButton: HTMLButtonElement;
+	desktopPrecisionPairAddButton: HTMLButtonElement;
+	desktopPrecisionSolveButton: HTMLButtonElement;
+	desktopPrecisionSaveButton: HTMLButtonElement;
+	desktopPrecisionClearButton: HTMLButtonElement;
+	desktopPrecisionSourceCurrentEl: HTMLElement;
+	desktopPrecisionTargetCurrentEl: HTMLElement;
+	desktopPrecisionPairCountEl: HTMLElement;
+	desktopPrecisionRmsEl: HTMLElement;
+	desktopPrecisionWorkflowStatusEl: HTMLElement;
+	desktopPrecisionPairListEl: HTMLElement;
 	desktopSaveRegistrationButton: HTMLButtonElement;
 	desktopExportJsonButton: HTMLButtonElement;
 	desktopLogListEl: HTMLElement;
@@ -93,6 +138,7 @@ export interface XRHitTestController {
 	update(frame: XRFrame): void;
 	hasGroundHit(): boolean;
 	getHitPosition(target: THREE.Vector3): THREE.Vector3 | null;
+	requestSession(): void;
 }
 
 export interface CoarsePlacementEstimate {

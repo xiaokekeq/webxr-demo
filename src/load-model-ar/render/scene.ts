@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import type { ARSceneBundle } from './types.js';
+import type { ARSceneBundle } from '../ui/types.js';
 
 export function createARScene(canvasContainer: HTMLElement): ARSceneBundle {
 

@@ -1,0 +1,9 @@
+[
+  {
+    "id": "pipe-demo-01",
+    "name": "管网示例模型 01",
+    "modelUrl": "/pipe-viewer/water+pipe+system+3d+model.glb",
+    "configUrl": "/pipe-viewer/pipe_demo_01.config.json",
+    "pipesUrl": "/pipe-viewer/pipes.json"
+  }
+]

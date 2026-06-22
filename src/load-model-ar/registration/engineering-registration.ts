@@ -3,7 +3,7 @@ import type {
 	DemoModelConfig,
 	DemoModelControlPointCorrespondence,
 	DemoModelRegistrationMode
-} from './demo-model-config.js';
+} from '../data/demo-model-config.js';
 import type { AbsoluteSiteTarget } from './coarse-registration-config.js';
 import {
 	createEnuFrame,

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { COARSE_REGISTRATION_TARGET, type CoarseRegistrationTarget } from './coarse-registration-config.js';
 import { createEnuFrame, geodeticToEnu } from './geodesy.js';
-import type { CoarsePlacementEstimate, SetStatus } from './types.js';
+import type { CoarsePlacementEstimate, SetStatus } from '../ui/types.js';
 
 interface CreateCoarseRegistrationControllerOptions {
 	setStatus: SetStatus;

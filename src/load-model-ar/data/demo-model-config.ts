@@ -1,5 +1,5 @@
-import type { SetStatus } from './types.js';
-import type { GeodeticCoordinate } from './geodesy.js';
+import type { SetStatus } from '../ui/types.js';
+import type { GeodeticCoordinate } from '../registration/geodesy.js';
 
 export interface DemoModelLocalPoint {
 	x: number;

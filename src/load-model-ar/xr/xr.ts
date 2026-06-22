@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { ARButton } from 'three/addons/webxr/ARButton.js';
-import type { SetStatus, XRHitTestController } from './types.js';
+import type { SetStatus, XRHitTestController } from '../ui/types.js';
 
 interface CreateXRHitTestControllerOptions {
 	renderer: THREE.WebGLRenderer;
@@ -14,6 +14,40 @@ interface CreateXRHitTestControllerOptions {
 
 const reticlePosition = new THREE.Vector3();
 const RETICLE_PERSIST_MS = 350;
+
+export interface ImmersiveArSupportInfo {
+	supported: boolean;
+	message: string;
+}
+
+export async function detectImmersiveArSupport(): Promise<ImmersiveArSupportInfo> {
+
+	if ( 'xr' in navigator === false || navigator.xr === undefined ) {
+		return {
+			supported: false,
+			message: '当前设备不支持 AR。可查看模型和数据，但不能进行现场 AR 核查。请使用支持 WebXR AR 的移动设备打开。'
+		};
+	}
+
+	try {
+		const supported = await navigator.xr.isSessionSupported( 'immersive-ar' );
+		return supported
+			? {
+				supported: true,
+				message: '当前设备支持 AR。完成模型和阶段确认后，可点击“进入 AR”开始现场核查。'
+			}
+			: {
+				supported: false,
+				message: '当前设备不支持 AR。可查看模型和数据，但不能进行现场 AR 核查。请使用支持 WebXR AR 的移动设备打开。'
+			};
+	} catch {
+		return {
+			supported: false,
+			message: 'AR 能力检测失败。可查看模型和数据，但当前无法启动现场 AR 核查。'
+		};
+	}
+
+}
 
 export function createXRHitTestController(
 	options: CreateXRHitTestControllerOptions
@@ -32,16 +66,17 @@ export function createXRHitTestController(
 	let hitTestSource: XRHitTestSource | null = null;
 	let hitTestSourceRequested = false;
 	let lastSuccessfulHitTime = 0;
+	let launchElement: HTMLElement | null = null;
 
 	function setup(): void {
 
-		const button = ARButton.createButton( renderer, {
+		launchElement = ARButton.createButton( renderer, {
 			requiredFeatures: [ 'hit-test' ],
 			optionalFeatures: [ 'dom-overlay' ],
 			domOverlay: { root: document.body }
 		} );
 
-		xrButtonWrap.appendChild( button );
+		xrButtonWrap.appendChild( launchElement );
 
 		renderer.xr.addEventListener( 'sessionstart', handleSessionStart );
 		renderer.xr.addEventListener( 'sessionend', handleSessionEnd );
@@ -162,7 +197,12 @@ export function createXRHitTestController(
 		setup,
 		update,
 		hasGroundHit,
-		getHitPosition
+		getHitPosition,
+		requestSession() {
+
+			launchElement?.click();
+
+		}
 	};
 
 }

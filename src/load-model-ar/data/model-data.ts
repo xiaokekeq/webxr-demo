@@ -1,5 +1,4 @@
-import { PIPES_URL } from '../load-model/config.js';
-import type { PipeRecord } from '../load-model/types.js';
+import type { PipeRecord } from '../../load-model/types.js';
 
 export const PROJECT_NAME = '管网现场核查项目';
 
@@ -20,9 +19,9 @@ export const STATIC_LAYER_NAMES = [
 	'标注信息'
 ] as const;
 
-export async function loadPipeRecords(): Promise<Map<string, PipeRecord>> {
+export async function loadPipeRecords(pipesUrl: string): Promise<Map<string, PipeRecord>> {
 
-	const response = await fetch( PIPES_URL );
+	const response = await fetch( pipesUrl );
 	if ( response.ok === false ) {
 		throw new Error( `Failed to load pipes.json: HTTP ${response.status}` );
 	}

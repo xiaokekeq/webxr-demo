@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { SetStatus } from './types.js';
+import type { SetStatus } from '../ui/types.js';
 
 export interface ManualRegistrationState {
 	offset: THREE.Vector3;

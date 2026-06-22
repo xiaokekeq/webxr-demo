@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone } from 'three/addons/utils/SkeletonUtils.js';
 import { MODEL_SCALE_CALIBRATION } from './model-scale-config.js';
-import type { SetStatus } from './types.js';
+import type { SetStatus } from '../ui/types.js';
 
 const templateBounds = new THREE.Box3();
 const templateSize = new THREE.Vector3();

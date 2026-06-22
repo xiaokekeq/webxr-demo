@@ -1,6 +1,9 @@
-import type { PipeRecord } from '../load-model/types.js';
+import type { PipeRecord } from '../../load-model/types.js';
+import type { ModelCatalogItem } from './model-catalog.js';
 
 export type WorkspaceMode = 'browse' | 'registration' | 'timeline' | 'inspection';
+export type AppMode = 'pre-ar' | 'ar-session';
+export type ArSupportState = 'checking' | 'supported' | 'unsupported';
 
 export interface PropertyPanelState {
 	name: string;
@@ -31,9 +34,24 @@ export interface PlacementSummaryState {
 	scaleText: string;
 }
 
+export interface PrecisionRegistrationState {
+	availableSourcePoints: string[];
+	selectedSourcePoint: string;
+	stagedSourcePoint: string;
+	stagedTargetPoint: string;
+	pairSummaries: string[];
+	rmsText: string;
+	workflowStatusText: string;
+}
+
 export interface RegistrationStoreState {
 	projectName: string;
 	modelUrl: string;
+	availableModels: ModelCatalogItem[];
+	selectedModelId: string;
+	appMode: AppMode;
+	arSupportState: ArSupportState;
+	arSupportMessage: string;
 	workspaceMode: WorkspaceMode;
 	timelineStages: readonly string[];
 	currentTimelineStageIndex: number;
@@ -43,6 +61,7 @@ export interface RegistrationStoreState {
 	manualReadout: ManualReadoutState;
 	registrationMetrics: RegistrationMetricsState;
 	placementSummary: PlacementSummaryState;
+	precisionRegistration: PrecisionRegistrationState;
 	registrationStatusDetail: string;
 	runtimeStatus: string;
 	desktopPreviewBadge: string;
@@ -137,6 +156,20 @@ export function createDefaultPlacementSummaryState(): PlacementSummaryState {
 		positionText: '-',
 		quaternionText: '-',
 		scaleText: '-'
+	};
+
+}
+
+export function createDefaultPrecisionRegistrationState(): PrecisionRegistrationState {
+
+	return {
+		availableSourcePoints: [],
+		selectedSourcePoint: '',
+		stagedSourcePoint: '未选择',
+		stagedTargetPoint: '未确认',
+		pairSummaries: [],
+		rmsText: '--',
+		workflowStatusText: '已有粗配准结果，接下来可采集控制点。'
 	};
 
 }

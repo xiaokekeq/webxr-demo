@@ -62,6 +62,7 @@ const store = createRegistrationStore( {
 	appMode: 'pre-ar',
 	arSupportState: 'checking',
 	arSupportMessage: 'Checking AR support...',
+	arSessionPhase: 'scanning',
 	workspaceMode: 'browse',
 	timelineStages: TIMELINE_STAGES,
 	currentTimelineStageIndex: 2,
@@ -162,6 +163,7 @@ const modelSession = createModelSession( {
 	appendLog,
 	resetPlacement: () => {
 		placementSession.resetPlacement();
+		syncArSessionPhase();
 		syncMobileOverlayState();
 	},
 	onRuntimeReset: () => {
@@ -266,7 +268,9 @@ mobilePanel.bind( {
 			`Inspection draft recorded: ${draft.type} / ${draft.severity}${draft.note ? ` / ${draft.note}` : ''}.`
 		);
 	},
-	onEnterAr: handleEnterAr
+	onEnterAr: handleEnterAr,
+	onPlaceModel: handlePlaceModel,
+	onExitAr: handleExitAr
 } );
 
 renderPanels();
@@ -318,9 +322,6 @@ async function initialize(): Promise<void> {
 		void coarseRegistration.prime()
 			.then( () => {
 				appendLog( 'Coarse registration sensors primed.' );
-				if ( sceneBundle.renderer.xr.isPresenting ) {
-					requestAutoPlacement();
-				}
 			} )
 			.catch( () => {
 				appendLog( 'Coarse registration prime did not complete automatically.' );
@@ -344,10 +345,10 @@ function renderPanels(): void {
 function handleResetPlacement(): void {
 
 	placementSession.resetPlacement();
+	syncArSessionPhase();
 	syncMobileOverlayState();
 	if ( sceneBundle.renderer.xr.isPresenting ) {
-		requestAutoPlacement();
-		setStatus( 'Model placement reset. Waiting for a fresh auto-placement.' );
+		setStatus( 'Model placement reset. Scan the surface again and place the model when ready.' );
 		return;
 	}
 
@@ -361,8 +362,8 @@ async function handleEnableCoarseRegistration(): Promise<void> {
 
 	try {
 		await coarseRegistration.enable();
-		requestAutoPlacement();
 		updateRegistrationStatusDetail( 'Status: coarse registration enabled' );
+		syncArSessionPhase();
 	} catch ( error ) {
 		console.error( 'Coarse registration enable failed:', error );
 		setStatus( error instanceof Error ? error.message : 'Failed to enable coarse registration.' );
@@ -375,7 +376,7 @@ async function handleRefreshGeoLocation(): Promise<void> {
 	try {
 		await coarseRegistration.refreshGeolocation();
 		setStatus( coarseRegistration.getReadyMessage() );
-		requestAutoPlacement();
+		syncArSessionPhase();
 	} catch ( error ) {
 		console.error( 'Geolocation refresh failed:', error );
 		setStatus( error instanceof Error ? error.message : 'Failed to refresh geolocation.' );
@@ -455,6 +456,7 @@ function onAttemptCoarsePlacement(): void {
 		manualPositionTarget: manualPosition,
 		manualOrientationTarget: manualOrientation
 	} );
+	syncArSessionPhase();
 	syncMobileOverlayState();
 
 }
@@ -470,23 +472,44 @@ function handleEnterAr(): void {
 
 }
 
+function handlePlaceModel(): void {
+
+	if ( sceneBundle.renderer.xr.isPresenting === false ) {
+		setStatus( 'AR session is not active yet.' );
+		return;
+	}
+
+	requestAutoPlacement();
+
+}
+
+function handleExitAr(): void {
+
+	const session = sceneBundle.renderer.xr.getSession();
+	if ( session === null ) {
+		setStatus( 'AR session is not active.' );
+		return;
+	}
+
+	void session.end();
+
+}
+
 function handleXRSessionStart(): void {
 
-	store.patch( { appMode: 'ar-session' } );
+	store.patch( { appMode: 'ar-session', arSessionPhase: 'scanning', workspaceMode: 'browse' } );
 	syncSceneHost();
 	placementSession.resetPlacement();
 	updateDesktopInteractionState();
-	updateRegistrationStatusDetail( 'Status: coarse registration armed' );
-	if ( coarseRegistration.canEstimate() ) {
-		placementSession.markCoarsePlacementPending();
-	}
+	updateRegistrationStatusDetail( 'Status: scanning for planes' );
+	syncArSessionPhase();
 	syncMobileOverlayState();
 
 }
 
 function handleXRSessionEnd(): void {
 
-	store.patch( { appMode: 'pre-ar' } );
+	store.patch( { appMode: 'pre-ar', arSessionPhase: 'scanning', workspaceMode: 'browse' } );
 	syncSceneHost();
 	placementSession.resetPlacement();
 	updateDesktopInteractionState();
@@ -549,6 +572,51 @@ function syncMobileOverlayState(): void {
 	mobilePanel.setArOverlayActive(
 		sceneBundle.renderer.xr.isPresenting && placementSession.getPlacedModel() !== null
 	);
+
+}
+
+function syncArSessionPhase(): void {
+
+	if ( sceneBundle.renderer.xr.isPresenting === false ) {
+		patchArSessionPhase( 'scanning' );
+		return;
+	}
+
+	if ( placementSession.getPlacedModel() !== null ) {
+		patchArSessionPhase( 'placed' );
+		return;
+	}
+
+	if ( xrRuntime.getHitTestController().hasGroundHit() ) {
+		patchArSessionPhase( 'ready-to-place' );
+		return;
+	}
+
+	patchArSessionPhase( 'scanning' );
+
+}
+
+function patchArSessionPhase(
+	nextPhase: 'scanning' | 'ready-to-place' | 'placed'
+): void {
+
+	if ( store.getState().arSessionPhase === nextPhase ) {
+		return;
+	}
+
+	store.patch( { arSessionPhase: nextPhase } );
+
+	switch ( nextPhase ) {
+		case 'scanning':
+			updateRegistrationStatusDetail( 'Status: scanning for planes' );
+			break;
+		case 'ready-to-place':
+			updateRegistrationStatusDetail( 'Status: plane detected, ready to place' );
+			break;
+		case 'placed':
+			updateRegistrationStatusDetail( 'Status: model placed' );
+			break;
+	}
 
 }
 

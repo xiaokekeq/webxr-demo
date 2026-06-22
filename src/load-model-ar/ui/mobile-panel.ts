@@ -1,5 +1,6 @@
 import type { ModelCatalogItem } from '../data/model-catalog.js';
 import type {
+	ArSessionPhase,
 	ArSupportState,
 	RegistrationStoreState,
 	WorkspaceMode
@@ -40,7 +41,11 @@ interface MobilePanelActions {
 	onInspectionPhoto(): void;
 	onInspectionSave(draft: InspectionDraft): void;
 	onEnterAr(): void;
+	onPlaceModel(): void;
+	onExitAr(): void;
 }
+
+type RegistrationView = 'overview' | 'manual' | 'control';
 
 export interface MobilePanelController {
 	bind(actions: MobilePanelActions): void;
@@ -48,42 +53,57 @@ export interface MobilePanelController {
 	setArOverlayActive(active: boolean): void;
 }
 
+const MODE_LABELS: Record<WorkspaceMode, string> = {
+	browse: 'Browse panel',
+	registration: 'Registration panel',
+	timeline: 'Timeline panel',
+	inspection: 'Inspection panel'
+};
+
 export function createMobilePanel(dom: ARDomElements): MobilePanelController {
 
 	let latestState: RegistrationStoreState | null = null;
 	let isDrawerCollapsed = false;
 	let isArOverlayActive = false;
+	let browseDetailsExpanded = false;
+	let registrationView: RegistrationView = 'overview';
+	let inspectionFormExpanded = false;
 
-	function applyMobileChrome(state: RegistrationStoreState): void {
+	function rerender(): void {
 
-		const isArSession = state.appMode === 'ar-session';
-
-		dom.mobileTopbarEl.classList.toggle( 'is-hidden', isArSession && isArOverlayActive );
-		dom.mobileDrawerAreaEl.classList.toggle( 'is-collapsed', isArSession && isDrawerCollapsed );
-		dom.mobileDrawerToggleButton.setAttribute( 'aria-expanded', String( !isDrawerCollapsed ) );
-		dom.mobileDrawerToggleLabelEl.textContent = isDrawerCollapsed
-			? `展开${getModeLabel( state.workspaceMode )}`
-			: '收起面板';
+		if ( latestState !== null ) {
+			renderInternal( latestState );
+		}
 
 	}
 
 	function collapseDrawer(): void {
 
 		isDrawerCollapsed = true;
-		if ( latestState !== null ) {
-			applyMobileChrome( latestState );
-			renderModePanels( dom, latestState.workspaceMode, isDrawerCollapsed );
-		}
+		rerender();
 
 	}
 
 	function expandDrawer(): void {
 
 		isDrawerCollapsed = false;
-		if ( latestState !== null ) {
-			applyMobileChrome( latestState );
-			renderModePanels( dom, latestState.workspaceMode, isDrawerCollapsed );
+		rerender();
+
+	}
+
+	function handleModeToggle(
+		nextMode: WorkspaceMode,
+		setWorkspaceMode: MobilePanelActions[ 'onSetWorkspaceMode' ]
+	): void {
+
+		const isActive = latestState?.workspaceMode === nextMode;
+		if ( isActive && isDrawerCollapsed === false ) {
+			collapseDrawer();
+			return;
 		}
+
+		setWorkspaceMode( nextMode );
+		expandDrawer();
 
 	}
 
@@ -92,7 +112,19 @@ export function createMobilePanel(dom: ARDomElements): MobilePanelController {
 
 			dom.propertyCloseButton.addEventListener( 'click', () => {
 				actions.onCloseProperty();
+				browseDetailsExpanded = false;
 				collapseDrawer();
+			} );
+
+			dom.browseShowDetailsButton.addEventListener( 'click', () => {
+				browseDetailsExpanded = !browseDetailsExpanded;
+				rerender();
+			} );
+
+			dom.browseAddInspectionButton.addEventListener( 'click', () => {
+				inspectionFormExpanded = true;
+				actions.onSetWorkspaceMode( 'inspection' );
+				expandDrawer();
 			} );
 
 			dom.modelSelectEl.addEventListener( 'change', () => {
@@ -108,6 +140,8 @@ export function createMobilePanel(dom: ARDomElements): MobilePanelController {
 				}
 			} );
 			dom.mobilePreArEnterArButton.addEventListener( 'click', actions.onEnterAr );
+			dom.mobileArPlaceButton.addEventListener( 'click', actions.onPlaceModel );
+			dom.mobileArExitButton.addEventListener( 'click', actions.onExitAr );
 
 			dom.modeBrowseButton.addEventListener( 'click', () => {
 				handleModeToggle( 'browse', actions.onSetWorkspaceMode );
@@ -136,6 +170,15 @@ export function createMobilePanel(dom: ARDomElements): MobilePanelController {
 			dom.toolMeasureButton.addEventListener( 'click', actions.onMeasure );
 			dom.enableCoarseButton.addEventListener( 'click', actions.onEnableCoarse );
 			dom.refreshGeoButton.addEventListener( 'click', actions.onRefreshGeo );
+			dom.registrationOpenManualButton.addEventListener( 'click', () => {
+				registrationView = 'manual';
+				expandDrawer();
+			} );
+			dom.registrationOpenControlButton.addEventListener( 'click', () => {
+				registrationView = 'control';
+				expandDrawer();
+			} );
+			dom.registrationSaveButton.addEventListener( 'click', actions.onSaveManualRegistration );
 
 			dom.manualLeftButton.addEventListener( 'click', () => {
 				actions.onAdjustTranslation( 'x', -1 );
@@ -184,6 +227,14 @@ export function createMobilePanel(dom: ARDomElements): MobilePanelController {
 			dom.timelineNextButton.addEventListener( 'click', actions.onTimelineNext );
 			dom.timelinePlayButton.addEventListener( 'click', actions.onTimelinePlay );
 
+			dom.inspectionStartFormButton.addEventListener( 'click', () => {
+				inspectionFormExpanded = true;
+				expandDrawer();
+			} );
+			dom.inspectionViewListButton.addEventListener( 'click', () => {
+				inspectionFormExpanded = false;
+				rerender();
+			} );
 			dom.inspectionPhotoButton.addEventListener( 'click', actions.onInspectionPhoto );
 			dom.inspectionSaveButton.addEventListener( 'click', () => {
 				actions.onInspectionSave( {
@@ -207,19 +258,7 @@ export function createMobilePanel(dom: ARDomElements): MobilePanelController {
 		render(state) {
 
 			latestState = state;
-
-			renderAppModeShells( dom, state.appMode );
-			renderPreArLayout( dom, state );
-			renderModeButtons( dom, state.workspaceMode );
-			renderModePanels( dom, state.workspaceMode, isDrawerCollapsed );
-			renderHeader( dom, state );
-			renderModelSelect( dom.modelSelectEl, state.availableModels, state.selectedModelId );
-			renderPropertyPanel( dom, state );
-			renderManualReadout( dom, state );
-			renderPrecisionRegistration( dom, state );
-			renderTimeline( dom, state );
-			dom.registrationStatusDetailEl.textContent = state.registrationStatusDetail;
-			applyMobileChrome( state );
+			renderInternal( state );
 
 		},
 
@@ -230,27 +269,68 @@ export function createMobilePanel(dom: ARDomElements): MobilePanelController {
 				isDrawerCollapsed = true;
 			}
 
-			if ( latestState !== null ) {
-				applyMobileChrome( latestState );
-				renderModePanels( dom, latestState.workspaceMode, isDrawerCollapsed );
-			}
+			rerender();
 
 		}
 	};
 
-	function handleModeToggle(
-		nextMode: WorkspaceMode,
-		setWorkspaceMode: MobilePanelActions[ 'onSetWorkspaceMode' ]
+	function renderInternal(state: RegistrationStoreState): void {
+
+		renderAppModeShells( dom, state.appMode );
+		renderPreArLayout( dom, state );
+		renderHeader( dom, state );
+		renderArSessionChrome( dom, state, isDrawerCollapsed );
+		renderModeButtons( dom, state.workspaceMode );
+		renderModePanels( dom, state, isDrawerCollapsed );
+		renderModelSelect( dom.modelSelectEl, state.availableModels, state.selectedModelId );
+		renderPropertyPanel( dom, state, browseDetailsExpanded );
+		renderManualReadout( dom, state );
+		renderRegistrationPanel( dom, state, registrationView );
+		renderPrecisionRegistration( dom, state );
+		renderTimeline( dom, state );
+		renderInspectionPanel( dom, inspectionFormExpanded );
+
+		dom.registrationStatusDetailEl.textContent = state.registrationStatusDetail;
+		dom.mobileDrawerToggleButton.setAttribute( 'aria-expanded', String( !isDrawerCollapsed ) );
+		dom.mobileDrawerToggleLabelEl.textContent = isDrawerCollapsed
+			? `Expand ${MODE_LABELS[ state.workspaceMode ]}`
+			: 'Collapse panel';
+
+	}
+
+	function renderArSessionChrome(
+		domElements: ARDomElements,
+		state: RegistrationStoreState,
+		drawerCollapsed: boolean
 	): void {
 
-		const isActive = latestState?.workspaceMode === nextMode;
-		if ( isActive && isDrawerCollapsed === false ) {
-			collapseDrawer();
-			return;
+		const inAr = state.appMode === 'ar-session';
+		const showWorkUi = inAr && state.arSessionPhase === 'placed';
+		const showPlacementUi = inAr && state.arSessionPhase !== 'placed';
+
+		if ( showWorkUi && isArOverlayActive && drawerCollapsed === false ) {
+			isDrawerCollapsed = true;
+			drawerCollapsed = true;
 		}
 
-		setWorkspaceMode( nextMode );
-		expandDrawer();
+		domElements.mobileRightToolsEl.classList.toggle( 'hidden', !showWorkUi );
+		domElements.mobileBottomNavEl.classList.toggle( 'hidden', !showWorkUi );
+		domElements.mobileDrawerToggleButton.classList.toggle( 'hidden', !showWorkUi );
+		domElements.mobileDrawerAreaEl.classList.toggle( 'hidden', !showWorkUi );
+		domElements.mobileDrawerAreaEl.classList.toggle( 'is-collapsed', showWorkUi && drawerCollapsed );
+		domElements.mobileArGuidanceEl.classList.toggle( 'hidden', !showPlacementUi );
+		domElements.mobileArPrimaryBarEl.classList.toggle( 'hidden', !showPlacementUi );
+
+		if ( showPlacementUi ) {
+			const guidance = getGuidanceContent( state.arSessionPhase );
+			domElements.mobileArGuidanceTitleEl.textContent = guidance.title;
+			domElements.mobileArGuidanceBodyEl.textContent = guidance.body;
+		}
+
+		domElements.mobileArPlaceButton.disabled = state.arSessionPhase !== 'ready-to-place';
+		domElements.mobileArPlaceButton.textContent = state.arSessionPhase === 'ready-to-place'
+			? 'Place model'
+			: 'Start placement';
 
 	}
 
@@ -285,6 +365,46 @@ function renderPreArLayout(dom: ARDomElements, state: RegistrationStoreState): v
 
 }
 
+function renderHeader(dom: ARDomElements, state: RegistrationStoreState): void {
+
+	const currentStage = state.timelineStages[ state.currentTimelineStageIndex ] ?? '-';
+
+	if ( state.appMode === 'ar-session' && state.arSessionPhase !== 'placed' ) {
+		dom.mobileTopTitleEl.textContent = state.projectName;
+		dom.mobileTopSubtitleEl.textContent = state.arSessionPhase === 'ready-to-place'
+			? 'Plane detected. Confirm the location and place the model.'
+			: 'Scanning for planes';
+		dom.registrationStatusEl.textContent = state.arSessionPhase === 'ready-to-place'
+			? 'Ready'
+			: 'Scanning';
+		return;
+	}
+
+	switch ( state.workspaceMode ) {
+		case 'browse':
+			dom.mobileTopTitleEl.textContent = state.projectName;
+			dom.mobileTopSubtitleEl.textContent = `Stage: ${currentStage}`;
+			dom.registrationStatusEl.textContent = 'Browse';
+			break;
+		case 'registration':
+			dom.mobileTopTitleEl.textContent = 'Mode: Registration';
+			dom.mobileTopSubtitleEl.textContent = 'Model placed. Continue alignment here.';
+			dom.registrationStatusEl.textContent = 'Registering';
+			break;
+		case 'timeline':
+			dom.mobileTopTitleEl.textContent = `Stage: ${currentStage}`;
+			dom.mobileTopSubtitleEl.textContent = 'Switch project stages in AR.';
+			dom.registrationStatusEl.textContent = 'Timeline';
+			break;
+		case 'inspection':
+			dom.mobileTopTitleEl.textContent = 'Mode: Inspection';
+			dom.mobileTopSubtitleEl.textContent = 'Record issues and on-site notes.';
+			dom.registrationStatusEl.textContent = 'Inspecting';
+			break;
+	}
+
+}
+
 function renderModelSelect(
 	select: HTMLSelectElement,
 	models: ModelCatalogItem[],
@@ -295,7 +415,7 @@ function renderModelSelect(
 		select,
 		models.map( ( model ) => ( { value: model.id, label: model.name } ) ),
 		selectedModelId,
-		'请选择模型'
+		'Select model'
 	);
 
 }
@@ -313,7 +433,7 @@ function renderStageSelect(
 			label: `${index + 1}. ${stage}`
 		} ) ),
 		String( selectedIndex ),
-		'请选择阶段'
+		'Select stage'
 	);
 
 }
@@ -335,43 +455,15 @@ function renderModeButtons(dom: ARDomElements, workspaceMode: WorkspaceMode): vo
 
 function renderModePanels(
 	dom: ARDomElements,
-	workspaceMode: WorkspaceMode,
+	state: RegistrationStoreState,
 	isDrawerCollapsed: boolean
 ): void {
 
-	dom.browsePanelEl.classList.toggle( 'hidden', isDrawerCollapsed || workspaceMode !== 'browse' );
-	dom.manualPanelEl.classList.toggle( 'hidden', isDrawerCollapsed || workspaceMode !== 'registration' );
-	dom.timelinePanelEl.classList.toggle( 'hidden', isDrawerCollapsed || workspaceMode !== 'timeline' );
-	dom.inspectionPanelEl.classList.toggle( 'hidden', isDrawerCollapsed || workspaceMode !== 'inspection' );
-
-}
-
-function renderHeader(dom: ARDomElements, state: RegistrationStoreState): void {
-
-	const currentStage = state.timelineStages[ state.currentTimelineStageIndex ] ?? '-';
-
-	switch ( state.workspaceMode ) {
-		case 'browse':
-			dom.mobileTopTitleEl.textContent = state.projectName;
-			dom.mobileTopSubtitleEl.textContent = `当前阶段：${currentStage}`;
-			dom.registrationStatusEl.textContent = '浏览模式';
-			break;
-		case 'registration':
-			dom.mobileTopTitleEl.textContent = '当前模式：配准';
-			dom.mobileTopSubtitleEl.textContent = 'AR 画面与模型位置联调';
-			dom.registrationStatusEl.textContent = '配准中';
-			break;
-		case 'timeline':
-			dom.mobileTopTitleEl.textContent = `当前阶段：${currentStage}`;
-			dom.mobileTopSubtitleEl.textContent = '按阶段查看现场模型状态';
-			dom.registrationStatusEl.textContent = '时间模式';
-			break;
-		case 'inspection':
-			dom.mobileTopTitleEl.textContent = '当前模式：核查';
-			dom.mobileTopSubtitleEl.textContent = '记录现场问题与核查意见';
-			dom.registrationStatusEl.textContent = '核查中';
-			break;
-	}
+	const showPanels = state.appMode === 'ar-session' && state.arSessionPhase === 'placed' && isDrawerCollapsed === false;
+	dom.browsePanelEl.classList.toggle( 'hidden', !showPanels || state.workspaceMode !== 'browse' );
+	dom.manualPanelEl.classList.toggle( 'hidden', !showPanels || state.workspaceMode !== 'registration' );
+	dom.timelinePanelEl.classList.toggle( 'hidden', !showPanels || state.workspaceMode !== 'timeline' );
+	dom.inspectionPanelEl.classList.toggle( 'hidden', !showPanels || state.workspaceMode !== 'inspection' );
 
 }
 
@@ -392,32 +484,43 @@ function getSupportBadgeLabel(supportState: ArSupportState): string {
 
 	switch ( supportState ) {
 		case 'checking':
-			return '检测中';
+			return 'Checking';
 		case 'supported':
-			return '支持 AR';
+			return 'AR Ready';
 		case 'unsupported':
-			return '不支持 AR';
+			return 'AR Unsupported';
 	}
 
 }
 
-function getModeLabel(workspaceMode: WorkspaceMode): string {
+function renderPropertyPanel(
+	dom: ARDomElements,
+	state: RegistrationStoreState,
+	browseDetailsExpanded: boolean
+): void {
 
-	switch ( workspaceMode ) {
-		case 'browse':
-			return '浏览面板';
-		case 'registration':
-			return '配准面板';
-		case 'timeline':
-			return '时间面板';
-		case 'inspection':
-			return '核查面板';
+	const hasSelection = hasSelectedPipe( state );
+	togglePropertyGrid( dom, hasSelection && browseDetailsExpanded );
+
+	dom.propertyCloseButton.textContent = browseDetailsExpanded ? 'Collapse' : 'Close';
+	dom.browsePropertyActionsEl.classList.toggle( 'hidden', !hasSelection );
+
+	if ( hasSelection === false ) {
+		dom.propertyNameEl.textContent = 'Browse mode';
+		dom.propertyStatusBadgeEl.textContent = 'No selection';
+		dom.propertyTypeEl.textContent = '-';
+		dom.propertyDiameterEl.textContent = '-';
+		dom.propertyMaterialEl.textContent = '-';
+		dom.propertyDepthEl.textContent = '-';
+		dom.propertyStatusEl.textContent = '-';
+		dom.propertyRemarkEl.textContent = 'Tap a pipe segment to inspect its attributes.';
+		dom.browseShowDetailsButton.textContent = 'Show details';
+		dom.browseAddInspectionButton.textContent = 'New issue';
+		dom.propertyCloseButton.classList.add( 'hidden' );
+		return;
 	}
 
-}
-
-function renderPropertyPanel(dom: ARDomElements, state: RegistrationStoreState): void {
-
+	dom.propertyCloseButton.classList.remove( 'hidden' );
 	dom.propertyNameEl.textContent = state.propertyPanel.name;
 	dom.propertyStatusBadgeEl.textContent = state.propertyPanel.statusBadge;
 	dom.propertyTypeEl.textContent = state.propertyPanel.type;
@@ -425,7 +528,11 @@ function renderPropertyPanel(dom: ARDomElements, state: RegistrationStoreState):
 	dom.propertyMaterialEl.textContent = state.propertyPanel.material;
 	dom.propertyDepthEl.textContent = state.propertyPanel.depth;
 	dom.propertyStatusEl.textContent = state.propertyPanel.status;
-	dom.propertyRemarkEl.textContent = state.propertyPanel.remark;
+	dom.browseShowDetailsButton.textContent = browseDetailsExpanded ? 'Hide details' : 'Details';
+	dom.browseAddInspectionButton.textContent = 'New issue';
+	dom.propertyRemarkEl.textContent = browseDetailsExpanded
+		? state.propertyPanel.remark
+		: `${state.propertyPanel.type} ${state.propertyPanel.diameter}, depth ${state.propertyPanel.depth}, status ${state.propertyPanel.status}`;
 
 }
 
@@ -434,6 +541,22 @@ function renderManualReadout(dom: ARDomElements, state: RegistrationStoreState):
 	dom.manualValuePositionEl.textContent = state.manualReadout.positionText;
 	dom.manualValueYawEl.textContent = state.manualReadout.yawText;
 	dom.manualValueScaleEl.textContent = state.manualReadout.scaleText;
+
+}
+
+function renderRegistrationPanel(
+	dom: ARDomElements,
+	state: RegistrationStoreState,
+	registrationView: RegistrationView
+): void {
+
+	dom.registrationOverviewCardEl.classList.remove( 'hidden' );
+	dom.registrationOverviewActionRowEl.classList.remove( 'hidden' );
+	dom.registrationOpenManualButton.classList.toggle( 'primary', registrationView === 'manual' );
+	dom.registrationOpenControlButton.classList.toggle( 'primary', registrationView === 'control' );
+	dom.registrationAdjustmentPanelEl.classList.toggle( 'hidden', registrationView !== 'manual' );
+	dom.registrationPrecisionPanelEl.classList.toggle( 'hidden', registrationView !== 'control' );
+	dom.registrationStatusDetailEl.textContent = state.registrationStatusDetail;
 
 }
 
@@ -446,11 +569,11 @@ function renderPrecisionRegistration(dom: ARDomElements, state: RegistrationStor
 			label: point
 		} ) ),
 		state.precisionRegistration.selectedSourcePoint,
-		'请选择模型控制点'
+		'Select source point'
 	);
 	dom.precisionSourceCurrentEl.textContent = state.precisionRegistration.stagedSourcePoint;
 	dom.precisionTargetCurrentEl.textContent = state.precisionRegistration.stagedTargetPoint;
-	dom.precisionPairCountEl.textContent = `${state.precisionRegistration.pairSummaries.length} / 建议至少 4 组`;
+	dom.precisionPairCountEl.textContent = `${state.precisionRegistration.pairSummaries.length} / target 4+`;
 	dom.precisionRmsEl.textContent = state.precisionRegistration.rmsText;
 	dom.precisionWorkflowStatusEl.textContent = state.precisionRegistration.workflowStatusText;
 	renderPairList( dom.precisionPairListEl, state.precisionRegistration.pairSummaries );
@@ -465,6 +588,13 @@ function renderTimeline(dom: ARDomElements, state: RegistrationStoreState): void
 		const index = Number( button.dataset.stageIndex );
 		button.classList.toggle( 'active', index === state.currentTimelineStageIndex );
 	}
+
+}
+
+function renderInspectionPanel(dom: ARDomElements, inspectionFormExpanded: boolean): void {
+
+	dom.inspectionOverviewCardEl.classList.remove( 'hidden' );
+	dom.inspectionFormPanelEl.classList.toggle( 'hidden', !inspectionFormExpanded );
 
 }
 
@@ -499,7 +629,7 @@ function renderPairList(host: HTMLElement, pairSummaries: string[]): void {
 
 	host.replaceChildren(
 		...( pairSummaries.length === 0
-			? [ createTextBlock( 'div', 'desktop-list-item', '还没有采集控制点对' ) ]
+			? [ createTextBlock( 'div', 'desktop-list-item', 'No control-point pairs yet.' ) ]
 			: pairSummaries.map( ( item ) => createTextBlock( 'div', 'desktop-list-item', item ) ) )
 	);
 
@@ -526,5 +656,42 @@ function createTextBlock<K extends keyof HTMLElementTagNameMap>(
 	element.textContent = text;
 
 	return element;
+
+}
+
+function getGuidanceContent(phase: ArSessionPhase): { title: string; body: string } {
+
+	if ( phase === 'ready-to-place' ) {
+		return {
+			title: 'Plane detected',
+			body: 'Aim the reticle at the matching area, then tap the placement button.'
+		};
+	}
+
+	return {
+		title: 'Scanning for planes',
+		body: 'Move the phone slowly and keep the floor or wall inside the camera view.'
+	};
+
+}
+
+function hasSelectedPipe(state: RegistrationStoreState): boolean {
+
+	return (
+		state.propertyPanel.type !== '-'
+		|| state.propertyPanel.diameter !== '-'
+		|| state.propertyPanel.material !== '-'
+		|| state.propertyPanel.depth !== '-'
+		|| state.propertyPanel.status !== '-'
+	);
+
+}
+
+function togglePropertyGrid(dom: ARDomElements, expanded: boolean): void {
+
+	const propertyGrid = dom.propertyTypeEl.parentElement?.parentElement;
+	if ( propertyGrid !== null && propertyGrid !== undefined ) {
+		propertyGrid.classList.toggle( 'hidden', !expanded );
+	}
 
 }

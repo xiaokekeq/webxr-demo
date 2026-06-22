@@ -4,6 +4,7 @@ import type { ModelCatalogItem } from './model-catalog.js';
 export type WorkspaceMode = 'browse' | 'registration' | 'timeline' | 'inspection';
 export type AppMode = 'pre-ar' | 'ar-session';
 export type ArSupportState = 'checking' | 'supported' | 'unsupported';
+export type ArSessionPhase = 'scanning' | 'ready-to-place' | 'placed';
 
 export interface PropertyPanelState {
 	name: string;
@@ -52,6 +53,7 @@ export interface RegistrationStoreState {
 	appMode: AppMode;
 	arSupportState: ArSupportState;
 	arSupportMessage: string;
+	arSessionPhase: ArSessionPhase;
 	workspaceMode: WorkspaceMode;
 	timelineStages: readonly string[];
 	currentTimelineStageIndex: number;

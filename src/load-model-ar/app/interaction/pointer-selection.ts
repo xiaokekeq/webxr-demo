@@ -126,12 +126,13 @@ export function createPointerSelectionSession(
 	): void {
 
 		if ( intersections.length === 0 ) {
+			if ( sceneBundle.renderer.xr.isPresenting ) {
+				setStatus( 'No model part hit. Center the model and tap again.' );
+				return;
+			}
+
 			propertySelection.clearSelection();
-			setStatus(
-				sceneBundle.renderer.xr.isPresenting
-					? 'No model part hit. Center the model and tap again.'
-					: 'No model part selected.'
-			);
+			setStatus( 'No model part selected.' );
 			return;
 		}
 

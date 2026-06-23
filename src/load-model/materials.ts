@@ -54,11 +54,29 @@ export function replaceMeshMaterialsForMode(
 export function createHighlightedMaterial(material: THREE.Material): THREE.Material {
 
 	const cloned = material.clone();
+	if ( 'transparent' in cloned ) {
+		cloned.transparent = false;
+	}
+
+	if ( 'opacity' in cloned && typeof cloned.opacity === 'number' ) {
+		cloned.opacity = 1;
+	}
+
+	if ( 'depthWrite' in cloned ) {
+		cloned.depthWrite = true;
+	}
+
+	if ( 'map' in cloned ) {
+		cloned.map = null;
+	}
+
 	if ( hasEmissive( cloned ) ) {
-		cloned.emissive = new THREE.Color( 0x2c7cff );
-		cloned.emissiveIntensity = 0.7;
-	} else if ( hasColor( cloned ) ) {
-		cloned.color.offsetHSL( 0.08, 0.08, 0.12 );
+		cloned.emissive = new THREE.Color( 0xffb300 );
+		cloned.emissiveIntensity = 1.9;
+	}
+
+	if ( hasColor( cloned ) ) {
+		cloned.color = new THREE.Color( 0xffd54f );
 	}
 
 	cloned.needsUpdate = true;

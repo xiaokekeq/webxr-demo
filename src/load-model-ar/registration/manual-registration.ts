@@ -11,6 +11,7 @@ export interface ManualPlacementBase {
 	position: THREE.Vector3;
 	orientation: THREE.Quaternion;
 	scale: number;
+	scaleAnchor?: THREE.Vector3;
 }
 
 interface CreateManualRegistrationControllerOptions {
@@ -26,6 +27,7 @@ const YAW_STEP_DEGREES = 5;
 const SCALE_STEP_FACTOR = 1.05;
 
 const tempYawQuaternion = new THREE.Quaternion();
+const tempScaleOffset = new THREE.Vector3();
 const worldUpAxis = new THREE.Vector3( 0, 1, 0 );
 
 export function createManualRegistrationController(
@@ -145,7 +147,19 @@ export function createManualRegistrationController(
 		scale: number;
 	} {
 
-		targetPosition.copy( base.position ).add( state.offset );
+		if ( base.scaleAnchor !== undefined ) {
+			targetPosition
+				.copy( base.scaleAnchor )
+				.add(
+					tempScaleOffset
+						.copy( base.position )
+						.sub( base.scaleAnchor )
+						.multiplyScalar( state.scaleMultiplier )
+				)
+				.add( state.offset );
+		} else {
+			targetPosition.copy( base.position ).add( state.offset );
+		}
 
 		tempYawQuaternion.setFromAxisAngle(
 			worldUpAxis,

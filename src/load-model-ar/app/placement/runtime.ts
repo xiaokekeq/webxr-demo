@@ -6,11 +6,7 @@ import { composeModelQuaternionInAr } from '../../registration/engineering-regis
 import type { ManualPlacementBase } from '../../registration/manual-registration.js';
 import { placeModelAt } from '../../render/model.js';
 import type { CoarsePlacementEstimate } from '../../ui/types.js';
-import {
-	clampPlacementScaleToCameraView,
-	getPlacementResidualScale,
-	getPreviewPlacementPosition
-} from './camera-fit.js';
+import { getPlacementResidualScale, getPreviewPlacementPosition } from './camera-fit.js';
 
 const tempEuler = new THREE.Euler();
 const tempSiteOffset = new THREE.Vector3();
@@ -26,8 +22,6 @@ export function createAutoPlacementBase(options: {
 	modelOrientationTarget: THREE.Quaternion;
 	previewDistanceMeters: number;
 	usePreviewPlacement: boolean;
-	maxScreenRatio: number;
-	minFitDistanceMeters: number;
 }): ManualPlacementBase {
 
 	const {
@@ -40,9 +34,7 @@ export function createAutoPlacementBase(options: {
 		registrationSolution,
 		modelOrientationTarget,
 		previewDistanceMeters,
-		usePreviewPlacement,
-		maxScreenRatio,
-		minFitDistanceMeters
+		usePreviewPlacement
 	} = options;
 
 	const position = ( usePreviewPlacement
@@ -54,10 +46,6 @@ export function createAutoPlacementBase(options: {
 			tempSiteOffset
 		)
 	).clone();
-	const residualScale = getPlacementResidualScale(
-		modelTemplate,
-		registrationSolution.modelToSite.scale
-	);
 
 	return {
 		position,
@@ -69,14 +57,8 @@ export function createAutoPlacementBase(options: {
 			),
 			modelOrientationTarget
 		).clone(),
-		scale: clampPlacementScaleToCameraView( {
-			camera,
-			modelTemplate,
-			position,
-			scale: residualScale,
-			maxScreenRatio,
-			minDistanceMeters: minFitDistanceMeters
-		} )
+		scale: getPlacementResidualScale( modelTemplate, registrationSolution.modelToSite.scale ),
+		scaleAnchor: ( usePreviewPlacement ? position : groundPosition ).clone()
 	};
 
 }
@@ -103,7 +85,8 @@ export function createDesktopPreviewBase(
 	return {
 		position: new THREE.Vector3(),
 		orientation: new THREE.Quaternion(),
-		scale: getPlacementResidualScale( modelTemplate, registrationSolution.modelToSite.scale )
+		scale: getPlacementResidualScale( modelTemplate, registrationSolution.modelToSite.scale ),
+		scaleAnchor: new THREE.Vector3()
 	};
 
 }

@@ -60,6 +60,9 @@ const MODE_LABELS: Record<WorkspaceMode, string> = {
 	inspection: '核查面板'
 };
 
+const AR_HINT_VISIBLE_MS = 2400;
+const AR_HINT_REPEAT_MS = 7200;
+
 export function createMobilePanel(dom: ARDomElements): MobilePanelController {
 
 	let latestState: RegistrationStoreState | null = null;
@@ -68,6 +71,10 @@ export function createMobilePanel(dom: ARDomElements): MobilePanelController {
 	let browseDetailsExpanded = false;
 	let registrationView: RegistrationView = 'overview';
 	let inspectionFormExpanded = false;
+	let activeHintPhase: ArSessionPhase | null = null;
+	let isPlacementHintVisible = false;
+	let hintHideTimer: number | null = null;
+	let hintRepeatTimer: number | null = null;
 
 	function rerender(): void {
 
@@ -88,6 +95,55 @@ export function createMobilePanel(dom: ARDomElements): MobilePanelController {
 
 		isDrawerCollapsed = false;
 		rerender();
+
+	}
+
+	function clearPlacementHintTimers(): void {
+
+		if ( hintHideTimer !== null ) {
+			window.clearTimeout( hintHideTimer );
+			hintHideTimer = null;
+		}
+
+		if ( hintRepeatTimer !== null ) {
+			window.clearTimeout( hintRepeatTimer );
+			hintRepeatTimer = null;
+		}
+
+	}
+
+	function schedulePlacementHint(state: RegistrationStoreState): void {
+
+		const shouldShowPlacementHint = (
+			state.appMode === 'ar-session'
+			&& state.arSessionPhase !== 'placed'
+		);
+
+		if ( shouldShowPlacementHint === false ) {
+			activeHintPhase = null;
+			isPlacementHintVisible = false;
+			clearPlacementHintTimers();
+			return;
+		}
+
+		if ( activeHintPhase !== state.arSessionPhase ) {
+			activeHintPhase = state.arSessionPhase;
+			isPlacementHintVisible = true;
+			clearPlacementHintTimers();
+
+			hintHideTimer = window.setTimeout( () => {
+				isPlacementHintVisible = false;
+				rerender();
+			}, AR_HINT_VISIBLE_MS );
+
+			hintRepeatTimer = window.setTimeout( () => {
+				if ( latestState !== null ) {
+					activeHintPhase = null;
+					schedulePlacementHint( latestState );
+					rerender();
+				}
+			}, AR_HINT_REPEAT_MS );
+		}
 
 	}
 
@@ -276,6 +332,7 @@ export function createMobilePanel(dom: ARDomElements): MobilePanelController {
 
 	function renderInternal(state: RegistrationStoreState): void {
 
+		schedulePlacementHint( state );
 		renderAppModeShells( dom, state.appMode );
 		renderPreArLayout( dom, state );
 		renderHeader( dom, state );
@@ -318,7 +375,10 @@ export function createMobilePanel(dom: ARDomElements): MobilePanelController {
 		domElements.mobileDrawerToggleButton.classList.toggle( 'hidden', !showWorkUi );
 		domElements.mobileDrawerAreaEl.classList.toggle( 'hidden', !showWorkUi );
 		domElements.mobileDrawerAreaEl.classList.toggle( 'is-collapsed', showWorkUi && drawerCollapsed );
-		domElements.mobileArGuidanceEl.classList.toggle( 'hidden', !showPlacementUi );
+		domElements.mobileArGuidanceEl.classList.toggle(
+			'hidden',
+			!showPlacementUi || isPlacementHintVisible === false
+		);
 		domElements.mobileArPrimaryBarEl.classList.toggle( 'hidden', !showPlacementUi );
 
 		if ( showPlacementUi ) {

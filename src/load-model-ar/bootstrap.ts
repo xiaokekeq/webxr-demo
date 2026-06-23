@@ -474,7 +474,7 @@ function handleEnterAr(): void {
 
 }
 
-function handlePlaceModel(): void {
+async function handlePlaceModel(): Promise<void> {
 
 	if ( sceneBundle.renderer.xr.isPresenting === false ) {
 		setStatus( 'AR 会话尚未启动。' );
@@ -486,10 +486,36 @@ function handlePlaceModel(): void {
 		return;
 	}
 
+	if ( modelTemplate === null || registrationSolution === null ) {
+		setStatus( '模型或配准解尚未准备完成。' );
+		return;
+	}
+
+	if ( coarseRegistration.canEstimate() === false ) {
+		try {
+			setStatus( '正在准备粗配准数据，请稍候...' );
+			await coarseRegistration.enable();
+			setStatus( coarseRegistration.getReadyMessage() );
+		} catch ( error ) {
+			console.error( 'Coarse registration auto-enable failed:', error );
+			setStatus(
+				error instanceof Error
+					? error.message
+					: '粗配准数据准备失败，请检查定位和设备朝向权限。'
+			);
+			return;
+		}
+	}
+
+	if ( coarseRegistration.canEstimate() === false ) {
+		setStatus( coarseRegistration.getMissingRequirementMessage() );
+		return;
+	}
+
 	requestAutoPlacement();
 
 	if ( placementSession.getPlacedModel() === null ) {
-		setStatus( '正在尝试放置模型，请保持平面稳定并确认粗配准数据可用。' );
+		setStatus( '已识别平面，但本次放置未成功。请保持手机稳定后重试。' );
 		return;
 	}
 

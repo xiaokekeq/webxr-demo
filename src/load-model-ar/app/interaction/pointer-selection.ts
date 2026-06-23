@@ -8,6 +8,7 @@ interface CreatePointerSelectionSessionOptions {
 	sceneBundle: ARSceneBundle;
 	propertySelection: PropertySelectionController;
 	setStatus(message: string): void;
+	onInspectSelection(): void;
 	getPlacedModel(): THREE.Group | null;
 	getWorkspaceMode(): WorkspaceMode;
 	getPipesByName(): Map<string, PipeRecord>;
@@ -29,6 +30,7 @@ export function createPointerSelectionSession(
 		sceneBundle,
 		propertySelection,
 		setStatus,
+		onInspectSelection,
 		getPlacedModel,
 		getWorkspaceMode,
 		getPipesByName,
@@ -82,6 +84,7 @@ export function createPointerSelectionSession(
 			const businessName = businessObject.name || clickedMesh.name || 'UnnamedObject';
 			const properties = getPipesByName().get( businessName ) || null;
 			propertySelection.selectBusinessObject( businessObject, properties );
+			onInspectSelection();
 
 			if ( getWorkspaceMode() === 'browse' ) {
 				setStatus(

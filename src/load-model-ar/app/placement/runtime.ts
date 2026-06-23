@@ -8,10 +8,14 @@ import { placeModelAt } from '../../render/model.js';
 import type { CoarsePlacementEstimate } from '../../ui/types.js';
 import { getPlacementResidualScale, getPreviewPlacementPosition } from './camera-fit.js';
 
+const tempEuler = new THREE.Euler();
+const tempSiteOffset = new THREE.Vector3();
+
 export function createAutoPlacementBase(options: {
 	camera: THREE.Camera;
 	cameraWorldPosition: THREE.Vector3;
 	groundY: number;
+	groundPosition: THREE.Vector3;
 	estimate: CoarsePlacementEstimate;
 	modelTemplate: THREE.Group;
 	registrationSolution: EngineeringRegistrationSolution;
@@ -24,6 +28,7 @@ export function createAutoPlacementBase(options: {
 		camera,
 		cameraWorldPosition,
 		groundY,
+		groundPosition,
 		estimate,
 		modelTemplate,
 		registrationSolution,
@@ -35,15 +40,37 @@ export function createAutoPlacementBase(options: {
 	return {
 		position: ( usePreviewPlacement
 			? getPreviewPlacementPosition( camera, cameraWorldPosition, groundY, previewDistanceMeters )
-			: estimate.position
+			: composeAnchoredPlacementPosition(
+				groundPosition,
+				estimate.orientation,
+				registrationSolution.modelToSite.translation,
+				tempSiteOffset
+			)
 		).clone(),
-		orientation: composeModelQuaternionInAr(
-			estimate.orientation,
-			registrationSolution,
+		orientation: flattenQuaternionToYaw(
+			composeModelQuaternionInAr(
+				estimate.orientation,
+				registrationSolution,
+				modelOrientationTarget
+			),
 			modelOrientationTarget
 		).clone(),
 		scale: getPlacementResidualScale( modelTemplate, registrationSolution.modelToSite.scale )
 	};
+
+}
+
+function composeAnchoredPlacementPosition(
+	placementAnchor: THREE.Vector3,
+	siteToArQuaternion: THREE.Quaternion,
+	modelSiteOffset: THREE.Vector3,
+	target: THREE.Vector3
+): THREE.Vector3 {
+
+	return target
+		.copy( modelSiteOffset )
+		.applyQuaternion( siteToArQuaternion )
+		.add( placementAnchor );
 
 }
 
@@ -81,5 +108,16 @@ export function placeAdjustedModel(options: {
 		adjustedPlacement.orientation,
 		adjustedPlacement.scale
 	);
+
+}
+
+function flattenQuaternionToYaw(
+	source: THREE.Quaternion,
+	target: THREE.Quaternion
+): THREE.Quaternion {
+
+	tempEuler.setFromQuaternion( source, 'YXZ' );
+	target.setFromEuler( new THREE.Euler( 0, tempEuler.y, 0, 'YXZ' ) );
+	return target;
 
 }

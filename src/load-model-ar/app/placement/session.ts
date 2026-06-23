@@ -201,6 +201,7 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 				camera: sceneBundle.camera,
 				cameraWorldPosition,
 				groundY: groundPosition.y,
+				groundPosition,
 				estimate,
 				modelTemplate,
 				registrationSolution,

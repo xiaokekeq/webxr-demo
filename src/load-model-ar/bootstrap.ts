@@ -137,6 +137,7 @@ const pointerSelection = createPointerSelectionSession( {
 	sceneBundle,
 	propertySelection,
 	setStatus,
+	onInspectSelection: revealBrowsePropertyPanel,
 	getPlacedModel: () => placementSession.getPlacedModel(),
 	getWorkspaceMode: () => store.getState().workspaceMode,
 	getPipesByName: () => pipesByName
@@ -339,6 +340,21 @@ function renderPanels(): void {
 	const state = store.getState();
 	desktopPanel.render( state );
 	mobilePanel.render( state );
+
+}
+
+function revealBrowsePropertyPanel(): void {
+
+	const state = store.getState();
+	if ( state.appMode !== 'ar-session' || state.arSessionPhase !== 'placed' ) {
+		return;
+	}
+
+	if ( state.workspaceMode !== 'browse' ) {
+		store.patch( { workspaceMode: 'browse' } );
+	}
+
+	mobilePanel.revealBrowsePanel();
 
 }
 

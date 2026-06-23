@@ -97,10 +97,10 @@ export function createCoarseTargetFromEngineeringSolution(
 
 	return {
 		mode: 'absolute-site',
-		label: solution.modelId,
-		latitude: solution.rootWorldGeodetic.lat,
-		longitude: solution.rootWorldGeodetic.lon,
-		altitude: solution.rootWorldGeodetic.alt,
+		label: `${solution.modelId} site origin`,
+		latitude: solution.siteOrigin.lat,
+		longitude: solution.siteOrigin.lon,
+		altitude: solution.siteOrigin.alt,
 		targetHeadingDeg: solution.rootHeadingDeg,
 		assetYawOffsetDeg: 0
 	};

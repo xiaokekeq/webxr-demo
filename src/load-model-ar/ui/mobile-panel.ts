@@ -50,6 +50,7 @@ type RegistrationView = 'overview' | 'manual' | 'control';
 export interface MobilePanelController {
 	bind(actions: MobilePanelActions): void;
 	render(state: RegistrationStoreState): void;
+	revealBrowsePanel(): void;
 	setArOverlayActive(active: boolean): void;
 }
 
@@ -318,10 +319,19 @@ export function createMobilePanel(dom: ARDomElements): MobilePanelController {
 
 		},
 
+		revealBrowsePanel() {
+
+			browseDetailsExpanded = true;
+			isDrawerCollapsed = false;
+			rerender();
+
+		},
+
 		setArOverlayActive(active) {
 
+			const wasActive = isArOverlayActive;
 			isArOverlayActive = active;
-			if ( active ) {
+			if ( active && wasActive === false ) {
 				isDrawerCollapsed = true;
 			}
 
@@ -364,11 +374,6 @@ export function createMobilePanel(dom: ARDomElements): MobilePanelController {
 		const inAr = state.appMode === 'ar-session';
 		const showWorkUi = inAr && state.arSessionPhase === 'placed';
 		const showPlacementUi = inAr && state.arSessionPhase !== 'placed';
-
-		if ( showWorkUi && isArOverlayActive && drawerCollapsed === false ) {
-			isDrawerCollapsed = true;
-			drawerCollapsed = true;
-		}
 
 		domElements.mobileRightToolsEl.classList.toggle( 'hidden', !showWorkUi );
 		domElements.mobileBottomNavEl.classList.toggle( 'hidden', !showWorkUi );

@@ -1,7 +1,14 @@
+export interface ModelAssetTransform {
+	upAxis?: 'y' | 'z';
+	scaleFactor?: number;
+}
+
 export interface ModelCatalogItem {
 	id: string;
 	name: string;
 	modelUrl: string;
+	materialUrl?: string;
+	assetTransform?: ModelAssetTransform;
 	configUrl: string;
 	pipesUrl: string;
 }
@@ -54,8 +61,30 @@ function normalizeModelCatalogItem(item: unknown): ModelCatalogItem {
 		id: candidate.id,
 		name: candidate.name,
 		modelUrl: candidate.modelUrl,
+		materialUrl: typeof candidate.materialUrl === 'string' ? candidate.materialUrl : undefined,
+		assetTransform: normalizeAssetTransform( candidate.assetTransform ),
 		configUrl: candidate.configUrl,
 		pipesUrl: candidate.pipesUrl
 	};
+
+}
+
+function normalizeAssetTransform(value: unknown): ModelAssetTransform | undefined {
+
+	if ( typeof value !== 'object' || value === null ) {
+		return undefined;
+	}
+
+	const candidate = value as Partial<ModelAssetTransform>;
+	const upAxis = candidate.upAxis === 'z' ? 'z' : candidate.upAxis === 'y' ? 'y' : undefined;
+	const scaleFactor = typeof candidate.scaleFactor === 'number' && Number.isFinite( candidate.scaleFactor )
+		? candidate.scaleFactor
+		: undefined;
+
+	if ( upAxis === undefined && scaleFactor === undefined ) {
+		return undefined;
+	}
+
+	return { upAxis, scaleFactor };
 
 }

@@ -62,6 +62,71 @@ export function createModelSession(options: CreateModelSessionOptions): ModelSes
 	let currentModelDefinition: ModelCatalogItem | null = null;
 	let modelLoadRequestId = 0;
 
+	async function loadSelectedModelResources(modelDefinition: ModelCatalogItem): Promise<void> {
+
+		const requestId = ++modelLoadRequestId;
+
+		resetPlacement();
+		onRuntimeReset();
+		currentModelDefinition = null;
+
+		store.patch( {
+			selectedModelId: modelDefinition.id,
+			modelUrl: modelDefinition.modelUrl,
+			pipeList: [],
+			propertyPanel: createDefaultPropertyPanelState(),
+			registrationMetrics: createDefaultRegistrationMetricsState(),
+			placementSummary: createDefaultPlacementSummaryState(),
+			precisionRegistration: createDefaultPrecisionRegistrationState(),
+			registrationStatusDetail: 'Status: loading model resources',
+			desktopPreviewBadge: defaultDesktopPreviewBadge
+		} );
+
+		appendLog( `Loading model ${modelDefinition.name}.` );
+
+		const bundle = await loadModelRuntimeBundle( modelDefinition, setStatus );
+		if ( requestId !== modelLoadRequestId ) {
+			return;
+		}
+
+		currentModelDefinition = bundle.modelDefinition;
+		onRuntimeBundleLoaded( bundle );
+		onLoadManualRegistration( bundle.demoModelConfig.modelId );
+		onUpdatePrecisionSourcePointOptions(
+			bundle.registrationSolution.controlPoints.map( ( point ) => point.id )
+		);
+
+		store.patch( {
+			modelUrl: modelDefinition.modelUrl,
+			pipeList: Array.from( bundle.pipesByName.values() as Iterable<PipeRecord> ),
+			registrationMetrics: createRegistrationMetricsState(
+				bundle.demoModelConfig,
+				bundle.registrationSolution
+			)
+		} );
+
+		appendLog( `Loaded model ${modelDefinition.name}.` );
+		appendLog(
+			`Engineering registration solved with ${bundle.registrationSolution.controlPoints.length} control points.`
+		);
+
+		onCreateCoarseRegistrationTarget( bundle.registrationSolution );
+		store.patch( { registrationStatusDetail: 'Status: model ready / waiting for plane detection' } );
+
+		if ( canShowPreviewAfterModelLoad() ) {
+			onAfterModelLoaded();
+		}
+
+		if ( canRequestAutoPlacement() ) {
+			requestAutoPlacement();
+		}
+
+		setStatus(
+			`Loaded ${modelDefinition.name}. RMS ${bundle.registrationSolution.modelToSite.rmsErrorMeters.toFixed( 3 )}m.`
+		);
+
+	}
+
 	return {
 		async initializeCatalog() {
 
@@ -75,7 +140,7 @@ export function createModelSession(options: CreateModelSessionOptions): ModelSes
 				selectedModelId: availableModels[ 0 ].id
 			} );
 
-			await this.loadSelectedModelResources( availableModels[ 0 ] );
+			await loadSelectedModelResources( availableModels[ 0 ] );
 
 		},
 
@@ -95,77 +160,15 @@ export function createModelSession(options: CreateModelSessionOptions): ModelSes
 				return;
 			}
 
-			void this.loadSelectedModelResources( nextModel ).catch( ( error ) => {
+			void loadSelectedModelResources( nextModel ).catch( ( error ) => {
 				console.error( 'Model switch failed:', error );
 				setStatus( error instanceof Error ? error.message : 'Failed to switch model.' );
 			} );
 
 		},
 
-		async loadSelectedModelResources(modelDefinition) {
+		loadSelectedModelResources,
 
-			const requestId = ++modelLoadRequestId;
-
-			resetPlacement();
-			onRuntimeReset();
-			currentModelDefinition = null;
-
-			store.patch( {
-				selectedModelId: modelDefinition.id,
-				modelUrl: modelDefinition.modelUrl,
-				pipeList: [],
-				propertyPanel: createDefaultPropertyPanelState(),
-				registrationMetrics: createDefaultRegistrationMetricsState(),
-				placementSummary: createDefaultPlacementSummaryState(),
-				precisionRegistration: createDefaultPrecisionRegistrationState(),
-				registrationStatusDetail: 'Status: loading model resources',
-				desktopPreviewBadge: defaultDesktopPreviewBadge
-			} );
-
-			appendLog( `Loading model ${modelDefinition.name}.` );
-
-			const bundle = await loadModelRuntimeBundle( modelDefinition, setStatus );
-			if ( requestId !== modelLoadRequestId ) {
-				return;
-			}
-
-			currentModelDefinition = bundle.modelDefinition;
-			onRuntimeBundleLoaded( bundle );
-			onLoadManualRegistration( bundle.demoModelConfig.modelId );
-			onUpdatePrecisionSourcePointOptions(
-				bundle.registrationSolution.controlPoints.map( ( point ) => point.id )
-			);
-
-			store.patch( {
-				modelUrl: modelDefinition.modelUrl,
-				pipeList: Array.from( bundle.pipesByName.values() as Iterable<PipeRecord> ),
-				registrationMetrics: createRegistrationMetricsState(
-					bundle.demoModelConfig,
-					bundle.registrationSolution
-				)
-			} );
-
-			appendLog( `Loaded model ${modelDefinition.name}.` );
-			appendLog(
-				`Engineering registration solved with ${bundle.registrationSolution.controlPoints.length} control points.`
-			);
-
-			onCreateCoarseRegistrationTarget( bundle.registrationSolution );
-			store.patch( { registrationStatusDetail: 'Status: model ready / waiting for plane detection' } );
-
-			if ( canShowPreviewAfterModelLoad() ) {
-				onAfterModelLoaded();
-			}
-
-			if ( canRequestAutoPlacement() ) {
-				requestAutoPlacement();
-			}
-
-			setStatus(
-				`Loaded ${modelDefinition.name}. RMS ${bundle.registrationSolution.modelToSite.rmsErrorMeters.toFixed( 3 )}m.`
-			);
-
-		},
 
 		getCurrentModelDefinition() {
 

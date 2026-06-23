@@ -17,6 +17,7 @@ export function getARDomElements(): ARDomElements {
 		mobilePreArCurrentModelEl: getElement( 'mobile-pre-ar-current-model' ),
 		mobilePreArCurrentStageEl: getElement( 'mobile-pre-ar-current-stage' ),
 		mobilePreArRuntimeStatusEl: getElement( 'mobile-pre-ar-runtime-status' ),
+		mobilePreArPreviewStatusEl: getElement( 'mobile-pre-ar-preview-status' ),
 		mobilePreArSupportBadgeEl: getElement( 'mobile-pre-ar-support-badge' ),
 		mobilePreArSupportMessageEl: getElement( 'mobile-pre-ar-support-message' ),
 		mobilePreArLayerListEl: getElement( 'mobile-pre-ar-layer-list' ),

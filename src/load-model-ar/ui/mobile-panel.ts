@@ -425,6 +425,9 @@ function renderPreArLayout(dom: ARDomElements, state: RegistrationStoreState): v
 	dom.mobilePreArCurrentModelEl.textContent = currentModelName;
 	dom.mobilePreArCurrentStageEl.textContent = currentStage;
 	dom.mobilePreArRuntimeStatusEl.textContent = state.runtimeStatus;
+	dom.mobilePreArPreviewStatusEl.textContent = currentModelName === '-'
+		? '等待模型'
+		: `预览：${currentModelName}`;
 
 	renderModelSelect( dom.mobilePreArModelSelectEl, state.availableModels, state.selectedModelId );
 	renderStageSelect( dom.mobilePreArStageSelectEl, state.timelineStages, state.currentTimelineStageIndex );

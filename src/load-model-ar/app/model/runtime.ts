@@ -26,7 +26,13 @@ export async function loadModelRuntimeBundle(
 	const [ pipesByName, demoModelConfig, modelTemplate ] = await Promise.all( [
 		loadPipeRecords( modelDefinition.pipesUrl ),
 		loadDemoModelConfig( modelDefinition.configUrl, setStatus ),
-		loadModelTemplate( modelDefinition.modelUrl, setStatus, 1 )
+		loadModelTemplate(
+			modelDefinition.modelUrl,
+			setStatus,
+			1,
+			modelDefinition.materialUrl,
+			modelDefinition.assetTransform
+		)
 	] );
 
 	return {

@@ -1,0 +1,67 @@
+{
+  "pipes": [
+    {
+      "name": "1",
+      "type": "terrain-layer",
+      "diameter": "--",
+      "material": "texture-zfzrt1",
+      "depth": "--",
+      "status": "normal",
+      "remark": "dz1207 OBJ group 1"
+    },
+    {
+      "name": "3",
+      "type": "terrain-layer",
+      "diameter": "--",
+      "material": "texture-srt",
+      "depth": "--",
+      "status": "normal",
+      "remark": "dz1207 OBJ group 3"
+    },
+    {
+      "name": "4",
+      "type": "terrain-layer",
+      "diameter": "--",
+      "material": "texture-fs",
+      "depth": "--",
+      "status": "normal",
+      "remark": "dz1207 OBJ group 4"
+    },
+    {
+      "name": "5",
+      "type": "terrain-layer",
+      "diameter": "--",
+      "material": "texture-cs",
+      "depth": "--",
+      "status": "normal",
+      "remark": "dz1207 OBJ group 5"
+    },
+    {
+      "name": "6",
+      "type": "terrain-layer",
+      "diameter": "--",
+      "material": "texture-cs1",
+      "depth": "--",
+      "status": "normal",
+      "remark": "dz1207 OBJ group 6"
+    },
+    {
+      "name": "7",
+      "type": "terrain-layer",
+      "diameter": "--",
+      "material": "texture-zfzrt",
+      "depth": "--",
+      "status": "normal",
+      "remark": "dz1207 OBJ group 7"
+    },
+    {
+      "name": "0",
+      "type": "terrain-layer",
+      "diameter": "--",
+      "material": "texture-zfzrt1",
+      "depth": "--",
+      "status": "normal",
+      "remark": "dz1207 OBJ group 0"
+    }
+  ]
+}

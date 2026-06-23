@@ -5,5 +5,17 @@
     "modelUrl": "/pipe-viewer/water+pipe+system+3d+model.glb",
     "configUrl": "/pipe-viewer/pipe_demo_01.config.json",
     "pipesUrl": "/pipe-viewer/pipes.json"
+  },
+  {
+    "id": "dz1207",
+    "name": "dz1207 地质模型",
+    "modelUrl": "/pipe-viewer/dz1207/dizhi1207.obj",
+    "materialUrl": "/pipe-viewer/dz1207/dizhi1207.mtl",
+    "assetTransform": {
+      "upAxis": "y",
+      "scaleFactor": 1.6
+    },
+    "configUrl": "/pipe-viewer/dz1207.config.json",
+    "pipesUrl": "/pipe-viewer/dz1207.pipes.json"
   }
 ]

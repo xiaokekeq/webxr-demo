@@ -1,0 +1,36 @@
+{
+  "modelId": "dz1207",
+  "siteFrame": {
+    "origin": {
+      "lat": 31.943824,
+      "lon": 118.747774,
+      "alt": 54
+    },
+    "axes": "enu"
+  },
+  "anchor": {
+    "lat": 31.943824,
+    "lon": 118.747774,
+    "alt": 54
+  },
+  "yaw": 35.0,
+  "scale": 1.0,
+  "registration": {
+    "mode": "similarity",
+    "minControlPoints": 3
+  },
+  "controlPoints": {
+    "ORIGIN": {
+      "modelLocal": { "x": 0.0, "y": 0.0, "z": 0.0 },
+      "world": { "lat": 31.943824, "lon": 118.747774, "alt": 54.0 }
+    },
+    "A": {
+      "modelLocal": { "x": 1.25, "y": 0.0, "z": -3.4 },
+      "world": { "lat": 31.943805421609728, "lon": 118.74780548444873, "alt": 54.0 }
+    },
+    "B": {
+      "modelLocal": { "x": 4.8, "y": 0.0, "z": -1.2 },
+      "world": { "lat": 31.943839901764655, "lon": 118.74782291063887, "alt": 54.0 }
+    }
+  }
+}

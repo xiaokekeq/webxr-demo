@@ -18,6 +18,7 @@ export interface ARDomElements {
 	mobilePreArCurrentModelEl: HTMLElement;
 	mobilePreArCurrentStageEl: HTMLElement;
 	mobilePreArRuntimeStatusEl: HTMLElement;
+	mobilePreArPreviewStatusEl: HTMLElement;
 	mobilePreArSupportBadgeEl: HTMLElement;
 	mobilePreArSupportMessageEl: HTMLElement;
 	mobilePreArLayerListEl: HTMLElement;

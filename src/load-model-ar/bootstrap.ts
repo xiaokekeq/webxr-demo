@@ -589,8 +589,14 @@ async function handlePlaceModel(): Promise<void> {
 	}
 
 	requestAutoPlacement();
+	syncArSessionPhase();
+	syncMobileOverlayState();
 
 	if ( placementSession.getPlacedModel() === null ) {
+		if ( placementSession.getCoarsePlacementPending() ) {
+			setStatus( '正在放置模型...' );
+			return;
+		}
 		setStatus( '已识别平面，但本次放置未成功。请保持手机稳定后重试。' );
 		return;
 	}
@@ -727,6 +733,11 @@ function syncArSessionPhase(): void {
 		return;
 	}
 
+	if ( placementSession.getCoarsePlacementPending() ) {
+		patchArSessionPhase( 'placing' );
+		return;
+	}
+
 	if ( hasCommittedArPlacement || placementSession.getPlacedModel() !== null ) {
 		hasCommittedArPlacement = placementSession.getPlacedModel() !== null;
 		patchArSessionPhase( 'placed' );
@@ -743,7 +754,7 @@ function syncArSessionPhase(): void {
 }
 
 function patchArSessionPhase(
-	nextPhase: 'scanning' | 'ready-to-place' | 'placed'
+	nextPhase: 'scanning' | 'ready-to-place' | 'placing' | 'placed'
 ): void {
 
 	if ( store.getState().arSessionPhase === nextPhase ) {
@@ -758,6 +769,9 @@ function patchArSessionPhase(
 			break;
 		case 'ready-to-place':
 			updateRegistrationStatusDetail( '状态：已识别平面，可放置模型' );
+			break;
+		case 'placing':
+			updateRegistrationStatusDetail( '正在放置模型' );
 			break;
 		case 'placed':
 			updateRegistrationStatusDetail( '状态：模型已放置' );

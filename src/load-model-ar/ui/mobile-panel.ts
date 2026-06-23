@@ -118,6 +118,7 @@ export function createMobilePanel(dom: ARDomElements): MobilePanelController {
 		const shouldShowPlacementHint = (
 			state.appMode === 'ar-session'
 			&& state.arSessionPhase !== 'placed'
+			&& state.arSessionPhase !== 'placing'
 		);
 
 		if ( shouldShowPlacementHint === false ) {
@@ -373,7 +374,10 @@ export function createMobilePanel(dom: ARDomElements): MobilePanelController {
 
 		const inAr = state.appMode === 'ar-session';
 		const showWorkUi = inAr && state.arSessionPhase === 'placed';
-		const showPlacementUi = inAr && state.arSessionPhase !== 'placed';
+		const showPlacementUi = inAr && (
+			state.arSessionPhase === 'scanning'
+			|| state.arSessionPhase === 'ready-to-place'
+		);
 		const showRightTools = showWorkUi && drawerCollapsed;
 
 		domElements.mobileRightToolsEl.classList.toggle( 'hidden', !showRightTools );
@@ -439,10 +443,14 @@ function renderHeader(dom: ARDomElements, state: RegistrationStoreState): void {
 		dom.mobileTopTitleEl.textContent = state.projectName;
 		dom.mobileTopSubtitleEl.textContent = state.arSessionPhase === 'ready-to-place'
 			? '已识别平面，请确认位置并放置模型'
-			: '正在识别平面';
+			: state.arSessionPhase === 'placing'
+				? '正在放置模型'
+				: '正在识别平面';
 		dom.registrationStatusEl.textContent = state.arSessionPhase === 'ready-to-place'
 			? '待放置'
-			: '识别中';
+			: state.arSessionPhase === 'placing'
+				? '放置中'
+				: '识别中';
 		return;
 	}
 
@@ -731,6 +739,13 @@ function getGuidanceContent(phase: ArSessionPhase): { title: string; body: strin
 		return {
 			title: '已识别平面',
 			body: '将准星对准管线对应区域，点击“放置模型”开始现场叠加。'
+		};
+	}
+
+	if ( phase === 'placing' ) {
+		return {
+			title: '正在放置模型',
+			body: '系统正在使用最近一次有效平面和粗配准结果完成放置，请稍候。'
 		};
 	}
 

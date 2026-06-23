@@ -15,6 +15,7 @@ interface CreateXRHitTestControllerOptions {
 
 const reticlePosition = new THREE.Vector3();
 const RETICLE_PERSIST_MS = 350;
+const PLACEABLE_HIT_RETENTION_MS = 1600;
 
 export interface ImmersiveArSupportInfo {
 	supported: boolean;
@@ -68,6 +69,7 @@ export function createXRHitTestController(
 	let hitTestSource: XRHitTestSource | null = null;
 	let hitTestSourceRequested = false;
 	let lastSuccessfulHitTime = 0;
+	let lastStableHitPosition: THREE.Vector3 | null = null;
 	let launchElement: HTMLElement | null = null;
 
 	function setup(): void {
@@ -90,6 +92,7 @@ export function createXRHitTestController(
 		onSessionStart?.();
 		reticle.visible = false;
 		lastSuccessfulHitTime = 0;
+		lastStableHitPosition = null;
 		setStatus( '已进入 AR，请缓慢移动手机，让系统持续识别地面或墙面。' );
 
 		const session = renderer.xr.getSession();
@@ -126,6 +129,7 @@ export function createXRHitTestController(
 		hitTestSource = null;
 		hitTestSourceRequested = false;
 		lastSuccessfulHitTime = 0;
+		lastStableHitPosition = null;
 		onSessionEnd?.();
 		setStatus( 'AR 会话已结束，可以再次点击 Enter AR 重新开始。' );
 
@@ -166,6 +170,8 @@ export function createXRHitTestController(
 		lastSuccessfulHitTime = performance.now();
 		reticle.visible = true;
 		reticle.matrix.fromArray( pose.transform.matrix );
+		reticlePosition.setFromMatrixPosition( reticle.matrix );
+		lastStableHitPosition = reticlePosition.clone();
 
 		if ( canReportStatus?.() !== false ) {
 			setStatus( '已找到可用平面，可继续观察地面或墙面上的命中效果。' );
@@ -189,7 +195,16 @@ export function createXRHitTestController(
 
 	function hasGroundHit(): boolean {
 
-		return renderer.xr.isPresenting && reticle.visible;
+		if ( renderer.xr.isPresenting === false ) {
+			return false;
+		}
+
+		if ( reticle.visible ) {
+			return true;
+		}
+
+		return lastStableHitPosition !== null
+			&& performance.now() - lastSuccessfulHitTime <= PLACEABLE_HIT_RETENTION_MS;
 
 	}
 
@@ -199,8 +214,17 @@ export function createXRHitTestController(
 			return null;
 		}
 
-		reticlePosition.setFromMatrixPosition( reticle.matrix );
-		target.copy( reticlePosition );
+		if ( reticle.visible ) {
+			reticlePosition.setFromMatrixPosition( reticle.matrix );
+			target.copy( reticlePosition );
+			return target;
+		}
+
+		if ( lastStableHitPosition === null ) {
+			return null;
+		}
+
+		target.copy( lastStableHitPosition );
 		return target;
 
 	}

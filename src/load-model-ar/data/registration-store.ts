@@ -4,7 +4,7 @@ import type { ModelCatalogItem } from './model-catalog.js';
 export type WorkspaceMode = 'browse' | 'registration' | 'timeline' | 'inspection';
 export type AppMode = 'pre-ar' | 'ar-session';
 export type ArSupportState = 'checking' | 'supported' | 'unsupported';
-export type ArSessionPhase = 'scanning' | 'ready-to-place' | 'placed';
+export type ArSessionPhase = 'scanning' | 'ready-to-place' | 'placing' | 'placed';
 
 export interface PropertyPanelState {
 	name: string;

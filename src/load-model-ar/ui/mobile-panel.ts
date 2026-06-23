@@ -54,10 +54,10 @@ export interface MobilePanelController {
 }
 
 const MODE_LABELS: Record<WorkspaceMode, string> = {
-	browse: 'Browse panel',
-	registration: 'Registration panel',
-	timeline: 'Timeline panel',
-	inspection: 'Inspection panel'
+	browse: '浏览面板',
+	registration: '配准面板',
+	timeline: '时间面板',
+	inspection: '核查面板'
 };
 
 export function createMobilePanel(dom: ARDomElements): MobilePanelController {
@@ -293,8 +293,8 @@ export function createMobilePanel(dom: ARDomElements): MobilePanelController {
 		dom.registrationStatusDetailEl.textContent = state.registrationStatusDetail;
 		dom.mobileDrawerToggleButton.setAttribute( 'aria-expanded', String( !isDrawerCollapsed ) );
 		dom.mobileDrawerToggleLabelEl.textContent = isDrawerCollapsed
-			? `Expand ${MODE_LABELS[ state.workspaceMode ]}`
-			: 'Collapse panel';
+			? `展开${MODE_LABELS[ state.workspaceMode ]}`
+			: '收起面板';
 
 	}
 
@@ -329,8 +329,8 @@ export function createMobilePanel(dom: ARDomElements): MobilePanelController {
 
 		domElements.mobileArPlaceButton.disabled = state.arSessionPhase !== 'ready-to-place';
 		domElements.mobileArPlaceButton.textContent = state.arSessionPhase === 'ready-to-place'
-			? 'Place model'
-			: 'Start placement';
+			? '放置模型'
+			: '正在识别平面';
 
 	}
 
@@ -372,34 +372,34 @@ function renderHeader(dom: ARDomElements, state: RegistrationStoreState): void {
 	if ( state.appMode === 'ar-session' && state.arSessionPhase !== 'placed' ) {
 		dom.mobileTopTitleEl.textContent = state.projectName;
 		dom.mobileTopSubtitleEl.textContent = state.arSessionPhase === 'ready-to-place'
-			? 'Plane detected. Confirm the location and place the model.'
-			: 'Scanning for planes';
+			? '已识别平面，请确认位置并放置模型'
+			: '正在识别平面';
 		dom.registrationStatusEl.textContent = state.arSessionPhase === 'ready-to-place'
-			? 'Ready'
-			: 'Scanning';
+			? '待放置'
+			: '识别中';
 		return;
 	}
 
 	switch ( state.workspaceMode ) {
 		case 'browse':
 			dom.mobileTopTitleEl.textContent = state.projectName;
-			dom.mobileTopSubtitleEl.textContent = `Stage: ${currentStage}`;
-			dom.registrationStatusEl.textContent = 'Browse';
+			dom.mobileTopSubtitleEl.textContent = `当前阶段：${currentStage}`;
+			dom.registrationStatusEl.textContent = '浏览';
 			break;
 		case 'registration':
-			dom.mobileTopTitleEl.textContent = 'Mode: Registration';
-			dom.mobileTopSubtitleEl.textContent = 'Model placed. Continue alignment here.';
-			dom.registrationStatusEl.textContent = 'Registering';
+			dom.mobileTopTitleEl.textContent = '当前模式：配准';
+			dom.mobileTopSubtitleEl.textContent = '模型已放置，可继续位置校正';
+			dom.registrationStatusEl.textContent = '配准中';
 			break;
 		case 'timeline':
-			dom.mobileTopTitleEl.textContent = `Stage: ${currentStage}`;
-			dom.mobileTopSubtitleEl.textContent = 'Switch project stages in AR.';
-			dom.registrationStatusEl.textContent = 'Timeline';
+			dom.mobileTopTitleEl.textContent = `当前阶段：${currentStage}`;
+			dom.mobileTopSubtitleEl.textContent = '按阶段查看现场模型状态';
+			dom.registrationStatusEl.textContent = '时间模式';
 			break;
 		case 'inspection':
-			dom.mobileTopTitleEl.textContent = 'Mode: Inspection';
-			dom.mobileTopSubtitleEl.textContent = 'Record issues and on-site notes.';
-			dom.registrationStatusEl.textContent = 'Inspecting';
+			dom.mobileTopTitleEl.textContent = '当前模式：核查';
+			dom.mobileTopSubtitleEl.textContent = '记录现场问题与核查意见';
+			dom.registrationStatusEl.textContent = '核查中';
 			break;
 	}
 
@@ -415,7 +415,7 @@ function renderModelSelect(
 		select,
 		models.map( ( model ) => ( { value: model.id, label: model.name } ) ),
 		selectedModelId,
-		'Select model'
+		'请选择模型'
 	);
 
 }
@@ -433,7 +433,7 @@ function renderStageSelect(
 			label: `${index + 1}. ${stage}`
 		} ) ),
 		String( selectedIndex ),
-		'Select stage'
+		'请选择阶段'
 	);
 
 }
@@ -484,11 +484,11 @@ function getSupportBadgeLabel(supportState: ArSupportState): string {
 
 	switch ( supportState ) {
 		case 'checking':
-			return 'Checking';
+			return '检测中';
 		case 'supported':
-			return 'AR Ready';
+			return '支持 AR';
 		case 'unsupported':
-			return 'AR Unsupported';
+			return '不支持 AR';
 	}
 
 }
@@ -502,20 +502,20 @@ function renderPropertyPanel(
 	const hasSelection = hasSelectedPipe( state );
 	togglePropertyGrid( dom, hasSelection && browseDetailsExpanded );
 
-	dom.propertyCloseButton.textContent = browseDetailsExpanded ? 'Collapse' : 'Close';
+	dom.propertyCloseButton.textContent = browseDetailsExpanded ? '收起' : '关闭';
 	dom.browsePropertyActionsEl.classList.toggle( 'hidden', !hasSelection );
 
 	if ( hasSelection === false ) {
-		dom.propertyNameEl.textContent = 'Browse mode';
-		dom.propertyStatusBadgeEl.textContent = 'No selection';
+		dom.propertyNameEl.textContent = '浏览模式';
+		dom.propertyStatusBadgeEl.textContent = '未选中';
 		dom.propertyTypeEl.textContent = '-';
 		dom.propertyDiameterEl.textContent = '-';
 		dom.propertyMaterialEl.textContent = '-';
 		dom.propertyDepthEl.textContent = '-';
 		dom.propertyStatusEl.textContent = '-';
-		dom.propertyRemarkEl.textContent = 'Tap a pipe segment to inspect its attributes.';
-		dom.browseShowDetailsButton.textContent = 'Show details';
-		dom.browseAddInspectionButton.textContent = 'New issue';
+		dom.propertyRemarkEl.textContent = '点击管线查看属性';
+		dom.browseShowDetailsButton.textContent = '查看详情';
+		dom.browseAddInspectionButton.textContent = '新增核查';
 		dom.propertyCloseButton.classList.add( 'hidden' );
 		return;
 	}
@@ -528,11 +528,11 @@ function renderPropertyPanel(
 	dom.propertyMaterialEl.textContent = state.propertyPanel.material;
 	dom.propertyDepthEl.textContent = state.propertyPanel.depth;
 	dom.propertyStatusEl.textContent = state.propertyPanel.status;
-	dom.browseShowDetailsButton.textContent = browseDetailsExpanded ? 'Hide details' : 'Details';
-	dom.browseAddInspectionButton.textContent = 'New issue';
+	dom.browseShowDetailsButton.textContent = browseDetailsExpanded ? '收起详情' : '详情';
+	dom.browseAddInspectionButton.textContent = '新增核查';
 	dom.propertyRemarkEl.textContent = browseDetailsExpanded
 		? state.propertyPanel.remark
-		: `${state.propertyPanel.type} ${state.propertyPanel.diameter}, depth ${state.propertyPanel.depth}, status ${state.propertyPanel.status}`;
+		: `${state.propertyPanel.type} ${state.propertyPanel.diameter}，埋深 ${state.propertyPanel.depth}，状态 ${state.propertyPanel.status}`;
 
 }
 
@@ -569,11 +569,11 @@ function renderPrecisionRegistration(dom: ARDomElements, state: RegistrationStor
 			label: point
 		} ) ),
 		state.precisionRegistration.selectedSourcePoint,
-		'Select source point'
+		'请选择模型控制点'
 	);
 	dom.precisionSourceCurrentEl.textContent = state.precisionRegistration.stagedSourcePoint;
 	dom.precisionTargetCurrentEl.textContent = state.precisionRegistration.stagedTargetPoint;
-	dom.precisionPairCountEl.textContent = `${state.precisionRegistration.pairSummaries.length} / target 4+`;
+	dom.precisionPairCountEl.textContent = `${state.precisionRegistration.pairSummaries.length} / 建议至少 4 组`;
 	dom.precisionRmsEl.textContent = state.precisionRegistration.rmsText;
 	dom.precisionWorkflowStatusEl.textContent = state.precisionRegistration.workflowStatusText;
 	renderPairList( dom.precisionPairListEl, state.precisionRegistration.pairSummaries );
@@ -629,7 +629,7 @@ function renderPairList(host: HTMLElement, pairSummaries: string[]): void {
 
 	host.replaceChildren(
 		...( pairSummaries.length === 0
-			? [ createTextBlock( 'div', 'desktop-list-item', 'No control-point pairs yet.' ) ]
+			? [ createTextBlock( 'div', 'desktop-list-item', '还没有采集控制点对' ) ]
 			: pairSummaries.map( ( item ) => createTextBlock( 'div', 'desktop-list-item', item ) ) )
 	);
 
@@ -663,14 +663,14 @@ function getGuidanceContent(phase: ArSessionPhase): { title: string; body: strin
 
 	if ( phase === 'ready-to-place' ) {
 		return {
-			title: 'Plane detected',
-			body: 'Aim the reticle at the matching area, then tap the placement button.'
+			title: '已识别平面',
+			body: '将准星对准管线对应区域，点击“放置模型”开始现场叠加。'
 		};
 	}
 
 	return {
-		title: 'Scanning for planes',
-		body: 'Move the phone slowly and keep the floor or wall inside the camera view.'
+		title: '正在识别平面',
+		body: '请缓慢移动手机，扫描地面或墙面，等待系统找到可放置模型的位置。'
 	};
 
 }

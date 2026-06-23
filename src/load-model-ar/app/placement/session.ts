@@ -147,7 +147,7 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 			}
 
 			coarsePlacementPending = true;
-			updateRegistrationStatusDetail( 'Status: waiting for a hit-test plane' );
+			updateRegistrationStatusDetail( '状态：等待命中可用平面' );
 
 		},
 
@@ -177,14 +177,14 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 
 			const groundPosition = xrHitTest.getHitPosition( new THREE.Vector3() );
 			if ( groundPosition === null ) {
-				updateRegistrationStatusDetail( 'Status: waiting for plane detection' );
+				updateRegistrationStatusDetail( '状态：等待识别平面' );
 				return;
 			}
 
 			sceneBundle.camera.getWorldPosition( cameraWorldPosition );
 			const estimate = coarseRegistration.estimatePlacement( cameraWorldPosition, groundPosition.y );
 			if ( estimate === null ) {
-				updateRegistrationStatusDetail( 'Status: waiting for coarse registration data' );
+				updateRegistrationStatusDetail( '状态：等待粗配准数据' );
 				setStatus( coarseRegistration.getMissingRequirementMessage() );
 				return;
 			}
@@ -223,22 +223,22 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 			} );
 
 			coarsePlacementPending = false;
-			updateRegistrationStatusDetail( 'Status: model placed' );
+			updateRegistrationStatusDetail( '状态：模型已放置' );
 			updatePlacementSummary();
 
 			const accuracyText = estimate.accuracyMeters === null
-				? 'GPS accuracy unavailable'
-				: `GPS accuracy about ${Math.round( estimate.accuracyMeters )}m`;
+				? 'GPS 精度未知'
+				: `GPS 精度约 ${Math.round( estimate.accuracyMeters )}m`;
 
 			if ( usePreviewPlacement ) {
 				setStatus(
-					`Target distance about ${Math.round( estimate.distanceMeters )}m, ${accuracyText}. Switched to near preview placement.`
+					`目标距离约 ${Math.round( estimate.distanceMeters )}m，${accuracyText}。已切换到近距离预览放置。`
 				);
 				return;
 			}
 
 			setStatus(
-				`Coarse registration complete for ${registrationSolution.modelId}. Distance ${Math.round( estimate.distanceMeters )}m, RMS ${registrationSolution.modelToSite.rmsErrorMeters.toFixed( 3 )}m, ${accuracyText}.`
+				`已完成 ${registrationSolution.modelId} 的粗配准。距离约 ${Math.round( estimate.distanceMeters )}m，RMS ${registrationSolution.modelToSite.rmsErrorMeters.toFixed( 3 )}m，${accuracyText}。`
 			);
 
 		},

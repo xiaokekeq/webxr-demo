@@ -61,7 +61,7 @@ const store = createRegistrationStore( {
 	selectedModelId: '',
 	appMode: 'pre-ar',
 	arSupportState: 'checking',
-	arSupportMessage: 'Checking AR support...',
+	arSupportMessage: '正在检测 AR 支持状态...',
 	arSessionPhase: 'scanning',
 	workspaceMode: 'browse',
 	timelineStages: TIMELINE_STAGES,
@@ -73,8 +73,8 @@ const store = createRegistrationStore( {
 	registrationMetrics: createDefaultRegistrationMetricsState(),
 	placementSummary: createDefaultPlacementSummaryState(),
 	precisionRegistration: createDefaultPrecisionRegistrationState(),
-	registrationStatusDetail: 'Status: waiting for plane detection',
-	runtimeStatus: 'Waiting for initialization',
+	registrationStatusDetail: '状态：等待识别平面',
+	runtimeStatus: '等待初始化',
 	desktopPreviewBadge: DEFAULT_DESKTOP_PREVIEW_BADGE,
 	logMessages: []
 } );
@@ -96,6 +96,7 @@ let demoModelConfig: DemoModelConfig | null = null;
 let registrationSolution: EngineeringRegistrationSolution | null = null;
 let coarseRegistration = createCoarseRegistrationController( { setStatus } );
 let pipesByName = new Map<string, PipeRecord>();
+let hasCommittedArPlacement = false;
 
 const manualReadoutSync = createManualReadoutSync( { store } );
 const manualRegistration = createManualRegistrationController( {
@@ -216,16 +217,16 @@ desktopPanel.bind( {
 mobilePanel.bind( {
 	onCloseProperty: () => {
 		propertySelection.clearSelection();
-		setStatus( 'Property panel closed.' );
+		setStatus( '已关闭属性面板。' );
 	},
 	onSelectModel: modelSession.handleModelSelection,
 	onSetWorkspaceMode: setWorkspaceMode,
 	onResetPlacement: handleResetPlacement,
 	onShowLayers: () => {
-		setStatus( 'Layer panel is reserved and not wired yet.' );
+		setStatus( '图层面板预留中，后续接入。' );
 	},
 	onMeasure: () => {
-		setStatus( 'Measure tool is reserved and not wired yet.' );
+		setStatus( '测距工具预留中，后续接入。' );
 	},
 	onEnableCoarse: handleEnableCoarseRegistration,
 	onRefreshGeo: handleRefreshGeoLocation,
@@ -258,14 +259,14 @@ mobilePanel.bind( {
 		setTimelineStage( store.getState().currentTimelineStageIndex + 1 );
 	},
 	onTimelinePlay: () => {
-		setStatus( 'Timeline playback is not implemented yet.' );
+		setStatus( '时间轴播放功能暂未接入。' );
 	},
 	onInspectionPhoto: () => {
-		setStatus( 'Inspection photo entry is reserved for a later camera integration.' );
+		setStatus( '拍照入口预留中，后续接入相机能力。' );
 	},
 	onInspectionSave: ( draft ) => {
 		setStatus(
-			`Inspection draft recorded: ${draft.type} / ${draft.severity}${draft.note ? ` / ${draft.note}` : ''}.`
+			`已记录核查草稿：${draft.type} / ${draft.severity}${draft.note ? ` / ${draft.note}` : ''}`
 		);
 	},
 	onEnterAr: handleEnterAr,
@@ -292,7 +293,7 @@ initialize();
 
 async function initialize(): Promise<void> {
 
-	setStatus( 'Initializing AR workspace...' );
+	setStatus( '正在初始化 AR 工作区...' );
 	syncSceneHost();
 	sceneBundle.renderer.setAnimationLoop( xrRuntime.renderFrame );
 	xrRuntime.setup();
@@ -316,19 +317,19 @@ async function initialize(): Promise<void> {
 		handleViewportLayoutChange();
 
 		if ( isDesktopLayout() && 'xr' in navigator === false ) {
-			appendLog( 'AR is not available on this device. Desktop preview mode is active.' );
+			appendLog( '当前设备不支持 AR，已切换到桌面预览模式。' );
 		}
 
 		void coarseRegistration.prime()
 			.then( () => {
-				appendLog( 'Coarse registration sensors primed.' );
+				appendLog( '粗配准传感器预热完成。' );
 			} )
 			.catch( () => {
-				appendLog( 'Coarse registration prime did not complete automatically.' );
+				appendLog( '粗配准传感器未能自动完成预热。' );
 			} );
 	} catch ( error ) {
 		console.error( 'AR bootstrap failed:', error );
-		setStatus( error instanceof Error ? error.message : 'Failed to initialize AR workspace.' );
+		setStatus( error instanceof Error ? error.message : 'AR 工作区初始化失败。' );
 	}
 
 }
@@ -344,17 +345,18 @@ function renderPanels(): void {
 
 function handleResetPlacement(): void {
 
+	hasCommittedArPlacement = false;
 	placementSession.resetPlacement();
 	syncArSessionPhase();
 	syncMobileOverlayState();
 	if ( sceneBundle.renderer.xr.isPresenting ) {
-		setStatus( 'Model placement reset. Scan the surface again and place the model when ready.' );
+		setStatus( '模型已重置，请重新识别平面后再放置模型。' );
 		return;
 	}
 
 	ensureDesktopPreviewPlacement();
 	placementSession.fitDesktopPreviewToCamera();
-	setStatus( 'Model placement reset.' );
+	setStatus( '模型位置已重置。' );
 
 }
 
@@ -362,11 +364,11 @@ async function handleEnableCoarseRegistration(): Promise<void> {
 
 	try {
 		await coarseRegistration.enable();
-		updateRegistrationStatusDetail( 'Status: coarse registration enabled' );
+		updateRegistrationStatusDetail( '状态：粗配准已启用' );
 		syncArSessionPhase();
 	} catch ( error ) {
 		console.error( 'Coarse registration enable failed:', error );
-		setStatus( error instanceof Error ? error.message : 'Failed to enable coarse registration.' );
+		setStatus( error instanceof Error ? error.message : '启用粗配准失败。' );
 	}
 
 }
@@ -379,7 +381,7 @@ async function handleRefreshGeoLocation(): Promise<void> {
 		syncArSessionPhase();
 	} catch ( error ) {
 		console.error( 'Geolocation refresh failed:', error );
-		setStatus( error instanceof Error ? error.message : 'Failed to refresh geolocation.' );
+		setStatus( error instanceof Error ? error.message : '刷新定位失败。' );
 	}
 
 }
@@ -392,26 +394,26 @@ function handleResetManualRegistration(): void {
 
 	manualRegistration.reset();
 	reapplyManualPlacement();
-	setStatus( 'Manual registration reset.' );
+	setStatus( '手动配准已重置。' );
 
 }
 
 function saveManualRegistration(): void {
 
 	if ( demoModelConfig === null ) {
-		setStatus( 'Model configuration is not ready yet.' );
+		setStatus( '模型配置尚未准备完成。' );
 		return;
 	}
 
 	manualRegistration.save( demoModelConfig.modelId );
-	setStatus( 'Manual registration saved.' );
+	setStatus( '手动配准已保存。' );
 
 }
 
 function exportRegistrationSnapshot(): void {
 
 	if ( demoModelConfig === null || registrationSolution === null ) {
-		setStatus( 'There is no registration snapshot to export.' );
+		setStatus( '当前没有可导出的配准快照。' );
 		return;
 	}
 
@@ -432,7 +434,7 @@ function exportRegistrationSnapshot(): void {
 	link.click();
 	URL.revokeObjectURL( url );
 
-	setStatus( 'Registration snapshot exported as JSON.' );
+	setStatus( '配准快照已导出为 JSON。' );
 
 }
 
@@ -475,11 +477,27 @@ function handleEnterAr(): void {
 function handlePlaceModel(): void {
 
 	if ( sceneBundle.renderer.xr.isPresenting === false ) {
-		setStatus( 'AR session is not active yet.' );
+		setStatus( 'AR 会话尚未启动。' );
+		return;
+	}
+
+	if ( xrRuntime.getHitTestController().hasGroundHit() === false ) {
+		setStatus( '请先识别到平面，再执行放置模型。' );
 		return;
 	}
 
 	requestAutoPlacement();
+
+	if ( placementSession.getPlacedModel() === null ) {
+		setStatus( '正在尝试放置模型，请保持平面稳定并确认粗配准数据可用。' );
+		return;
+	}
+
+	hasCommittedArPlacement = true;
+	store.patch( { workspaceMode: 'browse' } );
+	patchArSessionPhase( 'placed' );
+	syncMobileOverlayState();
+	setStatus( '模型已放置，已切换到 AR 主界面。' );
 
 }
 
@@ -487,7 +505,7 @@ function handleExitAr(): void {
 
 	const session = sceneBundle.renderer.xr.getSession();
 	if ( session === null ) {
-		setStatus( 'AR session is not active.' );
+		setStatus( '当前没有正在进行的 AR 会话。' );
 		return;
 	}
 
@@ -497,11 +515,12 @@ function handleExitAr(): void {
 
 function handleXRSessionStart(): void {
 
+	hasCommittedArPlacement = false;
 	store.patch( { appMode: 'ar-session', arSessionPhase: 'scanning', workspaceMode: 'browse' } );
 	syncSceneHost();
 	placementSession.resetPlacement();
 	updateDesktopInteractionState();
-	updateRegistrationStatusDetail( 'Status: scanning for planes' );
+	updateRegistrationStatusDetail( '状态：正在识别平面' );
 	syncArSessionPhase();
 	syncMobileOverlayState();
 
@@ -509,11 +528,12 @@ function handleXRSessionStart(): void {
 
 function handleXRSessionEnd(): void {
 
+	hasCommittedArPlacement = false;
 	store.patch( { appMode: 'pre-ar', arSessionPhase: 'scanning', workspaceMode: 'browse' } );
 	syncSceneHost();
 	placementSession.resetPlacement();
 	updateDesktopInteractionState();
-	updateRegistrationStatusDetail( 'Status: waiting for plane detection' );
+	updateRegistrationStatusDetail( '状态：等待识别平面' );
 	if ( isDesktopLayout() || store.getState().appMode === 'pre-ar' ) {
 		ensureDesktopPreviewPlacement();
 		placementSession.fitDesktopPreviewToCamera();
@@ -563,6 +583,9 @@ function reapplyManualPlacement(): void {
 		manualPositionTarget: manualPosition,
 		manualOrientationTarget: manualOrientation
 	} );
+	if ( sceneBundle.renderer.xr.isPresenting && placementSession.getPlacedModel() !== null ) {
+		hasCommittedArPlacement = true;
+	}
 	syncMobileOverlayState();
 
 }
@@ -578,11 +601,13 @@ function syncMobileOverlayState(): void {
 function syncArSessionPhase(): void {
 
 	if ( sceneBundle.renderer.xr.isPresenting === false ) {
+		hasCommittedArPlacement = false;
 		patchArSessionPhase( 'scanning' );
 		return;
 	}
 
-	if ( placementSession.getPlacedModel() !== null ) {
+	if ( hasCommittedArPlacement || placementSession.getPlacedModel() !== null ) {
+		hasCommittedArPlacement = placementSession.getPlacedModel() !== null;
 		patchArSessionPhase( 'placed' );
 		return;
 	}
@@ -608,13 +633,13 @@ function patchArSessionPhase(
 
 	switch ( nextPhase ) {
 		case 'scanning':
-			updateRegistrationStatusDetail( 'Status: scanning for planes' );
+			updateRegistrationStatusDetail( '状态：正在识别平面' );
 			break;
 		case 'ready-to-place':
-			updateRegistrationStatusDetail( 'Status: plane detected, ready to place' );
+			updateRegistrationStatusDetail( '状态：已识别平面，可放置模型' );
 			break;
 		case 'placed':
-			updateRegistrationStatusDetail( 'Status: model placed' );
+			updateRegistrationStatusDetail( '状态：模型已放置' );
 			break;
 	}
 

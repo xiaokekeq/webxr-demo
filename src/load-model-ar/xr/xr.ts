@@ -9,6 +9,7 @@ interface CreateXRHitTestControllerOptions {
 	setStatus: SetStatus;
 	onSessionStart?: () => void;
 	onSessionEnd?: () => void;
+	onSelect?: () => void;
 	canReportStatus?: () => boolean;
 }
 
@@ -60,6 +61,7 @@ export function createXRHitTestController(
 		setStatus,
 		onSessionStart,
 		onSessionEnd,
+		onSelect,
 		canReportStatus
 	} = options;
 
@@ -95,6 +97,8 @@ export function createXRHitTestController(
 			return;
 		}
 
+		session.addEventListener( 'select', handleSelect );
+
 		const viewerSpace = await session.requestReferenceSpace( 'viewer' );
 		const requestHitTestSource = session.requestHitTestSource;
 
@@ -116,12 +120,20 @@ export function createXRHitTestController(
 
 	function handleSessionEnd(): void {
 
+		renderer.xr.getSession()?.removeEventListener( 'select', handleSelect );
+
 		reticle.visible = false;
 		hitTestSource = null;
 		hitTestSourceRequested = false;
 		lastSuccessfulHitTime = 0;
 		onSessionEnd?.();
 		setStatus( 'AR 会话已结束，可以再次点击 Enter AR 重新开始。' );
+
+	}
+
+	function handleSelect(): void {
+
+		onSelect?.();
 
 	}
 

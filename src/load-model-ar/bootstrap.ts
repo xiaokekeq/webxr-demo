@@ -301,6 +301,10 @@ async function initialize(): Promise<void> {
 
 	sceneBundle.renderer.domElement.addEventListener( 'pointerdown', pointerSelection.handlePointerDown );
 	sceneBundle.renderer.domElement.addEventListener( 'pointerup', pointerSelection.handlePointerUp );
+	window.addEventListener( 'pointerdown', handleGlobalArPointerDown, true );
+	window.addEventListener( 'pointerup', handleGlobalArPointerUp, true );
+	sceneBundle.renderer.xr.addEventListener( 'sessionstart', bindArSelectionSession );
+	sceneBundle.renderer.xr.addEventListener( 'sessionend', unbindArSelectionSession );
 
 	window.addEventListener( 'resize', onWindowResize );
 	DESKTOP_MEDIA_QUERY.addEventListener( 'change', () => {
@@ -355,6 +359,57 @@ function revealBrowsePropertyPanel(): void {
 	}
 
 	mobilePanel.revealBrowsePanel();
+
+}
+
+function handleGlobalArPointerDown(event: PointerEvent): void {
+
+	if ( shouldHandleGlobalArPointerEvent( event ) === false ) {
+		return;
+	}
+
+	pointerSelection.handleScreenPointerDown( event.clientX, event.clientY );
+
+}
+
+function handleGlobalArPointerUp(event: PointerEvent): void {
+
+	if ( shouldHandleGlobalArPointerEvent( event ) === false ) {
+		return;
+	}
+
+	pointerSelection.handleScreenPointerUp( event.clientX, event.clientY );
+
+}
+
+function shouldHandleGlobalArPointerEvent(event: PointerEvent): boolean {
+
+	if ( sceneBundle.renderer.xr.isPresenting === false ) {
+		return false;
+	}
+
+	const target = event.target;
+	if ( target instanceof Element ) {
+		return target.closest(
+			'#mobile-topbar, #mobile-ar-primary-bar, #mobile-right-tools, #mobile-drawer-area, #mobile-drawer-toggle, #mobile-bottom-nav, button, select, textarea, input, label, a'
+		) === null;
+	}
+
+	return true;
+
+}
+
+function bindArSelectionSession(): void {
+
+	const session = sceneBundle.renderer.xr.getSession();
+	session?.addEventListener( 'select', pointerSelection.handleArSelect );
+
+}
+
+function unbindArSelectionSession(): void {
+
+	const session = sceneBundle.renderer.xr.getSession();
+	session?.removeEventListener( 'select', pointerSelection.handleArSelect );
 
 }
 

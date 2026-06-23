@@ -43,6 +43,8 @@ const DESKTOP_MEDIA_QUERY = window.matchMedia( '(any-pointer: fine)' );
 const MAX_VISIBLE_AUTO_PLACEMENT_DISTANCE_METERS = 8;
 const MAX_RELIABLE_GPS_ACCURACY_METERS = 15;
 const PREVIEW_PLACEMENT_DISTANCE_METERS = 2.5;
+const MAX_AR_MODEL_SCREEN_RATIO = 0.42;
+const MIN_AR_MODEL_FIT_DISTANCE_METERS = 1.2;
 const MAX_LOG_ITEMS = 24;
 const DEFAULT_DESKTOP_PREVIEW_BADGE = '3D preview area';
 const DESKTOP_PREVIEW_BADGE = '3D preview area / orbit, pan, zoom';
@@ -130,7 +132,9 @@ const placementSession = createPlacementSession( {
 	previewDirection: DESKTOP_PREVIEW_DIRECTION,
 	maxVisibleAutoPlacementDistanceMeters: MAX_VISIBLE_AUTO_PLACEMENT_DISTANCE_METERS,
 	maxReliableGpsAccuracyMeters: MAX_RELIABLE_GPS_ACCURACY_METERS,
-	previewPlacementDistanceMeters: PREVIEW_PLACEMENT_DISTANCE_METERS
+	previewPlacementDistanceMeters: PREVIEW_PLACEMENT_DISTANCE_METERS,
+	maxArModelScreenRatio: MAX_AR_MODEL_SCREEN_RATIO,
+	minArModelFitDistanceMeters: MIN_AR_MODEL_FIT_DISTANCE_METERS
 } );
 const mobileLayoutRuntime = createMobileLayoutRuntime( {
 	dom,

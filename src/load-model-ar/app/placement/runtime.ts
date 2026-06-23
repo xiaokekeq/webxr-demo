@@ -6,7 +6,11 @@ import { composeModelQuaternionInAr } from '../../registration/engineering-regis
 import type { ManualPlacementBase } from '../../registration/manual-registration.js';
 import { placeModelAt } from '../../render/model.js';
 import type { CoarsePlacementEstimate } from '../../ui/types.js';
-import { getPlacementResidualScale, getPreviewPlacementPosition } from './camera-fit.js';
+import {
+	clampPlacementScaleToCameraView,
+	getPlacementResidualScale,
+	getPreviewPlacementPosition
+} from './camera-fit.js';
 
 const tempEuler = new THREE.Euler();
 const tempSiteOffset = new THREE.Vector3();
@@ -22,6 +26,8 @@ export function createAutoPlacementBase(options: {
 	modelOrientationTarget: THREE.Quaternion;
 	previewDistanceMeters: number;
 	usePreviewPlacement: boolean;
+	maxScreenRatio: number;
+	minFitDistanceMeters: number;
 }): ManualPlacementBase {
 
 	const {
@@ -34,19 +40,27 @@ export function createAutoPlacementBase(options: {
 		registrationSolution,
 		modelOrientationTarget,
 		previewDistanceMeters,
-		usePreviewPlacement
+		usePreviewPlacement,
+		maxScreenRatio,
+		minFitDistanceMeters
 	} = options;
 
+	const position = ( usePreviewPlacement
+		? getPreviewPlacementPosition( camera, cameraWorldPosition, groundY, previewDistanceMeters )
+		: composeAnchoredPlacementPosition(
+			groundPosition,
+			estimate.orientation,
+			registrationSolution.modelToSite.translation,
+			tempSiteOffset
+		)
+	).clone();
+	const residualScale = getPlacementResidualScale(
+		modelTemplate,
+		registrationSolution.modelToSite.scale
+	);
+
 	return {
-		position: ( usePreviewPlacement
-			? getPreviewPlacementPosition( camera, cameraWorldPosition, groundY, previewDistanceMeters )
-			: composeAnchoredPlacementPosition(
-				groundPosition,
-				estimate.orientation,
-				registrationSolution.modelToSite.translation,
-				tempSiteOffset
-			)
-		).clone(),
+		position,
 		orientation: flattenQuaternionToYaw(
 			composeModelQuaternionInAr(
 				estimate.orientation,
@@ -55,7 +69,14 @@ export function createAutoPlacementBase(options: {
 			),
 			modelOrientationTarget
 		).clone(),
-		scale: getPlacementResidualScale( modelTemplate, registrationSolution.modelToSite.scale )
+		scale: clampPlacementScaleToCameraView( {
+			camera,
+			modelTemplate,
+			position,
+			scale: residualScale,
+			maxScreenRatio,
+			minDistanceMeters: minFitDistanceMeters
+		} )
 	};
 
 }

@@ -6,6 +6,9 @@ const previewBounds = new THREE.Box3();
 const previewSize = new THREE.Vector3();
 const previewCenter = new THREE.Vector3();
 const previewSphere = new THREE.Sphere();
+const fitCameraPosition = new THREE.Vector3();
+const fitModelBounds = new THREE.Box3();
+const fitModelSphere = new THREE.Sphere();
 
 export function getPreviewPlacementPosition(
 	camera: THREE.Camera,
@@ -44,6 +47,63 @@ export function getPlacementResidualScale(
 	}
 
 	return registrationScale / bakedScaleFactor;
+
+}
+
+export function clampPlacementScaleToCameraView(options: {
+	camera: THREE.Camera;
+	modelTemplate: THREE.Group;
+	position: THREE.Vector3;
+	scale: number;
+	maxScreenRatio: number;
+	minDistanceMeters: number;
+}): number {
+
+	const {
+		camera,
+		modelTemplate,
+		position,
+		scale,
+		maxScreenRatio,
+		minDistanceMeters
+	} = options;
+
+	if (
+		camera instanceof THREE.PerspectiveCamera === false
+		|| Number.isFinite( scale ) === false
+		|| scale <= 0
+		|| maxScreenRatio <= 0
+	) {
+		return scale;
+	}
+
+	fitModelBounds.setFromObject( modelTemplate );
+	if ( fitModelBounds.isEmpty() ) {
+		return scale;
+	}
+
+	fitModelBounds.getBoundingSphere( fitModelSphere );
+	const templateRadius = fitModelSphere.radius;
+	if ( Number.isFinite( templateRadius ) === false || templateRadius <= 1e-6 ) {
+		return scale;
+	}
+
+	camera.getWorldPosition( fitCameraPosition );
+	const distanceMeters = Math.max(
+		minDistanceMeters,
+		fitCameraPosition.distanceTo( position )
+	);
+	const verticalHalfFov = THREE.MathUtils.degToRad( camera.fov * 0.5 );
+	const horizontalHalfFov = Math.atan( Math.tan( verticalHalfFov ) * camera.aspect );
+	const limitingHalfFov = Math.min( verticalHalfFov, horizontalHalfFov );
+	const maxVisibleRadius = distanceMeters * Math.tan( limitingHalfFov ) * maxScreenRatio;
+	const currentRadius = templateRadius * scale;
+
+	if ( maxVisibleRadius <= 0 || currentRadius <= maxVisibleRadius ) {
+		return scale;
+	}
+
+	return scale * ( maxVisibleRadius / currentRadius );
 
 }
 

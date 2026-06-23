@@ -30,6 +30,8 @@ interface CreatePlacementSessionOptions {
 	maxVisibleAutoPlacementDistanceMeters: number;
 	maxReliableGpsAccuracyMeters: number;
 	previewPlacementDistanceMeters: number;
+	maxArModelScreenRatio: number;
+	minArModelFitDistanceMeters: number;
 }
 
 export interface PlacementSession {
@@ -97,7 +99,9 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 		previewDirection,
 		maxVisibleAutoPlacementDistanceMeters,
 		maxReliableGpsAccuracyMeters,
-		previewPlacementDistanceMeters
+		previewPlacementDistanceMeters,
+		maxArModelScreenRatio,
+		minArModelFitDistanceMeters
 	} = options;
 
 	let placedModel: THREE.Group | null = null;
@@ -207,7 +211,9 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 				registrationSolution,
 				modelOrientationTarget,
 				previewDistanceMeters: previewPlacementDistanceMeters,
-				usePreviewPlacement
+				usePreviewPlacement,
+				maxScreenRatio: maxArModelScreenRatio,
+				minFitDistanceMeters: minArModelFitDistanceMeters
 			} );
 
 			const adjustedPlacement = manualApplyToPlacement(

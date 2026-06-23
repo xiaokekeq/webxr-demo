@@ -8,6 +8,7 @@ import {
 
 interface CreatePropertySelectionControllerOptions {
 	store: RegistrationStore;
+	shouldRenderSelectionOutline?(): boolean;
 }
 
 export interface PropertySelectionResult {
@@ -34,6 +35,8 @@ export function createPropertySelectionController(
 
 	const { store } = options;
 	let selectedMeshes: THREE.Mesh[] = [];
+	let selectedOutlines: THREE.LineSegments[] = [];
+	const shouldRenderSelectionOutline = options.shouldRenderSelectionOutline ?? ( () => false );
 
 	return {
 		clearSelection,
@@ -75,6 +78,14 @@ export function createPropertySelectionController(
 					const materials = Array.isArray( child.material ) ? child.material : [ child.material ];
 					const highlightedMaterials = materials.map( createHighlightedMaterial );
 					child.material = Array.isArray( child.material ) ? highlightedMaterials : highlightedMaterials[ 0 ];
+
+					if ( shouldRenderSelectionOutline() ) {
+						const outline = createSelectionOutline( child );
+						if ( outline !== null ) {
+							child.add( outline );
+							selectedOutlines.push( outline );
+						}
+					}
 				}
 			} );
 
@@ -99,6 +110,21 @@ export function createPropertySelectionController(
 
 	function clearSelection(): void {
 
+		for ( const outline of selectedOutlines ) {
+			outline.removeFromParent();
+			outline.geometry.dispose();
+
+			if ( Array.isArray( outline.material ) ) {
+				for ( const material of outline.material ) {
+					material.dispose();
+				}
+			} else {
+				outline.material.dispose();
+			}
+		}
+
+		selectedOutlines = [];
+
 		for ( const mesh of selectedMeshes ) {
 			if ( mesh.userData.__originalMaterial ) {
 				disposeDynamicMaterials( mesh.material, mesh.userData.__originalMaterial );
@@ -109,6 +135,32 @@ export function createPropertySelectionController(
 
 		selectedMeshes = [];
 		store.patch( { propertyPanel: createDefaultPropertyPanelState() } );
+
+	}
+
+	function createSelectionOutline(mesh: THREE.Mesh): THREE.LineSegments | null {
+
+		if ( mesh.geometry === undefined ) {
+			return null;
+		}
+
+		const outline = new THREE.LineSegments(
+			new THREE.EdgesGeometry( mesh.geometry ),
+			new THREE.LineBasicMaterial( {
+				color: 0xffc107,
+				depthTest: false,
+				transparent: true,
+				opacity: 0.98,
+				toneMapped: false
+			} )
+		);
+
+		outline.name = '__selection-outline';
+		outline.renderOrder = 999;
+		outline.frustumCulled = false;
+		outline.raycast = () => {};
+
+		return outline;
 
 	}
 

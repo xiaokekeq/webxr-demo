@@ -111,7 +111,10 @@ const precisionRegistration = createPrecisionRegistrationController( {
 	setStatus
 } );
 
-const propertySelection = createPropertySelectionController( { store } );
+const propertySelection = createPropertySelectionController( {
+	store,
+	shouldRenderSelectionOutline: () => sceneBundle.renderer.xr.isPresenting
+} );
 const workspaceRuntime = createWorkspaceRuntime( { store, setStatus } );
 const { setWorkspaceMode, setTimelineStage } = workspaceRuntime;
 const placementSession = createPlacementSession( {

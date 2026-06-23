@@ -590,7 +590,7 @@ function renderPropertyPanel(
 		dom.propertyMaterialEl.textContent = '-';
 		dom.propertyDepthEl.textContent = '-';
 		dom.propertyStatusEl.textContent = '-';
-		dom.propertyRemarkEl.textContent = '点击管线查看属性';
+		dom.propertyRemarkEl.textContent = '点击堤防构件查看属性';
 		dom.browseShowDetailsButton.textContent = '查看详情';
 		dom.browseAddInspectionButton.textContent = '新增核查';
 		dom.propertyCloseButton.classList.add( 'hidden' );
@@ -609,7 +609,7 @@ function renderPropertyPanel(
 	dom.browseAddInspectionButton.textContent = '新增核查';
 	dom.propertyRemarkEl.textContent = browseDetailsExpanded
 		? state.propertyPanel.remark
-		: `${state.propertyPanel.type} ${state.propertyPanel.diameter}，埋深 ${state.propertyPanel.depth}，状态 ${state.propertyPanel.status}`;
+		: `${state.propertyPanel.type} ${state.propertyPanel.diameter}，高程/深度 ${state.propertyPanel.depth}，状态 ${state.propertyPanel.status}`;
 
 }
 
@@ -741,7 +741,7 @@ function getGuidanceContent(phase: ArSessionPhase): { title: string; body: strin
 	if ( phase === 'ready-to-place' ) {
 		return {
 			title: '已识别平面',
-			body: '将准星对准管线对应区域，点击“放置模型”开始现场叠加。'
+			body: '将准星对准堤防对应区域，点击“放置模型”开始现场叠加。'
 		};
 	}
 

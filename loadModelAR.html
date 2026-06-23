@@ -3,7 +3,7 @@
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-	<title>移动端 AR 管网现场辅助核查系统</title>
+	<title>移动端 AR 堤防现场辅助核查系统</title>
 	<style>
 		:root {
 			--brand: #2f6df6;
@@ -1254,7 +1254,7 @@
 			<div id="mobile-pre-ar-shell" class="mobile-pre-ar-shell">
 				<div class="pre-ar-stack">
 					<section class="pre-ar-card pre-ar-summary-card">
-						<h1 id="mobile-pre-ar-project-name" class="pre-ar-summary-title">管网现场核查项目</h1>
+						<h1 id="mobile-pre-ar-project-name" class="pre-ar-summary-title">堤防现场核查项目</h1>
 						<div class="pre-ar-summary-meta">
 							<div class="pre-ar-meta-row">
 								<strong>当前模型</strong>
@@ -1321,7 +1321,7 @@
 			<div id="mobile-ar-shell" class="mobile-ar-shell hidden">
 			<div id="mobile-topbar" class="mobile-topbar">
 				<div class="mobile-top-main">
-					<div id="mobile-top-title" class="mobile-top-title">管网现场核查项目</div>
+					<div id="mobile-top-title" class="mobile-top-title">堤防现场核查项目</div>
 					<div id="mobile-top-subtitle" class="mobile-top-subtitle">正在识别平面</div>
 				</div>
 				<div id="registration-status" class="mobile-top-status">扫描中</div>
@@ -1366,14 +1366,14 @@
 
 					<div class="property-grid hidden">
 						<div class="property-item"><strong>类型</strong><span id="ar-prop-type">-</span></div>
-						<div class="property-item"><strong>管径</strong><span id="ar-prop-diameter">-</span></div>
+						<div class="property-item"><strong>结构尺寸</strong><span id="ar-prop-diameter">-</span></div>
 						<div class="property-item"><strong>材质</strong><span id="ar-prop-material">-</span></div>
-						<div class="property-item"><strong>埋深</strong><span id="ar-prop-depth">-</span></div>
+						<div class="property-item"><strong>高程/深度</strong><span id="ar-prop-depth">-</span></div>
 						<div class="property-item"><strong>状态</strong><span id="ar-prop-status">-</span></div>
 						<div class="property-item"><strong>模型文件</strong><span id="model-name">-</span></div>
 					</div>
 
-					<div id="ar-prop-remark" class="property-remark">点击管线查看属性</div>
+					<div id="ar-prop-remark" class="property-remark">点击堤防构件查看属性</div>
 					<div id="browse-property-actions" class="timeline-control-row two-col hidden">
 						<button id="browse-show-details" class="action-button" type="button">详情</button>
 						<button id="browse-add-inspection" class="action-button secondary" type="button">新增核查</button>
@@ -1478,12 +1478,12 @@
 
 				<div id="timeline-panel" class="drawer-card hidden">
 					<h2 class="drawer-title">时间模式</h2>
-					<p class="drawer-subtitle">当前阶段：<span id="timeline-current-stage">管线铺设</span></p>
+					<p class="drawer-subtitle">当前阶段：<span id="timeline-current-stage">堤身填筑</span></p>
 
 					<div class="timeline-stage-bar" id="timeline-stage-list">
 						<button class="timeline-stage-button" data-stage-index="0" type="button">开挖前</button>
-						<button class="timeline-stage-button" data-stage-index="1" type="button">管沟开挖</button>
-						<button class="timeline-stage-button active" data-stage-index="2" type="button">管线铺设</button>
+						<button class="timeline-stage-button" data-stage-index="1" type="button">基础开挖</button>
+						<button class="timeline-stage-button active" data-stage-index="2" type="button">堤身填筑</button>
 						<button class="timeline-stage-button" data-stage-index="3" type="button">回填前</button>
 						<button class="timeline-stage-button" data-stage-index="4" type="button">回填后</button>
 					</div>
@@ -1499,7 +1499,7 @@
 
 				<div id="inspection-panel" class="drawer-card hidden">
 					<h2 class="drawer-title">核查模式</h2>
-					<p class="drawer-subtitle">点击管线或现场位置添加问题</p>
+					<p class="drawer-subtitle">点击堤防构件或现场位置添加问题</p>
 
 					<div id="inspection-overview-card" class="registration-group">
 						<h3 class="registration-group-title">核查入口</h3>
@@ -1516,8 +1516,8 @@
 								<label for="inspection-type">问题类型</label>
 								<select id="inspection-type">
 									<option value="位置偏差">位置偏差</option>
-									<option value="埋深异常">埋深异常</option>
-									<option value="材质不符">材质不符</option>
+									<option value="高程异常">高程异常</option>
+									<option value="材料不符">材料不符</option>
 									<option value="标识问题">标识问题</option>
 								</select>
 							</div>
@@ -1581,8 +1581,8 @@
 			<div class="desktop-scroll-content">
 				<div class="desktop-topbar">
 					<div class="desktop-project-block">
-						<h1>移动端 AR 管网现场辅助核查系统</h1>
-						<div class="desktop-project-meta">项目名称：<span id="desktop-project-name">管网现场核查项目</span></div>
+						<h1>移动端 AR 堤防现场辅助核查系统</h1>
+						<div class="desktop-project-meta">项目名称：<span id="desktop-project-name">堤防现场核查项目</span></div>
 					</div>
 
 					<div class="desktop-status-bar">
@@ -1595,7 +1595,7 @@
 					<aside class="desktop-panel">
 						<div class="desktop-panel-header">
 							<h2 class="desktop-panel-title">模型与数据</h2>
-							<div class="desktop-panel-subtitle">管理模型文件、管线对象、图层和时间阶段列表。</div>
+							<div class="desktop-panel-subtitle">管理模型文件、堤防对象、图层和时间阶段列表。</div>
 						</div>
 						<div class="desktop-panel-body">
 							<div class="desktop-list-block">
@@ -1616,7 +1616,7 @@
 							</div>
 
 							<div class="desktop-list-block">
-								<h3 class="desktop-list-title">管线对象列表</h3>
+								<h3 class="desktop-list-title">堤防对象列表</h3>
 								<div id="desktop-pipe-list" class="desktop-list"></div>
 							</div>
 

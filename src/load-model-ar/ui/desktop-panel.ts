@@ -140,7 +140,7 @@ function renderPipeList(host: HTMLElement, pipeList: PipeRecord[]): void {
 
 	const items = pipeList.slice( 0, 12 );
 	const nodes = items.length === 0
-		? [ createTextBlock( 'div', 'desktop-list-item', '暂无管线对象' ) ]
+		? [ createTextBlock( 'div', 'desktop-list-item', '暂无堤防对象' ) ]
 		: items.map( ( item ) => createPipeListItem( item ) );
 
 	host.replaceChildren( ...nodes );

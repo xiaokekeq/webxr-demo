@@ -120,14 +120,14 @@ export function createRegistrationStore(
 export function createDefaultPropertyPanelState(): PropertyPanelState {
 
 	return {
-		name: '请选择一段管线',
+		name: '请选择一个堤防构件',
 		statusBadge: '待选择',
 		type: '-',
 		diameter: '-',
 		material: '-',
 		depth: '-',
 		status: '-',
-		remark: '点击模型即可查看该管线的属性、埋深和备注信息。'
+		remark: '点击模型即可查看该堤防构件的属性、位置和备注信息。'
 	};
 
 }

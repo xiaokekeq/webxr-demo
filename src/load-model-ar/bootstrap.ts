@@ -545,6 +545,7 @@ function handleEnterAr(): void {
 		return;
 	}
 
+	pointerSelection.suppressSelectionFor( 1200 );
 	void warmupCoarseRegistration();
 	xrRuntime.requestSession();
 
@@ -588,6 +589,8 @@ async function handlePlaceModel(): Promise<void> {
 		return;
 	}
 
+	propertySelection.clearSelection();
+	pointerSelection.suppressSelectionFor( 1200 );
 	requestAutoPlacement();
 	syncArSessionPhase();
 	syncMobileOverlayState();
@@ -604,6 +607,7 @@ async function handlePlaceModel(): Promise<void> {
 	hasCommittedArPlacement = true;
 	store.patch( { workspaceMode: 'browse' } );
 	patchArSessionPhase( 'placed' );
+	pointerSelection.suppressSelectionFor( 1200 );
 	syncMobileOverlayState();
 	setStatus( '模型已放置，已切换到 AR 主界面。' );
 
@@ -643,6 +647,7 @@ function handleExitAr(): void {
 function handleXRSessionStart(): void {
 
 	hasCommittedArPlacement = false;
+	pointerSelection.suppressSelectionFor( 1200 );
 	store.patch( { appMode: 'ar-session', arSessionPhase: 'scanning', workspaceMode: 'browse' } );
 	syncSceneHost();
 	placementSession.resetPlacement();

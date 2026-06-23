@@ -2,66 +2,66 @@
   "pipes": [
     {
       "name": "tripo_part_0",
-      "type": "main-pipe",
-      "diameter": "DN300",
+      "type": "levee-body",
+      "diameter": "断面 A",
       "material": "steel",
       "depth": "1.20m",
       "status": "normal",
-      "remark": "sample data, replace with real business fields"
+      "remark": "sample levee data, replace with real business fields"
     },
     {
       "name": "tripo_part_1",
-      "type": "branch-pipe",
-      "diameter": "DN150",
+      "type": "slope-protection",
+      "diameter": "护坡 B",
       "material": "steel",
       "depth": "0.80m",
       "status": "normal",
-      "remark": "sample data, replace with real business fields"
+      "remark": "sample levee data, replace with real business fields"
     },
     {
       "name": "tripo_part_2",
-      "type": "branch-pipe",
-      "diameter": "DN120",
+      "type": "seepage-control",
+      "diameter": "防渗 C",
       "material": "steel",
       "depth": "0.95m",
       "status": "pending-inspection",
-      "remark": "sample data, replace with real business fields"
+      "remark": "sample levee data, replace with real business fields"
     },
     {
       "name": "tripo_part_3",
-      "type": "riser",
-      "diameter": "DN100",
+      "type": "drainage",
+      "diameter": "排水 D",
       "material": "steel",
       "depth": "0.40m",
       "status": "normal",
-      "remark": "sample data, replace with real business fields"
+      "remark": "sample levee data, replace with real business fields"
     },
     {
       "name": "tripo_part_4",
-      "type": "terminal",
-      "diameter": "DN80",
+      "type": "inspection-point",
+      "diameter": "测点 E",
       "material": "steel",
       "depth": "1.35m",
       "status": "maintenance",
-      "remark": "sample data, replace with real business fields"
+      "remark": "sample levee data, replace with real business fields"
     },
     {
       "name": "tripo_part_5",
-      "type": "valve-section",
-      "diameter": "DN90",
+      "type": "crest-section",
+      "diameter": "堤顶 F",
       "material": "alloy",
       "depth": "1.05m",
       "status": "normal",
-      "remark": "sample data, replace with real business fields"
+      "remark": "sample levee data, replace with real business fields"
     },
     {
       "name": "tripo_part_6",
-      "type": "joint-section",
-      "diameter": "DN90",
+      "type": "toe-section",
+      "diameter": "堤脚 G",
       "material": "alloy",
       "depth": "1.10m",
       "status": "normal",
-      "remark": "sample data, replace with real business fields"
+      "remark": "sample levee data, replace with real business fields"
     }
   ]
 }

@@ -168,10 +168,26 @@ export function createMobilePanel(dom: ARDomElements): MobilePanelController {
 	return {
 		bind(actions) {
 
-			dom.propertyCloseButton.addEventListener( 'click', () => {
+			let propertyCloseHandledAt = -Infinity;
+			const closePropertyPanel = (): void => {
+				propertyCloseHandledAt = performance.now();
 				actions.onCloseProperty();
 				browseDetailsExpanded = false;
 				collapseDrawer();
+			};
+
+			dom.propertyCloseButton.addEventListener( 'pointerdown', ( event ) => {
+				event.preventDefault();
+				event.stopPropagation();
+				closePropertyPanel();
+			} );
+
+			dom.propertyCloseButton.addEventListener( 'click', ( event ) => {
+				event.preventDefault();
+				event.stopPropagation();
+				if ( performance.now() - propertyCloseHandledAt > 300 ) {
+					closePropertyPanel();
+				}
 			} );
 
 			dom.browseShowDetailsButton.addEventListener( 'click', () => {

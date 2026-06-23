@@ -225,7 +225,9 @@ desktopPanel.bind( {
 
 mobilePanel.bind( {
 	onCloseProperty: () => {
+		pointerSelection.suppressSelectionFor( 1000 );
 		propertySelection.clearSelection();
+		pointerSelection.suppressSelectionFor( 1000 );
 		setStatus( '已关闭属性面板。' );
 	},
 	onSelectModel: modelSession.handleModelSelection,

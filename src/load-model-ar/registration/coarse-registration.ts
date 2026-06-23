@@ -18,6 +18,7 @@ const tempArOffset = new THREE.Vector3();
 const tempRotationMatrix = new THREE.Matrix4();
 const tempScale = new THREE.Vector3( 1, 1, 1 );
 const tempQuaternion = new THREE.Quaternion();
+const MAX_REUSED_GEOLOCATION_AGE_MS = 15000;
 
 export function createCoarseRegistrationController(
 	options: CreateCoarseRegistrationControllerOptions
@@ -44,7 +45,9 @@ export function createCoarseRegistrationController(
 	async function enable(): Promise<void> {
 
 		await ensureOrientationAccess();
-		await refreshGeolocation();
+		if ( hasFreshGeolocation() === false ) {
+			await refreshGeolocation();
+		}
 		setStatus( getReadyMessage() );
 
 	}
@@ -82,6 +85,14 @@ export function createCoarseRegistrationController(
 		}
 
 		return true;
+
+	}
+
+	function hasFreshGeolocation(): boolean {
+
+		return lastGeolocation !== null
+			&& Number.isFinite( lastGeolocation.timestamp )
+			&& Date.now() - lastGeolocation.timestamp <= MAX_REUSED_GEOLOCATION_AGE_MS;
 
 	}
 

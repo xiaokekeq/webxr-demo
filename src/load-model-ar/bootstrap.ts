@@ -97,6 +97,7 @@ let registrationSolution: EngineeringRegistrationSolution | null = null;
 let coarseRegistration = createCoarseRegistrationController( { setStatus } );
 let pipesByName = new Map<string, PipeRecord>();
 let hasCommittedArPlacement = false;
+let coarseWarmupPromise: Promise<void> | null = null;
 
 const manualReadoutSync = createManualReadoutSync( { store } );
 const manualRegistration = createManualRegistrationController( {
@@ -544,6 +545,7 @@ function handleEnterAr(): void {
 		return;
 	}
 
+	void warmupCoarseRegistration();
 	xrRuntime.requestSession();
 
 }
@@ -568,7 +570,7 @@ async function handlePlaceModel(): Promise<void> {
 	if ( coarseRegistration.canEstimate() === false ) {
 		try {
 			setStatus( '正在准备粗配准数据，请稍候...' );
-			await coarseRegistration.enable();
+			await warmupCoarseRegistration();
 			setStatus( coarseRegistration.getReadyMessage() );
 		} catch ( error ) {
 			console.error( 'Coarse registration auto-enable failed:', error );
@@ -598,6 +600,25 @@ async function handlePlaceModel(): Promise<void> {
 	patchArSessionPhase( 'placed' );
 	syncMobileOverlayState();
 	setStatus( '模型已放置，已切换到 AR 主界面。' );
+
+}
+
+function warmupCoarseRegistration(): Promise<void> {
+
+	if ( coarseRegistration.canEstimate() ) {
+		return Promise.resolve();
+	}
+
+	if ( coarseWarmupPromise !== null ) {
+		return coarseWarmupPromise;
+	}
+
+	coarseWarmupPromise = coarseRegistration.enable()
+		.finally( () => {
+			coarseWarmupPromise = null;
+		} );
+
+	return coarseWarmupPromise;
 
 }
 

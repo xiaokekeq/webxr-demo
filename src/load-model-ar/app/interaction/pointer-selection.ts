@@ -45,6 +45,9 @@ export function createPointerSelectionSession(
 	const raycaster = new THREE.Raycaster();
 	const xrRayOrigin = new THREE.Vector3();
 	const xrRayDirection = new THREE.Vector3();
+	const screenProjection = new THREE.Vector3();
+	const boundingBox = new THREE.Box3();
+	const boundingCenter = new THREE.Vector3();
 	let lastScreenSelectionTime = -Infinity;
 
 	function handleScreenPointerDown(clientX: number, clientY: number): void {
@@ -73,10 +76,7 @@ export function createPointerSelectionSession(
 
 		raycaster.setFromCamera( pointer, sceneBundle.camera );
 		lastScreenSelectionTime = performance.now();
-		selectIntersections(
-			raycaster.intersectObjects( placedModel.children, true ),
-			placedModel
-		);
+		selectScreenPoint( clientX, clientY, placedModel );
 
 	}
 
@@ -112,20 +112,48 @@ export function createPointerSelectionSession(
 			xrRayDirection.set( 0, 0, -1 ).transformDirection( xrCamera.matrixWorld );
 			raycaster.set( xrRayOrigin, xrRayDirection );
 
+			const canvasRect = sceneBundle.renderer.domElement.getBoundingClientRect();
 			selectIntersections(
 				raycaster.intersectObjects( placedModel.children, true ),
-				placedModel
+				placedModel,
+				canvasRect.left + canvasRect.width / 2,
+				canvasRect.top + canvasRect.height / 2
 			);
 
 		}
 	};
 
-	function selectIntersections(
-		intersections: THREE.Intersection[],
+	function selectScreenPoint(
+		clientX: number,
+		clientY: number,
 		placedModel: THREE.Group
 	): void {
 
+		selectIntersections(
+			raycaster.intersectObjects( placedModel.children, true ),
+			placedModel,
+			clientX,
+			clientY
+		);
+
+	}
+
+	function selectIntersections(
+		intersections: THREE.Intersection[],
+		placedModel: THREE.Group,
+		clientX: number,
+		clientY: number
+	): void {
+
 		if ( intersections.length === 0 ) {
+			if ( sceneBundle.renderer.xr.isPresenting ) {
+				const fallbackSelection = findProjectedSelection( clientX, clientY, placedModel );
+				if ( fallbackSelection !== null ) {
+					applySelection( fallbackSelection.businessObject, fallbackSelection.properties );
+					return;
+				}
+			}
+
 			if ( sceneBundle.renderer.xr.isPresenting ) {
 				setStatus( 'No model part hit. Center the model and tap again.' );
 				return;
@@ -142,8 +170,17 @@ export function createPointerSelectionSession(
 			placedModel,
 			getPipesByName()
 		);
-		const businessName = businessObject.name || clickedMesh.name || 'UnnamedObject';
-		const properties = getPipesByName().get( businessName ) || null;
+		const properties = getPropertiesForBusinessObject( businessObject, clickedMesh );
+		applySelection( businessObject, properties );
+
+	}
+
+	function applySelection(
+		businessObject: THREE.Object3D,
+		properties: PipeRecord | null
+	): void {
+
+		const businessName = businessObject.name || 'UnnamedObject';
 		propertySelection.selectBusinessObject( businessObject, properties );
 		onInspectSelection();
 
@@ -157,6 +194,135 @@ export function createPointerSelectionSession(
 		}
 
 		setStatus( `Selected ${businessName}. Switch to browse mode to inspect properties.` );
+
+	}
+
+	function getPropertiesForBusinessObject(
+		businessObject: THREE.Object3D,
+		fallbackObject?: THREE.Object3D
+	): PipeRecord | null {
+
+		const businessName = businessObject.name || fallbackObject?.name || 'UnnamedObject';
+		return getPipesByName().get( businessName ) || null;
+
+	}
+
+	function findProjectedSelection(
+		clientX: number,
+		clientY: number,
+		placedModel: THREE.Group
+	): { businessObject: THREE.Object3D; properties: PipeRecord | null } | null {
+
+		const activeCamera = sceneBundle.renderer.xr.isPresenting
+			? sceneBundle.renderer.xr.getCamera()
+			: sceneBundle.camera;
+		const rect = sceneBundle.renderer.domElement.getBoundingClientRect();
+		const businessObjects = new Set<THREE.Object3D>();
+
+		placedModel.traverse( ( child ) => {
+			if ( child instanceof THREE.Mesh ) {
+				businessObjects.add(
+					propertySelection.resolveBusinessObject( child, placedModel, getPipesByName() )
+				);
+			}
+		} );
+
+		let bestMatch: {
+			businessObject: THREE.Object3D;
+			properties: PipeRecord | null;
+			score: number;
+		} | null = null;
+
+		for ( const businessObject of businessObjects ) {
+			boundingBox.setFromObject( businessObject );
+			if ( boundingBox.isEmpty() ) {
+				continue;
+			}
+
+			const projectedBounds = projectBoundsToScreen( boundingBox, activeCamera, rect );
+			if ( projectedBounds === null ) {
+				continue;
+			}
+
+			const selectionPadding = 28;
+			if (
+				clientX < projectedBounds.minX - selectionPadding
+				|| clientX > projectedBounds.maxX + selectionPadding
+				|| clientY < projectedBounds.minY - selectionPadding
+				|| clientY > projectedBounds.maxY + selectionPadding
+			) {
+				continue;
+			}
+
+			boundingBox.getCenter( boundingCenter );
+			screenProjection.copy( boundingCenter ).project( activeCamera );
+			const centerX = rect.left + ( screenProjection.x + 1 ) * 0.5 * rect.width;
+			const centerY = rect.top + ( 1 - ( screenProjection.y + 1 ) * 0.5 ) * rect.height;
+			const score = Math.hypot( clientX - centerX, clientY - centerY ) + Math.max( 0, screenProjection.z ) * 24;
+
+			if ( bestMatch === null || score < bestMatch.score ) {
+				bestMatch = {
+					businessObject,
+					properties: getPropertiesForBusinessObject( businessObject ),
+					score
+				};
+			}
+		}
+
+		if ( bestMatch === null ) {
+			return null;
+		}
+
+		return {
+			businessObject: bestMatch.businessObject,
+			properties: bestMatch.properties
+		};
+
+	}
+
+	function projectBoundsToScreen(
+		box: THREE.Box3,
+		camera: THREE.Camera,
+		rect: DOMRect
+	): { minX: number; maxX: number; minY: number; maxY: number } | null {
+
+		let minX = Infinity;
+		let minY = Infinity;
+		let maxX = -Infinity;
+		let maxY = -Infinity;
+		let hasVisibleCorner = false;
+
+		for ( const x of [ box.min.x, box.max.x ] ) {
+			for ( const y of [ box.min.y, box.max.y ] ) {
+				for ( const z of [ box.min.z, box.max.z ] ) {
+					screenProjection.set( x, y, z ).project( camera );
+
+					if ( Number.isFinite( screenProjection.x ) === false || Number.isFinite( screenProjection.y ) === false ) {
+						continue;
+					}
+
+					if ( screenProjection.z < -1.2 || screenProjection.z > 1.2 ) {
+						continue;
+					}
+
+					hasVisibleCorner = true;
+
+					const screenX = rect.left + ( screenProjection.x + 1 ) * 0.5 * rect.width;
+					const screenY = rect.top + ( 1 - ( screenProjection.y + 1 ) * 0.5 ) * rect.height;
+
+					minX = Math.min( minX, screenX );
+					minY = Math.min( minY, screenY );
+					maxX = Math.max( maxX, screenX );
+					maxY = Math.max( maxY, screenY );
+				}
+			}
+		}
+
+		if ( hasVisibleCorner === false ) {
+			return null;
+		}
+
+		return { minX, maxX, minY, maxY };
 
 	}
 

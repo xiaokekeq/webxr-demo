@@ -374,8 +374,9 @@ export function createMobilePanel(dom: ARDomElements): MobilePanelController {
 		const inAr = state.appMode === 'ar-session';
 		const showWorkUi = inAr && state.arSessionPhase === 'placed';
 		const showPlacementUi = inAr && state.arSessionPhase !== 'placed';
+		const showRightTools = showWorkUi && drawerCollapsed;
 
-		domElements.mobileRightToolsEl.classList.toggle( 'hidden', !showWorkUi );
+		domElements.mobileRightToolsEl.classList.toggle( 'hidden', !showRightTools );
 		domElements.mobileBottomNavEl.classList.toggle( 'hidden', !showWorkUi );
 		domElements.mobileDrawerToggleButton.classList.toggle( 'hidden', !showWorkUi );
 		domElements.mobileDrawerAreaEl.classList.toggle( 'hidden', !showWorkUi );

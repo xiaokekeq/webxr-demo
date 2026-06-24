@@ -5,6 +5,7 @@ export type WorkspaceMode = 'browse' | 'registration' | 'timeline' | 'inspection
 export type AppMode = 'pre-ar' | 'ar-session';
 export type ArSupportState = 'checking' | 'supported' | 'unsupported';
 export type ArSessionPhase = 'scanning' | 'ready-to-place' | 'placing' | 'placed';
+export type DisplayMode = 'normal' | 'xray' | 'occlusion-outline';
 
 export interface PropertyPanelState {
 	name: string;
@@ -55,6 +56,7 @@ export interface RegistrationStoreState {
 	arSupportMessage: string;
 	arSessionPhase: ArSessionPhase;
 	workspaceMode: WorkspaceMode;
+	displayMode: DisplayMode;
 	timelineStages: readonly string[];
 	currentTimelineStageIndex: number;
 	layerNames: readonly string[];

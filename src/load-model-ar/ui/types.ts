@@ -24,6 +24,7 @@ export interface ARDomElements {
 	mobilePreArLayerListEl: HTMLElement;
 	mobilePreArEnterArButton: HTMLButtonElement;
 	xrButtonWrap: HTMLElement;
+	mobileDisplayModeSelectEl: HTMLSelectElement;
 	mobileRightToolsEl: HTMLElement;
 	mobileBottomNavEl: HTMLElement;
 	mobileArGuidanceEl: HTMLElement;
@@ -123,6 +124,7 @@ export interface ARDomElements {
 	desktopLayerListEl: HTMLElement;
 	desktopStageListEl: HTMLElement;
 	desktopPreviewBadgeEl: HTMLElement;
+	desktopDisplayModeSelectEl: HTMLSelectElement;
 	desktopParamGpsEl: HTMLElement;
 	desktopParamEnuEl: HTMLElement;
 	desktopParamPositionEl: HTMLElement;

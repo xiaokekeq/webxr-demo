@@ -2,6 +2,7 @@ import type { ModelCatalogItem } from '../data/model-catalog.js';
 import type {
 	ArSessionPhase,
 	ArSupportState,
+	DisplayMode,
 	RegistrationStoreState,
 	WorkspaceMode
 } from '../data/registration-store.js';
@@ -17,6 +18,7 @@ interface MobilePanelActions {
 	onArUiInteraction(): void;
 	onCloseProperty(): void;
 	onSelectModel(modelId: string): void;
+	onSetDisplayMode(mode: DisplayMode): void;
 	onSetWorkspaceMode(mode: WorkspaceMode): void;
 	onResetPlacement(): void;
 	onShowLayers(): void;
@@ -216,6 +218,9 @@ export function createMobilePanel(dom: ARDomElements): MobilePanelController {
 					actions.onSetTimelineStage( nextIndex );
 				}
 			} );
+			dom.mobileDisplayModeSelectEl.addEventListener( 'change', () => {
+				actions.onSetDisplayMode( dom.mobileDisplayModeSelectEl.value as DisplayMode );
+			} );
 			dom.mobilePreArEnterArButton.addEventListener( 'click', actions.onEnterAr );
 			dom.mobileArPlaceButton.addEventListener( 'click', actions.onPlaceModel );
 			dom.mobileArExitButton.addEventListener( 'click', actions.onExitAr );
@@ -388,6 +393,7 @@ export function createMobilePanel(dom: ARDomElements): MobilePanelController {
 		renderModeButtons( dom, state.workspaceMode );
 		renderModePanels( dom, state, isDrawerCollapsed );
 		renderModelSelect( dom.modelSelectEl, state.availableModels, state.selectedModelId );
+		renderDisplayModeSelect( dom.mobileDisplayModeSelectEl, state.displayMode );
 		renderPropertyPanel( dom, state, browseDetailsExpanded );
 		renderManualReadout( dom, state );
 		renderRegistrationPanel( dom, state, registrationView );
@@ -554,6 +560,34 @@ function renderModelSelect(
 		selectedModelId,
 		'请选择模型'
 	);
+
+}
+
+function renderDisplayModeSelect(select: HTMLSelectElement, selectedMode: DisplayMode): void {
+
+	const options: Array<{ value: DisplayMode; label: string }> = [
+		{ value: 'normal', label: '普通叠加' },
+		{ value: 'xray', label: '透视核查' },
+		{ value: 'occlusion-outline', label: '遮挡轮廓' }
+	];
+	const shouldRebuild = select.options.length !== options.length
+		|| options.some( ( option, index ) => select.options[ index ]?.value !== option.value );
+
+	if ( shouldRebuild ) {
+		select.replaceChildren(
+			...options.map( ( option ) => {
+				const element = document.createElement( 'option' );
+				element.value = option.value;
+				element.textContent = option.label;
+				return element;
+			} )
+		);
+	}
+
+	select.value = options.some( ( option ) => option.value === selectedMode )
+		? selectedMode
+		: 'normal';
+	select.disabled = false;
 
 }
 

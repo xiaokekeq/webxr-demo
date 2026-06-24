@@ -1,12 +1,13 @@
 import type { PipeRecord } from '../../load-model/types.js';
 import type { ModelCatalogItem } from '../data/model-catalog.js';
-import type { RegistrationStoreState } from '../data/registration-store.js';
+import type { DisplayMode, RegistrationStoreState } from '../data/registration-store.js';
 import type { ARDomElements } from './types.js';
 
 interface DesktopPanelActions {
 	onSaveRegistration(): void;
 	onExportJson(): void;
 	onSelectModel(modelId: string): void;
+	onSetDisplayMode(mode: DisplayMode): void;
 	onSelectPrecisionSourcePoint(sourcePoint: string): void;
 	onArmPrecisionSourcePoint(): void;
 	onConfirmPrecisionTargetPoint(): void;
@@ -30,6 +31,9 @@ export function createDesktopPanel(dom: ARDomElements): DesktopPanelController {
 			dom.desktopExportJsonButton.addEventListener( 'click', actions.onExportJson );
 			dom.desktopModelSelectEl.addEventListener( 'change', () => {
 				actions.onSelectModel( dom.desktopModelSelectEl.value );
+			} );
+			dom.desktopDisplayModeSelectEl.addEventListener( 'change', () => {
+				actions.onSetDisplayMode( dom.desktopDisplayModeSelectEl.value as DisplayMode );
 			} );
 			dom.desktopPrecisionSourceSelectEl.addEventListener( 'change', () => {
 				actions.onSelectPrecisionSourcePoint( dom.desktopPrecisionSourceSelectEl.value );
@@ -58,6 +62,7 @@ export function createDesktopPanel(dom: ARDomElements): DesktopPanelController {
 			dom.desktopParamPositionEl.textContent = state.placementSummary.positionText;
 			dom.desktopParamQuaternionEl.textContent = state.placementSummary.quaternionText;
 			dom.desktopParamScaleEl.textContent = state.placementSummary.scaleText;
+			renderDisplayModeSelect( dom.desktopDisplayModeSelectEl, state.displayMode );
 			dom.desktopPrecisionSourceCurrentEl.textContent = state.precisionRegistration.stagedSourcePoint;
 			dom.desktopPrecisionTargetCurrentEl.textContent = state.precisionRegistration.stagedTargetPoint;
 			dom.desktopPrecisionPairCountEl.textContent = `${state.precisionRegistration.pairSummaries.length} / 建议至少 4 组`;
@@ -91,6 +96,34 @@ export function createDesktopPanel(dom: ARDomElements): DesktopPanelController {
 
 		}
 	};
+
+}
+
+function renderDisplayModeSelect(select: HTMLSelectElement, selectedMode: DisplayMode): void {
+
+	const options: Array<{ value: DisplayMode; label: string }> = [
+		{ value: 'normal', label: '普通叠加' },
+		{ value: 'xray', label: '透视核查' },
+		{ value: 'occlusion-outline', label: '遮挡轮廓' }
+	];
+	const shouldRebuild = select.options.length !== options.length
+		|| options.some( ( option, index ) => select.options[ index ]?.value !== option.value );
+
+	if ( shouldRebuild ) {
+		select.replaceChildren(
+			...options.map( ( option ) => {
+				const element = document.createElement( 'option' );
+				element.value = option.value;
+				element.textContent = option.label;
+				return element;
+			} )
+		);
+	}
+
+	select.value = options.some( ( option ) => option.value === selectedMode )
+		? selectedMode
+		: 'normal';
+	select.disabled = false;
 
 }
 

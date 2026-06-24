@@ -22,7 +22,8 @@ import {
 	createDefaultPrecisionRegistrationState,
 	createDefaultPropertyPanelState,
 	createDefaultRegistrationMetricsState,
-	createRegistrationStore
+	createRegistrationStore,
+	type DisplayMode
 } from './data/registration-store.js';
 import {
 	composeModelQuaternionInAr,
@@ -32,6 +33,7 @@ import {
 import { createCoarseRegistrationController } from './registration/coarse-registration.js';
 import { createManualRegistrationController } from './registration/manual-registration.js';
 import { createPrecisionRegistrationController } from './registration/precision-registration-controller.js';
+import { createDisplayModeController } from './render/display-mode.js';
 import { createARScene, resizeARScene } from './render/scene.js';
 import { createDesktopPanel } from './ui/desktop-panel.js';
 import { createStatusUpdater, getARDomElements } from './ui/dom.js';
@@ -64,6 +66,7 @@ const store = createRegistrationStore( {
 	arSupportMessage: '正在检测 AR 支持状态...',
 	arSessionPhase: 'scanning',
 	workspaceMode: 'browse',
+	displayMode: 'normal',
 	timelineStages: TIMELINE_STAGES,
 	currentTimelineStageIndex: 2,
 	layerNames: STATIC_LAYER_NAMES,
@@ -137,6 +140,9 @@ const placementSession = createPlacementSession( {
 	maxVisibleAutoPlacementDistanceMeters: MAX_VISIBLE_AUTO_PLACEMENT_DISTANCE_METERS,
 	maxReliableGpsAccuracyMeters: MAX_RELIABLE_GPS_ACCURACY_METERS,
 	previewPlacementDistanceMeters: PREVIEW_PLACEMENT_DISTANCE_METERS
+} );
+const displayModeController = createDisplayModeController( {
+	getPlacedModel: () => placementSession.getPlacedModel()
 } );
 const mobileLayoutRuntime = createMobileLayoutRuntime( {
 	dom,
@@ -219,6 +225,7 @@ desktopPanel.bind( {
 	onSaveRegistration: saveManualRegistration,
 	onExportJson: exportRegistrationSnapshot,
 	onSelectModel: modelSession.handleModelSelection,
+	onSetDisplayMode: handleSetDisplayMode,
 	onSelectPrecisionSourcePoint: precisionRegistration.handleSourceSelection,
 	onArmPrecisionSourcePoint: precisionRegistration.armSourcePoint,
 	onConfirmPrecisionTargetPoint: precisionRegistration.confirmTargetPoint,
@@ -239,6 +246,7 @@ mobilePanel.bind( {
 		setStatus( '已关闭属性面板。' );
 	},
 	onSelectModel: modelSession.handleModelSelection,
+	onSetDisplayMode: handleSetDisplayMode,
 	onSetWorkspaceMode: setWorkspaceMode,
 	onResetPlacement: handleResetPlacement,
 	onShowLayers: () => {
@@ -360,8 +368,37 @@ async function initialize(): Promise<void> {
 function renderPanels(): void {
 
 	const state = store.getState();
+	displayModeController.sync( state.displayMode );
 	desktopPanel.render( state );
 	mobilePanel.render( state );
+
+}
+
+function handleSetDisplayMode(mode: DisplayMode): void {
+
+	if ( mode !== 'normal' && mode !== 'xray' && mode !== 'occlusion-outline' ) {
+		return;
+	}
+
+	if ( store.getState().displayMode === mode ) {
+		return;
+	}
+
+	store.patch( { displayMode: mode } );
+	setStatus( `显示模式已切换为：${getDisplayModeLabel( mode )}` );
+
+}
+
+function getDisplayModeLabel(mode: DisplayMode): string {
+
+	switch ( mode ) {
+		case 'normal':
+			return '普通叠加';
+		case 'xray':
+			return '透视核查';
+		case 'occlusion-outline':
+			return '遮挡轮廓';
+	}
 
 }
 

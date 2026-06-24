@@ -126,7 +126,7 @@ export function composeModelQuaternionInAr(
 
 }
 
-function solveSimilarityTransform(
+export function solveSimilarityTransform(
 	sourcePoints: THREE.Vector3[],
 	targetPoints: THREE.Vector3[],
 	mode: DemoModelRegistrationMode

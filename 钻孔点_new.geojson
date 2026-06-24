@@ -1,0 +1,19 @@
+{
+"type": "FeatureCollection",
+"features": [
+{ "type": "Feature", "properties": { "Id": 0, "ENNMCD": "TM168", "X": 116.660188, "Y": 30.084531 }, "geometry": { "type": "Point", "coordinates": [ 116.660188, 30.084531 ] } }
+,
+{ "type": "Feature", "properties": { "Id": 0, "ENNMCD": "TM167", "X": 116.659988, "Y": 30.084074 }, "geometry": { "type": "Point", "coordinates": [ 116.659988, 30.084074 ] } }
+,
+{ "type": "Feature", "properties": { "Id": 0, "ENNMCD": "TM169", "X": 116.659617, "Y": 30.083232 }, "geometry": { "type": "Point", "coordinates": [ 116.659617, 30.083232 ] } }
+,
+{ "type": "Feature", "properties": { "Id": 0, "ENNMCD": "TM170", "X": 116.669532, "Y": 30.081290 }, "geometry": { "type": "Point", "coordinates": [ 116.669532, 30.081290 ] } }
+,
+{ "type": "Feature", "properties": { "Id": 0, "ENNMCD": "TM172", "X": 116.686569, "Y": 30.077180 }, "geometry": { "type": "Point", "coordinates": [ 116.686569, 30.077180 ] } }
+,
+{ "type": "Feature", "properties": { "Id": 0, "ENNMCD": "TM173", "X": 116.686332, "Y": 30.076667 }, "geometry": { "type": "Point", "coordinates": [ 116.686332, 30.076667 ] } }
+,
+{ "type": "Feature", "properties": { "Id": 0, "ENNMCD": "TM174", "X": 116.686055, "Y": 30.076066 }, "geometry": { "type": "Point", "coordinates": [ 116.686055, 30.076066 ] } }
+
+]
+}

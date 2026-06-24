@@ -1,0 +1,9 @@
+{
+"type": "FeatureCollection",
+"features": [
+{ "type": "Feature", "properties": { "Id": 0, "ENMMCD": "44" }, "geometry": { "type": "LineString", "coordinates": [ [ 116.660188, 30.084531 ], [ 116.659617, 30.083232 ] ] } }
+,
+{ "type": "Feature", "properties": { "Id": 0, "ENMMCD": "45" }, "geometry": { "type": "LineString", "coordinates": [ [ 116.686055, 30.076066 ], [ 116.686569, 30.077180 ] ] } }
+
+]
+}

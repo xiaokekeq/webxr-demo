@@ -109,7 +109,13 @@ const manualRegistration = createManualRegistrationController( {
 
 const precisionRegistration = createPrecisionRegistrationController( {
 	store,
-	setStatus
+	setStatus,
+	getPlacedModel: () => placementSession.getPlacedModel(),
+	getCurrentModelId: () => demoModelConfig?.modelId ?? null,
+	getTargetPoint: ( target ) => xrRuntime.getHitTestController().getHitPosition( target ),
+	onApplied: () => {
+		syncMobileOverlayState();
+	}
 } );
 
 const propertySelection = createPropertySelectionController( {
@@ -197,8 +203,11 @@ const modelSession = createModelSession( {
 	onLoadManualRegistration: ( modelId ) => {
 		manualRegistration.load( modelId );
 	},
-	onUpdatePrecisionSourcePointOptions: ( sourcePointIds ) => {
-		precisionRegistration.updateSourcePointOptions( sourcePointIds );
+	onLoadPrecisionRegistration: ( modelId ) => {
+		precisionRegistration.loadSavedResult( modelId );
+	},
+	onUpdatePrecisionSourcePointOptions: ( sourcePoints ) => {
+		precisionRegistration.updateSourcePointOptions( sourcePoints );
 	},
 	canRequestAutoPlacement: () => sceneBundle.renderer.xr.isPresenting && coarseRegistration.canEstimate(),
 	requestAutoPlacement
@@ -524,6 +533,7 @@ function requestAutoPlacement(): void {
 
 function onAttemptCoarsePlacement(): void {
 
+	const hadPlacedModel = placementSession.getPlacedModel() !== null;
 	placementSession.attemptCoarsePlacement( {
 		xrHitTest: xrRuntime.getHitTestController(),
 		modelTemplate,
@@ -535,6 +545,10 @@ function onAttemptCoarsePlacement(): void {
 		manualPositionTarget: manualPosition,
 		manualOrientationTarget: manualOrientation
 	} );
+	const placedModel = placementSession.getPlacedModel();
+	if ( hadPlacedModel === false && placedModel !== null ) {
+		precisionRegistration.applySavedResult( placedModel );
+	}
 	syncArSessionPhase();
 	syncMobileOverlayState();
 

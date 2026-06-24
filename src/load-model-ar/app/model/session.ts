@@ -12,6 +12,7 @@ import {
 	type ModelCatalogItem
 } from '../../data/model-catalog.js';
 import type { EngineeringRegistrationSolution } from '../../registration/engineering-registration.js';
+import type { EngineeringControlPoint } from '../../registration/engineering-registration.js';
 import type { SetStatus } from '../../ui/types.js';
 import { loadModelRuntimeBundle, type LoadedModelRuntimeBundle } from './runtime.js';
 import { createRegistrationMetricsState } from '../runtime/view-state.js';
@@ -28,7 +29,8 @@ interface CreateModelSessionOptions {
 	onAfterModelLoaded(): void;
 	onCreateCoarseRegistrationTarget(solution: EngineeringRegistrationSolution): void;
 	onLoadManualRegistration(modelId: string): void;
-	onUpdatePrecisionSourcePointOptions(sourcePointIds: string[]): void;
+	onLoadPrecisionRegistration(modelId: string): void;
+	onUpdatePrecisionSourcePointOptions(sourcePoints: EngineeringControlPoint[]): void;
 	canRequestAutoPlacement(): boolean;
 	requestAutoPlacement(): void;
 }
@@ -54,6 +56,7 @@ export function createModelSession(options: CreateModelSessionOptions): ModelSes
 		onAfterModelLoaded,
 		onCreateCoarseRegistrationTarget,
 		onLoadManualRegistration,
+		onLoadPrecisionRegistration,
 		onUpdatePrecisionSourcePointOptions,
 		canRequestAutoPlacement,
 		requestAutoPlacement
@@ -92,9 +95,8 @@ export function createModelSession(options: CreateModelSessionOptions): ModelSes
 		currentModelDefinition = bundle.modelDefinition;
 		onRuntimeBundleLoaded( bundle );
 		onLoadManualRegistration( bundle.demoModelConfig.modelId );
-		onUpdatePrecisionSourcePointOptions(
-			bundle.registrationSolution.controlPoints.map( ( point ) => point.id )
-		);
+		onLoadPrecisionRegistration( bundle.demoModelConfig.modelId );
+		onUpdatePrecisionSourcePointOptions( bundle.registrationSolution.controlPoints );
 
 		store.patch( {
 			modelUrl: modelDefinition.modelUrl,

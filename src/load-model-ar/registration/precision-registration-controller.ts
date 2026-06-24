@@ -1,11 +1,29 @@
+import * as THREE from 'three';
 import {
 	createDefaultPrecisionRegistrationState,
 	type RegistrationStore
 } from '../data/registration-store.js';
+import type { EngineeringControlPoint } from './engineering-registration.js';
+import { solveSimilarityTransform } from './engineering-registration.js';
+import {
+	loadPrecisionRegistrationResult,
+	savePrecisionRegistrationResult,
+	type PrecisionRegistrationResult
+} from './precision-registration-storage.js';
 
 interface CreatePrecisionRegistrationControllerOptions {
 	store: RegistrationStore;
 	setStatus(message: string): void;
+	getPlacedModel(): THREE.Group | null;
+	getCurrentModelId(): string | null;
+	getTargetPoint(target: THREE.Vector3): THREE.Vector3 | null;
+	onApplied?(): void;
+}
+
+interface PrecisionPair {
+	sourcePointId: string;
+	sourceModelLocal: THREE.Vector3;
+	targetAr: THREE.Vector3;
 }
 
 export interface PrecisionRegistrationController {
@@ -16,14 +34,38 @@ export interface PrecisionRegistrationController {
 	solve(): void;
 	save(): void;
 	clear(): void;
-	updateSourcePointOptions(sourcePoints: string[]): void;
+	loadSavedResult(modelId: string): void;
+	applySavedResult(placedModel: THREE.Group | null): boolean;
+	updateSourcePointOptions(sourcePoints: EngineeringControlPoint[]): void;
 }
 
+const MIN_SOLVE_PAIR_COUNT = 3;
+const tempTargetPoint = new THREE.Vector3();
+const tempSourcePoint = new THREE.Vector3();
+const tempDeltaScale = new THREE.Vector3();
+const tempParentInverse = new THREE.Matrix4();
+const tempNextWorldMatrix = new THREE.Matrix4();
+const tempNextLocalMatrix = new THREE.Matrix4();
 export function createPrecisionRegistrationController(
 	options: CreatePrecisionRegistrationControllerOptions
 ): PrecisionRegistrationController {
 
-	const { store, setStatus } = options;
+	const {
+		store,
+		setStatus,
+		getPlacedModel,
+		getCurrentModelId,
+		getTargetPoint,
+		onApplied
+	} = options;
+
+	const sourcePointsById = new Map<string, EngineeringControlPoint>();
+	const pairs: PrecisionPair[] = [];
+	let appliedModels = new WeakSet<THREE.Group>();
+	let stagedSourcePoint: EngineeringControlPoint | null = null;
+	let stagedTargetPoint: THREE.Vector3 | null = null;
+	let solvedResult: PrecisionRegistrationResult | null = null;
+	let savedResult: PrecisionRegistrationResult | null = null;
 
 	return {
 		handleSourceSelection(sourcePoint) {
@@ -40,122 +82,266 @@ export function createPrecisionRegistrationController(
 		armSourcePoint() {
 
 			const precisionState = store.getState().precisionRegistration;
-			if ( precisionState.selectedSourcePoint.length === 0 ) {
-				setStatus( '请先选择一个模型控制点。' );
+			const sourcePoint = sourcePointsById.get( precisionState.selectedSourcePoint ) ?? null;
+			if ( sourcePoint === null ) {
+				setStatus( 'Please select a model control point first.' );
 				return;
 			}
 
-			store.patch( {
-				precisionRegistration: {
-					...precisionState,
-					stagedSourcePoint: precisionState.selectedSourcePoint,
-					workflowStatusText: `已锁定模型控制点 ${precisionState.selectedSourcePoint}，等待确认现实对应点。`
-				}
+			stagedSourcePoint = sourcePoint;
+			stagedTargetPoint = null;
+			patchPrecisionState( {
+				stagedSourcePoint: sourcePoint.id,
+				stagedTargetPoint: 'Not confirmed',
+				workflowStatusText: `Locked source point ${sourcePoint.id}. Confirm the matching field point.`
 			} );
-			setStatus( `已选择模型控制点 ${precisionState.selectedSourcePoint}。` );
+			setStatus( `Selected source control point ${sourcePoint.id}.` );
 
 		},
 
 		confirmTargetPoint() {
 
-			const precisionState = store.getState().precisionRegistration;
-			if ( precisionState.stagedSourcePoint === '未选择' ) {
-				setStatus( '请先锁定一个模型控制点。' );
+			if ( stagedSourcePoint === null ) {
+				setStatus( 'Please lock a source control point first.' );
 				return;
 			}
 
-			const targetLabel = `现实点 P${precisionState.pairSummaries.length + 1}`;
-			store.patch( {
-				precisionRegistration: {
-					...precisionState,
-					stagedTargetPoint: targetLabel,
-					workflowStatusText: `已确认 ${targetLabel}，现在可以把这组点对加入求解列表。`
-				}
+			const targetPoint = getTargetPoint( tempTargetPoint );
+			if ( targetPoint === null ) {
+				setStatus( 'No valid field point is available. Aim at a detected plane and try again.' );
+				return;
+			}
+
+			stagedTargetPoint = targetPoint.clone();
+			const targetLabel = formatVectorLabel( stagedTargetPoint );
+			patchPrecisionState( {
+				stagedTargetPoint: targetLabel,
+				workflowStatusText: `Confirmed field point ${targetLabel}. Add this pair to the solve list.`
 			} );
-			setStatus( `已确认 ${targetLabel}。` );
+			setStatus( `Confirmed field point ${targetLabel}.` );
 
 		},
 
 		addPair() {
 
-			const precisionState = store.getState().precisionRegistration;
-			if ( precisionState.stagedSourcePoint === '未选择' || precisionState.stagedTargetPoint === '未确认' ) {
-				setStatus( '请先准备好模型点和现实点。' );
+			if ( stagedSourcePoint === null || stagedTargetPoint === null ) {
+				setStatus( 'Prepare both a source point and a field target point before adding a pair.' );
 				return;
 			}
 
-			const nextPairCount = precisionState.pairSummaries.length + 1;
-			const nextSummary = `${nextPairCount}. ${precisionState.stagedSourcePoint} -> ${precisionState.stagedTargetPoint}`;
+			const nextPair: PrecisionPair = {
+				sourcePointId: stagedSourcePoint.id,
+				sourceModelLocal: stagedSourcePoint.modelLocal.clone(),
+				targetAr: stagedTargetPoint.clone()
+			};
+			pairs.push( nextPair );
+			stagedSourcePoint = null;
+			stagedTargetPoint = null;
+			solvedResult = null;
 
-			store.patch( {
-				precisionRegistration: {
-					...precisionState,
-					pairSummaries: [ ...precisionState.pairSummaries, nextSummary ],
-					stagedSourcePoint: '未选择',
-					stagedTargetPoint: '未确认',
-					workflowStatusText: nextPairCount >= 4
-						? '控制点数量已满足精配准求解的 UI 条件，可以进入重新求解。'
-						: `已添加第 ${nextPairCount} 组点对，建议继续采集到 4 组以上。`
-				}
+			patchPrecisionState( {
+				stagedSourcePoint: 'Not selected',
+				stagedTargetPoint: 'Not confirmed',
+				pairSummaries: createPairSummaries(),
+				rmsText: '--',
+				workflowStatusText: pairs.length >= MIN_SOLVE_PAIR_COUNT
+					? 'Enough pairs collected. Solve precision registration when ready.'
+					: `Collected ${pairs.length} pair(s). At least ${MIN_SOLVE_PAIR_COUNT} are required.`
 			} );
-			setStatus( `已添加第 ${nextPairCount} 组控制点对。` );
+			setStatus( `Added precision pair ${pairs.length}.` );
 
 		},
 
 		solve() {
 
-			const precisionState = store.getState().precisionRegistration;
-			if ( precisionState.pairSummaries.length < 3 ) {
-				setStatus( '至少需要 3 组控制点才能开始求解。' );
+			const placedModel = getPlacedModel();
+			const modelId = getCurrentModelId();
+			if ( placedModel === null || modelId === null ) {
+				setStatus( 'Place a model before solving precision registration.' );
 				return;
 			}
 
-			store.patch( {
-				precisionRegistration: {
-					...precisionState,
-					rmsText: '待接入求解器',
-					workflowStatusText: '精配准求解 UI 已打通，下一步可接 sourcePoints / targetPoints 求 deltaTransform。'
-				}
+			if ( pairs.length < MIN_SOLVE_PAIR_COUNT ) {
+				setStatus( `At least ${MIN_SOLVE_PAIR_COUNT} control-point pairs are required.` );
+				return;
+			}
+
+			placedModel.updateMatrixWorld( true );
+			const sourcePoints = pairs.map( ( pair ) => (
+				placedModel.localToWorld( tempSourcePoint.copy( pair.sourceModelLocal ) ).clone()
+			) );
+			const targetPoints = pairs.map( ( pair ) => pair.targetAr.clone() );
+			const delta = solveSimilarityTransform( sourcePoints, targetPoints, 'similarity' );
+
+			solvedResult = {
+				modelId,
+				position: delta.translation.clone(),
+				quaternion: delta.rotation.clone(),
+				scale: delta.scale,
+				rmsErrorMeters: delta.rmsErrorMeters,
+				pairCount: pairs.length,
+				sourcePointIds: pairs.map( ( pair ) => pair.sourcePointId ),
+				updatedAt: new Date().toISOString()
+			};
+
+			applyDeltaToModel( placedModel, solvedResult );
+			appliedModels.add( placedModel );
+			onApplied?.();
+
+			patchPrecisionState( {
+				rmsText: `${delta.rmsErrorMeters.toFixed( 3 )}m`,
+				workflowStatusText: `Solved and applied precision delta from ${pairs.length} pair(s). Save to reuse it next time.`
 			} );
-			setStatus( '精配准求解入口已准备，待接入实际算法。' );
+			setStatus( `Precision registration solved. RMS ${delta.rmsErrorMeters.toFixed( 3 )}m.` );
 
 		},
 
 		save() {
 
-			const precisionState = store.getState().precisionRegistration;
-			if ( precisionState.pairSummaries.length < 4 ) {
-				setStatus( '建议至少采集 4 组控制点后再保存精配准结果。' );
+			if ( solvedResult === null ) {
+				setStatus( 'Solve precision registration before saving.' );
 				return;
 			}
 
-			setStatus( '精配准保存入口已准备，待接入最终结果持久化。' );
+			savePrecisionRegistrationResult( solvedResult );
+			savedResult = solvedResult;
+			patchPrecisionState( {
+				workflowStatusText: `Saved precision registration. It will be reused on the next placement.`
+			} );
+			setStatus( 'Precision registration saved.' );
 
 		},
 
 		clear() {
 
+			pairs.length = 0;
+			stagedSourcePoint = null;
+			stagedTargetPoint = null;
+			solvedResult = null;
 			store.patch( {
 				precisionRegistration: {
 					...createDefaultPrecisionRegistrationState(),
-					availableSourcePoints: store.getState().precisionRegistration.availableSourcePoints
+					availableSourcePoints: store.getState().precisionRegistration.availableSourcePoints,
+					selectedSourcePoint: store.getState().precisionRegistration.selectedSourcePoint
 				}
 			} );
-			setStatus( '已清空精配准点对草稿。' );
+			setStatus( 'Precision registration pairs cleared.' );
+
+		},
+
+		loadSavedResult(modelId) {
+
+			savedResult = loadPrecisionRegistrationResult( modelId );
+			solvedResult = null;
+			appliedModels = new WeakSet<THREE.Group>();
+
+			if ( savedResult === null ) {
+				patchPrecisionState( {
+					rmsText: '--',
+					workflowStatusText: 'No saved precision registration. Collect control points if field correction is needed.'
+				} );
+				return;
+			}
+
+			patchPrecisionState( {
+				rmsText: `${savedResult.rmsErrorMeters.toFixed( 3 )}m`,
+				workflowStatusText: `Loaded saved precision registration from ${savedResult.updatedAt}. It will apply after placement.`
+			} );
+
+		},
+
+		applySavedResult(placedModel) {
+
+			if ( placedModel === null || savedResult === null || appliedModels.has( placedModel ) ) {
+				return false;
+			}
+
+			applyDeltaToModel( placedModel, savedResult );
+			appliedModels.add( placedModel );
+			onApplied?.();
+			patchPrecisionState( {
+				rmsText: `${savedResult.rmsErrorMeters.toFixed( 3 )}m`,
+				workflowStatusText: `Applied saved precision registration. RMS ${savedResult.rmsErrorMeters.toFixed( 3 )}m.`
+			} );
+			setStatus( 'Applied saved precision registration result.' );
+			return true;
 
 		},
 
 		updateSourcePointOptions(sourcePoints) {
 
+			sourcePointsById.clear();
+			for ( const point of sourcePoints ) {
+				sourcePointsById.set( point.id, point );
+			}
+
+			const sourcePointIds = sourcePoints.map( ( point ) => point.id );
 			store.patch( {
 				precisionRegistration: {
 					...store.getState().precisionRegistration,
-					availableSourcePoints: sourcePoints,
-					selectedSourcePoint: sourcePoints[ 0 ] ?? ''
+					availableSourcePoints: sourcePointIds,
+					selectedSourcePoint: sourcePointIds[ 0 ] ?? ''
 				}
 			} );
 
 		}
 	};
+
+	function patchPrecisionState(
+		partialState: Partial<ReturnType<typeof createDefaultPrecisionRegistrationState>>
+	): void {
+
+		store.patch( {
+			precisionRegistration: {
+				...store.getState().precisionRegistration,
+				...partialState
+			}
+		} );
+
+	}
+
+	function createPairSummaries(): string[] {
+
+		return pairs.map( ( pair, index ) => (
+			`${index + 1}. ${pair.sourcePointId} -> ${formatVectorLabel( pair.targetAr )}`
+		) );
+
+	}
+
+}
+
+function applyDeltaToModel(
+	placedModel: THREE.Group,
+	result: PrecisionRegistrationResult
+): void {
+
+	placedModel.updateMatrixWorld( true );
+	const deltaMatrix = new THREE.Matrix4().compose(
+		result.position,
+		result.quaternion,
+		tempDeltaScale.set( result.scale, result.scale, result.scale )
+	);
+	tempNextWorldMatrix.multiplyMatrices( deltaMatrix, placedModel.matrixWorld );
+
+	if ( placedModel.parent !== null ) {
+		placedModel.parent.updateMatrixWorld( true );
+		tempParentInverse.copy( placedModel.parent.matrixWorld ).invert();
+		tempNextLocalMatrix.multiplyMatrices( tempParentInverse, tempNextWorldMatrix );
+	} else {
+		tempNextLocalMatrix.copy( tempNextWorldMatrix );
+	}
+
+	tempNextLocalMatrix.decompose(
+		placedModel.position,
+		placedModel.quaternion,
+		placedModel.scale
+	);
+	placedModel.updateMatrixWorld( true );
+
+}
+
+function formatVectorLabel(vector: THREE.Vector3): string {
+
+	return `(${vector.x.toFixed( 2 )}, ${vector.y.toFixed( 2 )}, ${vector.z.toFixed( 2 )})`;
 
 }

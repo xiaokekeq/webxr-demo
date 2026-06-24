@@ -229,6 +229,9 @@ desktopPanel.bind( {
 } );
 
 mobilePanel.bind( {
+	onArUiInteraction: () => {
+		pointerSelection.cancelPendingSelection( 900 );
+	},
 	onCloseProperty: () => {
 		pointerSelection.suppressSelectionFor( 1000 );
 		propertySelection.clearSelection();

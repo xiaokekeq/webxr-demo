@@ -22,6 +22,7 @@ export interface PointerSelectionSession {
 	handleScreenPointerUp(clientX: number, clientY: number): void;
 	handleArSelect(): void;
 	suppressSelectionFor(durationMs: number): void;
+	cancelPendingSelection(durationMs?: number): void;
 }
 
 const DEFAULT_DRAG_THRESHOLD_PX = 10;
@@ -51,10 +52,21 @@ export function createPointerSelectionSession(
 	const boundingCenter = new THREE.Vector3();
 	let lastScreenSelectionTime = -Infinity;
 	let selectionSuppressedUntil = -Infinity;
+	let hasPendingPointerSelection = false;
 
 	function isSelectionSuppressed(): boolean {
 
 		return performance.now() < selectionSuppressedUntil;
+
+	}
+
+	function cancelPendingSelection(durationMs = 360): void {
+
+		hasPendingPointerSelection = false;
+		selectionSuppressedUntil = Math.max(
+			selectionSuppressedUntil,
+			performance.now() + durationMs
+		);
 
 	}
 
@@ -64,6 +76,7 @@ export function createPointerSelectionSession(
 			return;
 		}
 
+		hasPendingPointerSelection = true;
 		pointerDownPosition.set( clientX, clientY );
 
 	}
@@ -71,8 +84,14 @@ export function createPointerSelectionSession(
 	function handleScreenPointerUp(clientX: number, clientY: number): void {
 
 		if ( isSelectionSuppressed() ) {
+			hasPendingPointerSelection = false;
 			return;
 		}
+
+		if ( hasPendingPointerSelection === false ) {
+			return;
+		}
+		hasPendingPointerSelection = false;
 
 		const placedModel = getPlacedModel();
 		if ( placedModel === null ) {
@@ -149,7 +168,10 @@ export function createPointerSelectionSession(
 				performance.now() + durationMs
 			);
 
-		}
+		},
+
+		cancelPendingSelection
+
 	};
 
 	function selectScreenPoint(

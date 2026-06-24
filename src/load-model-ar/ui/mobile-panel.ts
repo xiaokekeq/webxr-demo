@@ -14,6 +14,7 @@ interface InspectionDraft {
 }
 
 interface MobilePanelActions {
+	onArUiInteraction(): void;
 	onCloseProperty(): void;
 	onSelectModel(modelId: string): void;
 	onSetWorkspaceMode(mode: WorkspaceMode): void;
@@ -168,6 +169,8 @@ export function createMobilePanel(dom: ARDomElements): MobilePanelController {
 	return {
 		bind(actions) {
 
+			bindArUiEventShield( dom, actions );
+
 			let propertyCloseHandledAt = -Infinity;
 			const closePropertyPanel = (): void => {
 				propertyCloseHandledAt = performance.now();
@@ -230,13 +233,31 @@ export function createMobilePanel(dom: ARDomElements): MobilePanelController {
 				handleModeToggle( 'inspection', actions.onSetWorkspaceMode );
 			} );
 
-			dom.mobileDrawerToggleButton.addEventListener( 'click', () => {
+			let drawerToggleHandledAt = -Infinity;
+			const toggleDrawer = (): void => {
+				drawerToggleHandledAt = performance.now();
 				if ( isDrawerCollapsed ) {
 					expandDrawer();
 					return;
 				}
 
 				collapseDrawer();
+			};
+
+			dom.mobileDrawerToggleButton.addEventListener( 'pointerdown', ( event ) => {
+				actions.onArUiInteraction();
+				event.preventDefault();
+				event.stopPropagation();
+				toggleDrawer();
+			} );
+
+			dom.mobileDrawerToggleButton.addEventListener( 'click', ( event ) => {
+				actions.onArUiInteraction();
+				event.preventDefault();
+				event.stopPropagation();
+				if ( performance.now() - drawerToggleHandledAt > 300 ) {
+					toggleDrawer();
+				}
 			} );
 
 			dom.resetPlacementButton.addEventListener( 'click', actions.onResetPlacement );
@@ -418,6 +439,29 @@ export function createMobilePanel(dom: ARDomElements): MobilePanelController {
 			? '放置模型'
 			: '正在识别平面';
 
+	}
+
+}
+
+function bindArUiEventShield(dom: ARDomElements, actions: MobilePanelActions): void {
+
+	const roots = [
+		dom.mobileTopbarEl,
+		dom.mobileArPrimaryBarEl,
+		dom.mobileRightToolsEl,
+		dom.mobileDrawerAreaEl,
+		dom.mobileDrawerToggleButton,
+		dom.mobileBottomNavEl
+	];
+	const eventNames = [ 'pointerdown', 'pointerup', 'click', 'touchstart', 'touchend' ];
+
+	for ( const root of roots ) {
+		for ( const eventName of eventNames ) {
+			root.addEventListener( eventName, ( event ) => {
+				actions.onArUiInteraction();
+				event.stopPropagation();
+			} );
+		}
 	}
 
 }

@@ -30,6 +30,12 @@ body {
 	overflow: hidden;
 }
 
+html.app-mode--ar-session,
+body.app-mode--ar-session,
+body.app-mode--ar-session #app {
+	background: transparent !important;
+}
+
 button,
 input,
 select,
@@ -74,7 +80,12 @@ textarea {
 	position: absolute;
 	inset: 0;
 	border-radius: 0;
-	background: #000;
+	z-index: 0;
+	background: transparent !important;
+}
+
+.scene-host--fullscreen canvas {
+	background: transparent !important;
 }
 
 .scene-host--hidden {
@@ -406,16 +417,27 @@ textarea {
 	position: relative;
 	width: 100%;
 	height: 100%;
+	background: transparent;
 }
 
 .mobile-overlay {
 	position: absolute;
 	inset: 0;
+	z-index: 1;
 	pointer-events: none;
 }
 
 .mobile-overlay > * {
 	pointer-events: auto;
+	touch-action: manipulation;
+}
+
+.mobile-overlay button,
+.mobile-overlay select,
+.mobile-overlay textarea,
+.mobile-overlay input {
+	pointer-events: auto;
+	touch-action: manipulation;
 }
 
 .topbar {

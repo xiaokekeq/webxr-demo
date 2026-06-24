@@ -11,7 +11,10 @@ export function createARScene(canvasContainer: HTMLElement): ARSceneBundle {
 	const renderer = new THREE.WebGLRenderer( { antialias: true, alpha: true } );
 	renderer.setPixelRatio( Math.min( window.devicePixelRatio, 2 ) );
 	renderer.setSize( initialSize.width, initialSize.height, false );
+	renderer.setClearColor( 0x000000, 0 );
+	renderer.setClearAlpha( 0 );
 	renderer.xr.enabled = true;
+	renderer.domElement.style.backgroundColor = 'transparent';
 	canvasContainer.appendChild( renderer.domElement );
 
 	const controls = new OrbitControls( camera, renderer.domElement );

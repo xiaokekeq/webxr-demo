@@ -54,6 +54,25 @@ export function ArPage(): React.JSX.Element {
 		setAppLayoutMode( isDesktopLayout );
 	}, [ isDesktopLayout ] );
 
+	useEffect( () => {
+		const className = 'app-mode--ar-session';
+		if ( state.engine.appMode === 'ar-session' ) {
+			document.documentElement.classList.add( className );
+			document.body.classList.add( className );
+			return () => {
+				document.documentElement.classList.remove( className );
+				document.body.classList.remove( className );
+			};
+		}
+
+		document.documentElement.classList.remove( className );
+		document.body.classList.remove( className );
+		return () => {
+			document.documentElement.classList.remove( className );
+			document.body.classList.remove( className );
+		};
+	}, [ state.engine.appMode ] );
+
 	useLayoutEffect( () => {
 		if (
 			arCanvasRef.current === null

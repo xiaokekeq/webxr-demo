@@ -6,6 +6,7 @@ import {
 import type { EngineeringControlPoint } from './engineering-registration.js';
 import { solveSimilarityTransform } from './engineering-registration.js';
 import {
+	clearPrecisionRegistrationResult,
 	loadPrecisionRegistrationResult,
 	savePrecisionRegistrationResult,
 	type PrecisionRegistrationResult
@@ -34,6 +35,7 @@ export interface PrecisionRegistrationController {
 	solve(): void;
 	save(): void;
 	clear(): void;
+	clearSaved(modelId: string): void;
 	loadSavedResult(modelId: string): void;
 	applySavedResult(placedModel: THREE.Group | null): boolean;
 	updateSourcePointOptions(sourcePoints: EngineeringControlPoint[]): void;
@@ -226,6 +228,20 @@ export function createPrecisionRegistrationController(
 				}
 			} );
 			setStatus( 'Precision registration pairs cleared.' );
+
+		},
+
+		clearSaved(modelId) {
+
+			clearPrecisionRegistrationResult( modelId );
+			savedResult = null;
+			solvedResult = null;
+			appliedModels = new WeakSet<THREE.Group>();
+			patchPrecisionState( {
+				rmsText: '--',
+				workflowStatusText: 'Cleared saved precision registration. Collect control points again if needed.'
+			} );
+			setStatus( 'Saved precision registration cleared.' );
 
 		},
 

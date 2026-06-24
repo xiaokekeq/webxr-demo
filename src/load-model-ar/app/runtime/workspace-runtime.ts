@@ -23,7 +23,7 @@ export function createWorkspaceRuntime(options: CreateWorkspaceRuntimeOptions): 
 			}
 
 			store.patch( { workspaceMode: mode } );
-			setStatus( `已切换到${getWorkspaceModeLabel( mode )}。` );
+			setStatus( `Switched to ${getWorkspaceModeLabel( mode )}.` );
 
 		},
 
@@ -32,7 +32,7 @@ export function createWorkspaceRuntime(options: CreateWorkspaceRuntimeOptions): 
 			const state = store.getState();
 			const clampedIndex = THREE.MathUtils.clamp( index, 0, state.timelineStages.length - 1 );
 			store.patch( { currentTimelineStageIndex: clampedIndex } );
-			setStatus( `当前阶段已切换为：${state.timelineStages[ clampedIndex ]}。` );
+			setStatus( `Stage switched to ${state.timelineStages[ clampedIndex ]}.` );
 
 		}
 	};
@@ -43,13 +43,13 @@ function getWorkspaceModeLabel(mode: WorkspaceMode): string {
 
 	switch ( mode ) {
 		case 'browse':
-			return '浏览模式';
+			return 'browse mode';
 		case 'registration':
-			return '配准模式';
-		case 'timeline':
-			return '时间模式';
+			return 'registration mode';
+		case 'tools':
+			return 'tools mode';
 		case 'inspection':
-			return '核查模式';
+			return 'inspection mode';
 	}
 
 }

@@ -271,6 +271,7 @@ mobilePanel.bind( {
 	},
 	onSaveManualRegistration: saveManualRegistration,
 	onResetManualRegistration: handleResetManualRegistration,
+	onClearSavedRegistration: handleClearSavedRegistration,
 	onSelectPrecisionSourcePoint: precisionRegistration.handleSourceSelection,
 	onArmPrecisionSourcePoint: precisionRegistration.armSourcePoint,
 	onConfirmPrecisionTargetPoint: precisionRegistration.confirmTargetPoint,
@@ -524,6 +525,25 @@ function handleResetManualRegistration(): void {
 
 }
 
+function handleClearSavedRegistration(): void {
+
+	if ( demoModelConfig === null ) {
+		setStatus( '当前模型配置尚未准备完成。' );
+		return;
+	}
+
+	if ( window.confirm( `确认清除 ${demoModelConfig.modelId} 的已保存配准结果吗？` ) === false ) {
+		return;
+	}
+
+	manualRegistration.clearSaved( demoModelConfig.modelId );
+	precisionRegistration.clearSaved( demoModelConfig.modelId );
+	manualRegistration.reset();
+	reapplyManualPlacement();
+	setStatus( '已清除手动微调和精配准的历史保存结果。' );
+
+}
+
 function saveManualRegistration(): void {
 
 	if ( demoModelConfig === null ) {
@@ -704,7 +724,7 @@ function handleXRSessionStart(): void {
 
 	hasCommittedArPlacement = false;
 	pointerSelection.suppressSelectionFor( 1200 );
-	store.patch( { appMode: 'ar-session', arSessionPhase: 'scanning', workspaceMode: 'browse' } );
+	store.patch( { appMode: 'ar-session', arSessionPhase: 'scanning', workspaceMode: 'registration' } );
 	syncSceneHost();
 	placementSession.resetPlacement();
 	updateDesktopInteractionState();

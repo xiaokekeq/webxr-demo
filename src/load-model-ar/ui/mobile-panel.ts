@@ -9,6 +9,7 @@ import type {
 import type { ARDomElements } from './types.js';
 
 interface InspectionDraft {
+	result: string;
 	type: string;
 	severity: string;
 	note: string;
@@ -30,6 +31,7 @@ interface MobilePanelActions {
 	onAdjustScale(direction: 1 | -1): void;
 	onSaveManualRegistration(): void;
 	onResetManualRegistration(): void;
+	onClearSavedRegistration(): void;
 	onSelectPrecisionSourcePoint(sourcePoint: string): void;
 	onArmPrecisionSourcePoint(): void;
 	onConfirmPrecisionTargetPoint(): void;
@@ -58,11 +60,17 @@ export interface MobilePanelController {
 }
 
 const MODE_LABELS: Record<WorkspaceMode, string> = {
-	browse: '浏览面板',
-	registration: '配准面板',
-	timeline: '时间面板',
-	inspection: '核查面板'
+	browse: '浏览',
+	registration: '配准',
+	tools: '工具',
+	inspection: '核查'
 };
+
+const DISPLAY_MODES: Array<{ value: DisplayMode; label: string }> = [
+	{ value: 'normal', label: '普通叠加' },
+	{ value: 'xray', label: '透视核查' },
+	{ value: 'occlusion-outline', label: '遮挡轮廓' }
+];
 
 const AR_HINT_VISIBLE_MS = 2400;
 const AR_HINT_REPEAT_MS = 7200;
@@ -154,7 +162,7 @@ export function createMobilePanel(dom: ARDomElements): MobilePanelController {
 
 	function handleModeToggle(
 		nextMode: WorkspaceMode,
-		setWorkspaceMode: MobilePanelActions[ 'onSetWorkspaceMode' ]
+		setWorkspaceMode: MobilePanelActions['onSetWorkspaceMode']
 	): void {
 
 		const isActive = latestState?.workspaceMode === nextMode;
@@ -165,6 +173,29 @@ export function createMobilePanel(dom: ARDomElements): MobilePanelController {
 
 		setWorkspaceMode( nextMode );
 		expandDrawer();
+
+	}
+
+	function cycleDisplayMode(actions: MobilePanelActions): void {
+
+		if ( latestState === null ) {
+			return;
+		}
+
+		const currentIndex = DISPLAY_MODES.findIndex( ( mode ) => mode.value === latestState?.displayMode );
+		const nextMode = DISPLAY_MODES[ ( currentIndex + 1 + DISPLAY_MODES.length ) % DISPLAY_MODES.length ];
+		actions.onSetDisplayMode( nextMode.value );
+
+	}
+
+	function readInspectionDraft(): InspectionDraft {
+
+		return {
+			result: dom.inspectionResultEl.value,
+			type: dom.inspectionTypeEl.value,
+			severity: dom.inspectionSeverityEl.value,
+			note: dom.inspectionNoteEl.value.trim()
+		};
 
 	}
 
@@ -221,6 +252,9 @@ export function createMobilePanel(dom: ARDomElements): MobilePanelController {
 			dom.mobileDisplayModeSelectEl.addEventListener( 'change', () => {
 				actions.onSetDisplayMode( dom.mobileDisplayModeSelectEl.value as DisplayMode );
 			} );
+			dom.mobilePreArDisplayModeSelectEl.addEventListener( 'change', () => {
+				actions.onSetDisplayMode( dom.mobilePreArDisplayModeSelectEl.value as DisplayMode );
+			} );
 			dom.mobilePreArEnterArButton.addEventListener( 'click', actions.onEnterAr );
 			dom.mobileArPlaceButton.addEventListener( 'click', actions.onPlaceModel );
 			dom.mobileArExitButton.addEventListener( 'click', actions.onExitAr );
@@ -232,7 +266,7 @@ export function createMobilePanel(dom: ARDomElements): MobilePanelController {
 				handleModeToggle( 'registration', actions.onSetWorkspaceMode );
 			} );
 			dom.modeTimelineButton.addEventListener( 'click', () => {
-				handleModeToggle( 'timeline', actions.onSetWorkspaceMode );
+				handleModeToggle( 'tools', actions.onSetWorkspaceMode );
 			} );
 			dom.modeInspectionButton.addEventListener( 'click', () => {
 				handleModeToggle( 'inspection', actions.onSetWorkspaceMode );
@@ -265,9 +299,13 @@ export function createMobilePanel(dom: ARDomElements): MobilePanelController {
 				}
 			} );
 
-			dom.resetPlacementButton.addEventListener( 'click', actions.onResetPlacement );
-			dom.toolLayersButton.addEventListener( 'click', actions.onShowLayers );
-			dom.toolMeasureButton.addEventListener( 'click', actions.onMeasure );
+			dom.resetPlacementButton.addEventListener( 'click', () => {
+				cycleDisplayMode( actions );
+			} );
+			dom.toolLayersButton.addEventListener( 'click', actions.onInspectionPhoto );
+			dom.toolMeasureButton.addEventListener( 'click', toggleDrawer );
+
+			dom.registrationRepositionButton.addEventListener( 'click', actions.onResetPlacement );
 			dom.enableCoarseButton.addEventListener( 'click', actions.onEnableCoarse );
 			dom.refreshGeoButton.addEventListener( 'click', actions.onRefreshGeo );
 			dom.registrationOpenManualButton.addEventListener( 'click', () => {
@@ -279,6 +317,7 @@ export function createMobilePanel(dom: ARDomElements): MobilePanelController {
 				expandDrawer();
 			} );
 			dom.registrationSaveButton.addEventListener( 'click', actions.onSaveManualRegistration );
+			dom.registrationClearSavedButton.addEventListener( 'click', actions.onClearSavedRegistration );
 
 			dom.manualLeftButton.addEventListener( 'click', () => {
 				actions.onAdjustTranslation( 'x', -1 );
@@ -327,23 +366,6 @@ export function createMobilePanel(dom: ARDomElements): MobilePanelController {
 			dom.timelineNextButton.addEventListener( 'click', actions.onTimelineNext );
 			dom.timelinePlayButton.addEventListener( 'click', actions.onTimelinePlay );
 
-			dom.inspectionStartFormButton.addEventListener( 'click', () => {
-				inspectionFormExpanded = true;
-				expandDrawer();
-			} );
-			dom.inspectionViewListButton.addEventListener( 'click', () => {
-				inspectionFormExpanded = false;
-				rerender();
-			} );
-			dom.inspectionPhotoButton.addEventListener( 'click', actions.onInspectionPhoto );
-			dom.inspectionSaveButton.addEventListener( 'click', () => {
-				actions.onInspectionSave( {
-					type: dom.inspectionTypeEl.value,
-					severity: dom.inspectionSeverityEl.value,
-					note: dom.inspectionNoteEl.value.trim()
-				} );
-			} );
-
 			for ( const button of dom.timelineStageButtons ) {
 				button.addEventListener( 'click', () => {
 					const index = Number( button.dataset.stageIndex );
@@ -352,6 +374,32 @@ export function createMobilePanel(dom: ARDomElements): MobilePanelController {
 					}
 				} );
 			}
+
+			dom.toolsMeasureButton.addEventListener( 'click', actions.onMeasure );
+			dom.toolsHeightMeasureButton.addEventListener( 'click', actions.onMeasure );
+			dom.toolsDeltaMeasureButton.addEventListener( 'click', actions.onMeasure );
+			dom.toolsClearButton.addEventListener( 'click', actions.onMeasure );
+			dom.toolsCaptureButton.addEventListener( 'click', actions.onInspectionPhoto );
+			dom.toolsInfoCaptureButton.addEventListener( 'click', actions.onInspectionPhoto );
+			dom.toolsAnnotateButton.addEventListener( 'click', actions.onShowLayers );
+			dom.toolsControlPointsButton.addEventListener( 'click', actions.onShowLayers );
+
+			dom.inspectionStartFormButton.addEventListener( 'click', () => {
+				inspectionFormExpanded = true;
+				expandDrawer();
+				rerender();
+			} );
+			dom.inspectionViewListButton.addEventListener( 'click', () => {
+				inspectionFormExpanded = false;
+				rerender();
+			} );
+			dom.inspectionPhotoButton.addEventListener( 'click', actions.onInspectionPhoto );
+			dom.inspectionSaveButton.addEventListener( 'click', () => {
+				actions.onInspectionSave( readInspectionDraft() );
+			} );
+			dom.inspectionExportButton.addEventListener( 'click', () => {
+				actions.onInspectionSave( readInspectionDraft() );
+			} );
 
 		},
 
@@ -392,14 +440,17 @@ export function createMobilePanel(dom: ARDomElements): MobilePanelController {
 		renderArSessionChrome( dom, state, isDrawerCollapsed );
 		renderModeButtons( dom, state.workspaceMode );
 		renderModePanels( dom, state, isDrawerCollapsed );
-		renderModelSelect( dom.modelSelectEl, state.availableModels, state.selectedModelId );
 		renderDisplayModeSelect( dom.mobileDisplayModeSelectEl, state.displayMode );
+		renderDisplayModeSelect( dom.mobilePreArDisplayModeSelectEl, state.displayMode );
+		renderModelSelect( dom.modelSelectEl, state.availableModels, state.selectedModelId );
+		renderModelSelect( dom.mobilePreArModelSelectEl, state.availableModels, state.selectedModelId );
 		renderPropertyPanel( dom, state, browseDetailsExpanded );
+		renderBrowsePanel( dom, state );
 		renderManualReadout( dom, state );
 		renderRegistrationPanel( dom, state, registrationView );
 		renderPrecisionRegistration( dom, state );
 		renderTimeline( dom, state );
-		renderInspectionPanel( dom, inspectionFormExpanded );
+		renderInspectionPanel( dom, state, inspectionFormExpanded );
 
 		dom.registrationStatusDetailEl.textContent = state.registrationStatusDetail;
 		dom.mobileDrawerToggleButton.setAttribute( 'aria-expanded', String( !isDrawerCollapsed ) );
@@ -416,18 +467,17 @@ export function createMobilePanel(dom: ARDomElements): MobilePanelController {
 	): void {
 
 		const inAr = state.appMode === 'ar-session';
-		const showWorkUi = inAr && state.arSessionPhase === 'placed';
 		const showPlacementUi = inAr && (
 			state.arSessionPhase === 'scanning'
 			|| state.arSessionPhase === 'ready-to-place'
 		);
-		const showRightTools = showWorkUi && drawerCollapsed;
+		const showQuickTools = inAr && drawerCollapsed;
 
-		domElements.mobileRightToolsEl.classList.toggle( 'hidden', !showRightTools );
-		domElements.mobileBottomNavEl.classList.toggle( 'hidden', !showWorkUi );
-		domElements.mobileDrawerToggleButton.classList.toggle( 'hidden', !showWorkUi );
-		domElements.mobileDrawerAreaEl.classList.toggle( 'hidden', !showWorkUi );
-		domElements.mobileDrawerAreaEl.classList.toggle( 'is-collapsed', showWorkUi && drawerCollapsed );
+		domElements.mobileRightToolsEl.classList.toggle( 'hidden', !showQuickTools );
+		domElements.mobileBottomNavEl.classList.toggle( 'hidden', !inAr );
+		domElements.mobileDrawerToggleButton.classList.add( 'hidden' );
+		domElements.mobileDrawerAreaEl.classList.toggle( 'hidden', !inAr );
+		domElements.mobileDrawerAreaEl.classList.toggle( 'is-collapsed', inAr && drawerCollapsed );
 		domElements.mobileArGuidanceEl.classList.toggle(
 			'hidden',
 			!showPlacementUi || isPlacementHintVisible === false
@@ -442,8 +492,8 @@ export function createMobilePanel(dom: ARDomElements): MobilePanelController {
 
 		domElements.mobileArPlaceButton.disabled = state.arSessionPhase !== 'ready-to-place';
 		domElements.mobileArPlaceButton.textContent = state.arSessionPhase === 'ready-to-place'
-			? '放置模型'
-			: '正在识别平面';
+			? '开始放置'
+			: '等待平面';
 
 	}
 
@@ -474,7 +524,7 @@ function bindArUiEventShield(dom: ARDomElements, actions: MobilePanelActions): v
 
 function renderAppModeShells(
 	dom: ARDomElements,
-	appMode: RegistrationStoreState[ 'appMode' ]
+	appMode: RegistrationStoreState['appMode']
 ): void {
 
 	dom.mobilePreArShellEl.classList.toggle( 'hidden', appMode !== 'pre-ar' );
@@ -495,7 +545,6 @@ function renderPreArLayout(dom: ARDomElements, state: RegistrationStoreState): v
 		? '等待模型'
 		: `预览：${currentModelName}`;
 
-	renderModelSelect( dom.mobilePreArModelSelectEl, state.availableModels, state.selectedModelId );
 	renderStageSelect( dom.mobilePreArStageSelectEl, state.timelineStages, state.currentTimelineStageIndex );
 	renderSimpleChipList( dom.mobilePreArLayerListEl, state.layerNames );
 	renderPreArSupport( dom, state.arSupportState, state.arSupportMessage );
@@ -507,42 +556,41 @@ function renderPreArLayout(dom: ARDomElements, state: RegistrationStoreState): v
 function renderHeader(dom: ARDomElements, state: RegistrationStoreState): void {
 
 	const currentStage = state.timelineStages[ state.currentTimelineStageIndex ] ?? '-';
+	const rmsText = state.precisionRegistration.rmsText === '--'
+		? state.registrationMetrics.rmsText
+		: state.precisionRegistration.rmsText;
 
 	if ( state.appMode === 'ar-session' && state.arSessionPhase !== 'placed' ) {
 		dom.mobileTopTitleEl.textContent = state.projectName;
-		dom.mobileTopSubtitleEl.textContent = state.arSessionPhase === 'ready-to-place'
-			? '已识别平面，请确认位置并放置模型'
-			: state.arSessionPhase === 'placing'
-				? '正在放置模型'
-				: '正在识别平面';
+		dom.mobileTopSubtitleEl.textContent = `配准状态：${state.registrationStatusDetail} / 模式：配准`;
 		dom.registrationStatusEl.textContent = state.arSessionPhase === 'ready-to-place'
 			? '待放置'
 			: state.arSessionPhase === 'placing'
 				? '放置中'
-				: '识别中';
+				: '扫描中';
 		return;
 	}
 
 	switch ( state.workspaceMode ) {
 		case 'browse':
 			dom.mobileTopTitleEl.textContent = state.projectName;
-			dom.mobileTopSubtitleEl.textContent = `当前阶段：${currentStage}`;
+			dom.mobileTopSubtitleEl.textContent = `阶段 ${currentStage} / RMS ${rmsText} / 模式 ${getDisplayModeLabel( state.displayMode )}`;
 			dom.registrationStatusEl.textContent = '浏览';
 			break;
 		case 'registration':
-			dom.mobileTopTitleEl.textContent = '当前模式：配准';
-			dom.mobileTopSubtitleEl.textContent = '模型已放置，可继续位置校正';
-			dom.registrationStatusEl.textContent = '配准中';
+			dom.mobileTopTitleEl.textContent = '配准';
+			dom.mobileTopSubtitleEl.textContent = `状态 ${state.registrationStatusDetail} / RMS ${rmsText}`;
+			dom.registrationStatusEl.textContent = '配准';
 			break;
-		case 'timeline':
-			dom.mobileTopTitleEl.textContent = `当前阶段：${currentStage}`;
-			dom.mobileTopSubtitleEl.textContent = '按阶段查看现场模型状态';
-			dom.registrationStatusEl.textContent = '时间模式';
+		case 'tools':
+			dom.mobileTopTitleEl.textContent = '工具';
+			dom.mobileTopSubtitleEl.textContent = `截图、测量、标注与辅助控制`;
+			dom.registrationStatusEl.textContent = '工具';
 			break;
 		case 'inspection':
-			dom.mobileTopTitleEl.textContent = '当前模式：核查';
-			dom.mobileTopSubtitleEl.textContent = '记录现场问题与核查意见';
-			dom.registrationStatusEl.textContent = '核查中';
+			dom.mobileTopTitleEl.textContent = '核查';
+			dom.mobileTopSubtitleEl.textContent = `当前模式：核查记录与导出`;
+			dom.registrationStatusEl.textContent = '核查';
 			break;
 	}
 
@@ -565,17 +613,12 @@ function renderModelSelect(
 
 function renderDisplayModeSelect(select: HTMLSelectElement, selectedMode: DisplayMode): void {
 
-	const options: Array<{ value: DisplayMode; label: string }> = [
-		{ value: 'normal', label: '普通叠加' },
-		{ value: 'xray', label: '透视核查' },
-		{ value: 'occlusion-outline', label: '遮挡轮廓' }
-	];
-	const shouldRebuild = select.options.length !== options.length
-		|| options.some( ( option, index ) => select.options[ index ]?.value !== option.value );
+	const shouldRebuild = select.options.length !== DISPLAY_MODES.length
+		|| DISPLAY_MODES.some( ( option, index ) => select.options[ index ]?.value !== option.value );
 
 	if ( shouldRebuild ) {
 		select.replaceChildren(
-			...options.map( ( option ) => {
+			...DISPLAY_MODES.map( ( option ) => {
 				const element = document.createElement( 'option' );
 				element.value = option.value;
 				element.textContent = option.label;
@@ -584,7 +627,7 @@ function renderDisplayModeSelect(select: HTMLSelectElement, selectedMode: Displa
 		);
 	}
 
-	select.value = options.some( ( option ) => option.value === selectedMode )
+	select.value = DISPLAY_MODES.some( ( option ) => option.value === selectedMode )
 		? selectedMode
 		: 'normal';
 	select.disabled = false;
@@ -614,7 +657,7 @@ function renderModeButtons(dom: ARDomElements, workspaceMode: WorkspaceMode): vo
 	const buttonMap: Record<WorkspaceMode, HTMLButtonElement> = {
 		browse: dom.modeBrowseButton,
 		registration: dom.modeRegistrationButton,
-		timeline: dom.modeTimelineButton,
+		tools: dom.modeTimelineButton,
 		inspection: dom.modeInspectionButton
 	};
 
@@ -630,11 +673,12 @@ function renderModePanels(
 	isDrawerCollapsed: boolean
 ): void {
 
-	const showPanels = state.appMode === 'ar-session' && state.arSessionPhase === 'placed' && isDrawerCollapsed === false;
-	dom.browsePanelEl.classList.toggle( 'hidden', !showPanels || state.workspaceMode !== 'browse' );
+	const showPanels = state.appMode === 'ar-session' && isDrawerCollapsed === false;
+	const canBrowse = state.arSessionPhase === 'placed';
+	dom.browsePanelEl.classList.toggle( 'hidden', !showPanels || state.workspaceMode !== 'browse' || !canBrowse );
 	dom.manualPanelEl.classList.toggle( 'hidden', !showPanels || state.workspaceMode !== 'registration' );
-	dom.timelinePanelEl.classList.toggle( 'hidden', !showPanels || state.workspaceMode !== 'timeline' );
-	dom.inspectionPanelEl.classList.toggle( 'hidden', !showPanels || state.workspaceMode !== 'inspection' );
+	dom.timelinePanelEl.classList.toggle( 'hidden', !showPanels || state.workspaceMode !== 'tools' || !canBrowse );
+	dom.inspectionPanelEl.classList.toggle( 'hidden', !showPanels || state.workspaceMode !== 'inspection' || !canBrowse );
 
 }
 
@@ -664,6 +708,12 @@ function getSupportBadgeLabel(supportState: ArSupportState): string {
 
 }
 
+function renderBrowsePanel(dom: ARDomElements, state: RegistrationStoreState): void {
+
+	renderSimpleChipList( dom.browseLayerListEl, state.layerNames );
+
+}
+
 function renderPropertyPanel(
 	dom: ARDomElements,
 	state: RegistrationStoreState,
@@ -677,33 +727,31 @@ function renderPropertyPanel(
 	dom.browsePropertyActionsEl.classList.toggle( 'hidden', !hasSelection );
 
 	if ( hasSelection === false ) {
-		dom.propertyNameEl.textContent = '浏览模式';
-		dom.propertyStatusBadgeEl.textContent = '未选中';
+		dom.propertyStatusBadgeEl.textContent = getDisplayModeLabel( state.displayMode );
 		dom.propertyTypeEl.textContent = '-';
 		dom.propertyDiameterEl.textContent = '-';
 		dom.propertyMaterialEl.textContent = '-';
 		dom.propertyDepthEl.textContent = '-';
 		dom.propertyStatusEl.textContent = '-';
-		dom.propertyRemarkEl.textContent = '点击堤防构件查看属性';
+		dom.propertyRemarkEl.textContent = '在浏览面板里调整显示模式、图层和阶段。';
 		dom.browseShowDetailsButton.textContent = '查看详情';
-		dom.browseAddInspectionButton.textContent = '新增核查';
+		dom.browseAddInspectionButton.textContent = '进入核查';
 		dom.propertyCloseButton.classList.add( 'hidden' );
 		return;
 	}
 
 	dom.propertyCloseButton.classList.remove( 'hidden' );
-	dom.propertyNameEl.textContent = state.propertyPanel.name;
 	dom.propertyStatusBadgeEl.textContent = state.propertyPanel.statusBadge;
 	dom.propertyTypeEl.textContent = state.propertyPanel.type;
 	dom.propertyDiameterEl.textContent = state.propertyPanel.diameter;
 	dom.propertyMaterialEl.textContent = state.propertyPanel.material;
 	dom.propertyDepthEl.textContent = state.propertyPanel.depth;
 	dom.propertyStatusEl.textContent = state.propertyPanel.status;
-	dom.browseShowDetailsButton.textContent = browseDetailsExpanded ? '收起详情' : '详情';
-	dom.browseAddInspectionButton.textContent = '新增核查';
+	dom.browseShowDetailsButton.textContent = browseDetailsExpanded ? '收起详情' : '构件详情';
+	dom.browseAddInspectionButton.textContent = '进入核查';
 	dom.propertyRemarkEl.textContent = browseDetailsExpanded
 		? state.propertyPanel.remark
-		: `${state.propertyPanel.type} ${state.propertyPanel.diameter}，高程/深度 ${state.propertyPanel.depth}，状态 ${state.propertyPanel.status}`;
+		: `${state.propertyPanel.type} ${state.propertyPanel.diameter} / 深度 ${state.propertyPanel.depth} / 状态 ${state.propertyPanel.status}`;
 
 }
 
@@ -721,6 +769,8 @@ function renderRegistrationPanel(
 	registrationView: RegistrationView
 ): void {
 
+	const placed = state.arSessionPhase === 'placed';
+
 	dom.registrationOverviewCardEl.classList.remove( 'hidden' );
 	dom.registrationOverviewActionRowEl.classList.remove( 'hidden' );
 	dom.registrationOpenManualButton.classList.toggle( 'primary', registrationView === 'manual' );
@@ -728,6 +778,11 @@ function renderRegistrationPanel(
 	dom.registrationAdjustmentPanelEl.classList.toggle( 'hidden', registrationView !== 'manual' );
 	dom.registrationPrecisionPanelEl.classList.toggle( 'hidden', registrationView !== 'control' );
 	dom.registrationStatusDetailEl.textContent = state.registrationStatusDetail;
+
+	dom.registrationOpenManualButton.disabled = !placed;
+	dom.registrationOpenControlButton.disabled = !placed;
+	dom.registrationSaveButton.disabled = !placed;
+	dom.registrationClearSavedButton.disabled = !placed;
 
 }
 
@@ -762,10 +817,17 @@ function renderTimeline(dom: ARDomElements, state: RegistrationStoreState): void
 
 }
 
-function renderInspectionPanel(dom: ARDomElements, inspectionFormExpanded: boolean): void {
+function renderInspectionPanel(
+	dom: ARDomElements,
+	state: RegistrationStoreState,
+	inspectionFormExpanded: boolean
+): void {
 
 	dom.inspectionOverviewCardEl.classList.remove( 'hidden' );
 	dom.inspectionFormPanelEl.classList.toggle( 'hidden', !inspectionFormExpanded );
+	dom.inspectionCurrentNameEl.textContent = state.propertyPanel.name;
+	dom.inspectionCurrentTypeEl.textContent = state.propertyPanel.type;
+	dom.inspectionCurrentStatusEl.textContent = state.propertyPanel.status;
 
 }
 
@@ -835,20 +897,20 @@ function getGuidanceContent(phase: ArSessionPhase): { title: string; body: strin
 	if ( phase === 'ready-to-place' ) {
 		return {
 			title: '已识别平面',
-			body: '将准星对准堤防对应区域，点击“放置模型”开始现场叠加。'
+			body: '确认地面或目标位置稳定后，点击开始放置。'
 		};
 	}
 
 	if ( phase === 'placing' ) {
 		return {
 			title: '正在放置模型',
-			body: '系统正在使用最近一次有效平面和粗配准结果完成放置，请稍候。'
+			body: '系统正在结合平面命中与粗配准结果生成初始位置。'
 		};
 	}
 
 	return {
 		title: '正在识别平面',
-		body: '请缓慢移动手机，扫描地面或墙面，等待系统找到可放置模型的位置。'
+		body: '缓慢移动手机，持续扫描地面或墙面，等待系统找到可放置位置。'
 	};
 
 }
@@ -871,5 +933,11 @@ function togglePropertyGrid(dom: ARDomElements, expanded: boolean): void {
 	if ( propertyGrid !== null && propertyGrid !== undefined ) {
 		propertyGrid.classList.toggle( 'hidden', !expanded );
 	}
+
+}
+
+function getDisplayModeLabel(mode: DisplayMode): string {
+
+	return DISPLAY_MODES.find( ( item ) => item.value === mode )?.label ?? '普通叠加';
 
 }

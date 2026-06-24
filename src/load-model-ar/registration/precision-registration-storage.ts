@@ -53,6 +53,12 @@ export function loadPrecisionRegistrationResult(modelId: string): PrecisionRegis
 
 }
 
+export function clearPrecisionRegistrationResult(modelId: string): void {
+
+	localStorage.removeItem( getStorageKey( modelId ) );
+
+}
+
 function serializePrecisionRegistrationResult(
 	result: PrecisionRegistrationResult
 ): SerializedPrecisionRegistrationResult {

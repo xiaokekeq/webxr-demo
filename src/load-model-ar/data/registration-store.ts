@@ -1,7 +1,7 @@
 import type { PipeRecord } from '../../load-model/types.js';
 import type { ModelCatalogItem } from './model-catalog.js';
 
-export type WorkspaceMode = 'browse' | 'registration' | 'timeline' | 'inspection';
+export type WorkspaceMode = 'browse' | 'registration' | 'tools' | 'inspection';
 export type AppMode = 'pre-ar' | 'ar-session';
 export type ArSupportState = 'checking' | 'supported' | 'unsupported';
 export type ArSessionPhase = 'scanning' | 'ready-to-place' | 'placing' | 'placed';

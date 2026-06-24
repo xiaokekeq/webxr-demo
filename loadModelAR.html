@@ -1295,6 +1295,10 @@
 								<label for="mobile-pre-ar-stage-select">阶段选择</label>
 								<select id="mobile-pre-ar-stage-select"></select>
 							</div>
+							<div class="pre-ar-field">
+								<label for="mobile-pre-ar-display-mode-select">默认显示模式</label>
+								<select id="mobile-pre-ar-display-mode-select"></select>
+							</div>
 							<div class="pre-ar-field full">
 								<label>可用图层</label>
 								<div id="mobile-pre-ar-layer-list" class="pre-ar-layer-list"></div>
@@ -1342,29 +1346,50 @@
 			</div>
 
 			<div id="mobile-right-tools" class="mobile-right-tools hidden">
-				<button id="reset-placement" class="tool-button primary" type="button">复位</button>
-				<button id="tool-layers" class="tool-button" type="button">图层</button>
-				<button id="tool-measure" class="tool-button" type="button">测距</button>
+				<button id="reset-placement" class="tool-button primary" type="button">显示</button>
+				<button id="tool-layers" class="tool-button" type="button">截图</button>
+				<button id="tool-measure" class="tool-button" type="button">面板</button>
 			</div>
 
 			<div id="mobile-drawer-area" class="mobile-drawer-area hidden">
 				<div id="browse-panel" class="drawer-card">
 					<div class="drawer-header">
 						<div>
-							<h2 id="ar-prop-name" class="drawer-title">浏览模式</h2>
-							<div id="ar-prop-status-badge" class="pill">未选中</div>
+							<h2 id="ar-prop-name" class="drawer-title">浏览</h2>
+							<div id="ar-prop-status-badge" class="pill">显示策略</div>
 						</div>
 						<button id="ar-property-close" class="action-button secondary hidden" type="button">关闭</button>
 					</div>
 
 					<div class="form-grid">
 						<div class="form-field full">
+							<label for="mobile-display-mode-select">显示模式</label>
+							<select id="mobile-display-mode-select"></select>
+						</div>
+						<div class="form-field">
 							<label for="model-select">模型选择</label>
 							<select id="model-select"></select>
 						</div>
-						<div class="form-field full">
-							<label for="mobile-display-mode-select">显示模式</label>
-							<select id="mobile-display-mode-select"></select>
+						<div class="form-field">
+							<label for="timeline-current-stage">阶段 / 时间</label>
+							<div id="timeline-current-stage" class="pre-ar-chip">-</div>
+						</div>
+					</div>
+
+					<div class="registration-group" style="margin-top: 14px;">
+						<h3 class="registration-group-title">图层与阶段</h3>
+						<div id="browse-layer-list" class="pre-ar-layer-list"></div>
+						<div class="timeline-stage-bar offset-top" id="timeline-stage-list">
+							<button class="timeline-stage-button" data-stage-index="0" type="button">开挖前</button>
+							<button class="timeline-stage-button" data-stage-index="1" type="button">基础开挖</button>
+							<button class="timeline-stage-button active" data-stage-index="2" type="button">堤身填筑</button>
+							<button class="timeline-stage-button" data-stage-index="3" type="button">回填前</button>
+							<button class="timeline-stage-button" data-stage-index="4" type="button">回填后</button>
+						</div>
+						<div class="timeline-control-row">
+							<button id="timeline-prev" class="action-button" type="button">上一阶段</button>
+							<button id="timeline-play" class="action-button primary" type="button">播放</button>
+							<button id="timeline-next" class="action-button" type="button">下一阶段</button>
 						</div>
 					</div>
 
@@ -1377,16 +1402,16 @@
 						<div class="property-item"><strong>模型文件</strong><span id="model-name">-</span></div>
 					</div>
 
-					<div id="ar-prop-remark" class="property-remark">点击堤防构件查看属性</div>
+					<div id="ar-prop-remark" class="property-remark">在这里调整显示方式、图层和阶段；点选构件后可进入核查。</div>
 					<div id="browse-property-actions" class="timeline-control-row two-col hidden">
 						<button id="browse-show-details" class="action-button" type="button">详情</button>
-						<button id="browse-add-inspection" class="action-button secondary" type="button">新增核查</button>
+						<button id="browse-add-inspection" class="action-button secondary" type="button">进入核查</button>
 					</div>
 				</div>
 
 				<div id="manual-registration-panel" class="drawer-card hidden">
-					<h2 class="drawer-title">配准模式</h2>
-					<p class="drawer-subtitle">模型已放置，可进行位置校正</p>
+					<h2 class="drawer-title">配准</h2>
+					<p class="drawer-subtitle">在这里完成粗配准、精确配准和手动微调。</p>
 
 					<div class="registration-status-row">
 						<div class="status-chip">当前模式：配准</div>
@@ -1394,13 +1419,14 @@
 					</div>
 
 					<div id="registration-overview-card" class="registration-group">
-						<h3 class="registration-group-title">配准入口</h3>
+						<h3 class="registration-group-title">当前状态</h3>
 						<div class="property-remark">
-							当前状态：已放置<br>
-							当前误差：未计算<br>
-							配准方式：粗配准 + 手动微调
+							当前状态：根据平面识别与放置进度自动更新<br>
+							RMS：以粗配准 / 精配准计算结果为准<br>
+							建议顺序：重新放置 -> 精配准 -> 微调 -> 保存
 						</div>
 						<div id="registration-overview-action-row" class="timeline-control-row two-col">
+							<button id="registration-reposition" class="action-button primary" type="button">重新放置</button>
 							<button id="enable-coarse" class="action-button" type="button">重新粗配准</button>
 							<button id="refresh-geo" class="action-button" type="button">刷新定位</button>
 							<button id="registration-open-manual" class="action-button secondary" type="button">手动微调</button>
@@ -1408,7 +1434,10 @@
 						</div>
 						<div class="timeline-control-row two-col">
 							<button id="registration-save" class="action-button primary" type="button">保存配准</button>
-							<button id="manual-reset" class="action-button secondary" type="button">重置配准</button>
+							<button id="manual-reset" class="action-button secondary" type="button">重置微调</button>
+						</div>
+						<div class="timeline-control-row">
+							<button id="registration-clear-saved" class="action-button secondary" type="button">清除已保存配准</button>
 						</div>
 					</div>
 
@@ -1481,41 +1510,63 @@
 				</div>
 
 				<div id="timeline-panel" class="drawer-card hidden">
-					<h2 class="drawer-title">时间模式</h2>
-					<p class="drawer-subtitle">当前阶段：<span id="timeline-current-stage">堤身填筑</span></p>
+					<h2 class="drawer-title">工具</h2>
+					<p class="drawer-subtitle">测量、截图、标注和辅助显示入口。</p>
 
-					<div class="timeline-stage-bar" id="timeline-stage-list">
-						<button class="timeline-stage-button" data-stage-index="0" type="button">开挖前</button>
-						<button class="timeline-stage-button" data-stage-index="1" type="button">基础开挖</button>
-						<button class="timeline-stage-button active" data-stage-index="2" type="button">堤身填筑</button>
-						<button class="timeline-stage-button" data-stage-index="3" type="button">回填前</button>
-						<button class="timeline-stage-button" data-stage-index="4" type="button">回填后</button>
+					<div class="registration-group">
+						<h3 class="registration-group-title">测量</h3>
+						<div class="precision-action-grid">
+							<button id="tools-measure-distance" class="action-button" type="button">两点测距</button>
+							<button id="tools-measure-height" class="action-button" type="button">高差测量</button>
+							<button id="tools-measure-delta" class="action-button secondary" type="button">模型偏差</button>
+							<button id="tools-measure-clear" class="action-button secondary" type="button">清除测量</button>
+						</div>
 					</div>
 
-					<div class="timeline-control-row">
-						<button id="timeline-prev" class="action-button" type="button">上一阶段</button>
-						<button id="timeline-play" class="action-button primary" type="button">播放</button>
-						<button id="timeline-next" class="action-button" type="button">下一阶段</button>
+					<div class="registration-group offset-top">
+						<h3 class="registration-group-title">截图</h3>
+						<div class="timeline-control-row two-col">
+							<button id="tools-capture-current" class="action-button" type="button">当前画面</button>
+							<button id="tools-capture-info" class="action-button secondary" type="button">带模型信息</button>
+						</div>
 					</div>
 
-					<div class="property-remark">时间模式只负责阶段切换，后续可以继续接模型显隐和动画。</div>
+					<div class="registration-group offset-top">
+						<h3 class="registration-group-title">标注与辅助</h3>
+						<div class="timeline-control-row two-col">
+							<button id="tools-annotate" class="action-button" type="button">添加标注</button>
+							<button id="tools-control-points" class="action-button secondary" type="button">显示控制点</button>
+						</div>
+					</div>
 				</div>
 
 				<div id="inspection-panel" class="drawer-card hidden">
-					<h2 class="drawer-title">核查模式</h2>
-					<p class="drawer-subtitle">点击堤防构件或现场位置添加问题</p>
+					<h2 class="drawer-title">核查</h2>
+					<p class="drawer-subtitle">查看当前构件信息并记录核查结果。</p>
 
 					<div id="inspection-overview-card" class="registration-group">
-						<h3 class="registration-group-title">核查入口</h3>
-						<div class="property-remark">点击“新增问题”后再展开表单，默认保持轻量视图。</div>
+						<h3 class="registration-group-title">当前选中对象</h3>
+						<div class="property-remark">
+							构件名称：<span id="inspection-current-name">未选择</span><br>
+							构件类型：<span id="inspection-current-type">-</span><br>
+							当前状态：<span id="inspection-current-status">-</span>
+						</div>
 						<div class="timeline-control-row two-col">
-							<button id="inspection-start-form" class="action-button primary" type="button">新增问题</button>
-							<button id="inspection-view-list" class="action-button secondary" type="button">查看问题列表</button>
+							<button id="inspection-start-form" class="action-button primary" type="button">编辑记录</button>
+							<button id="inspection-view-list" class="action-button secondary" type="button">收起表单</button>
 						</div>
 					</div>
 
 					<div id="inspection-form-panel" class="hidden" style="margin-top: 12px;">
 						<div class="form-grid">
+							<div class="form-field">
+								<label for="inspection-result">核查状态</label>
+								<select id="inspection-result">
+									<option value="正常">正常</option>
+									<option value="异常">异常</option>
+									<option value="待复核">待复核</option>
+								</select>
+							</div>
 							<div class="form-field">
 								<label for="inspection-type">问题类型</label>
 								<select id="inspection-type">
@@ -1544,6 +1595,9 @@
 						<div class="timeline-control-row">
 							<button id="inspection-photo" class="action-button" type="button">拍照</button>
 							<button id="inspection-save" class="action-button primary" type="button">保存问题</button>
+							<button id="inspection-export" class="action-button secondary" type="button">导出记录</button>
+						</div>
+						<div class="offset-top">
 							<button id="status" class="action-button secondary" type="button" disabled>等待操作</button>
 						</div>
 					</div>
@@ -1570,8 +1624,8 @@
 					<span class="label">配准</span>
 				</button>
 				<button id="mode-timeline" class="mode-button" type="button">
-					<span class="icon">时</span>
-					<span class="label">时间</span>
+					<span class="icon">工</span>
+					<span class="label">工具</span>
 				</button>
 				<button id="mode-inspection" class="mode-button" type="button">
 					<span class="icon">核</span>

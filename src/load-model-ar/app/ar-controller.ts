@@ -468,7 +468,9 @@ export function createLoadModelArController(): LoadModelArController {
 
 			exportRegistrationSnapshot() {
 
-				engine.exportRegistrationSnapshot();
+				if ( window.confirm( '确认导出当前配准快照 JSON 吗？' ) ) {
+					engine.exportRegistrationSnapshot();
+				}
 
 			}
 		}

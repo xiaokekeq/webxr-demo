@@ -8,7 +8,12 @@ export function createARScene(canvasContainer: HTMLElement): ARSceneBundle {
 	const initialSize = getHostSize( canvasContainer );
 	const camera = new THREE.PerspectiveCamera( 70, initialSize.width / initialSize.height, 0.01, 30 );
 
-	const renderer = new THREE.WebGLRenderer( { antialias: true, alpha: true } );
+	const renderer = new THREE.WebGLRenderer( {
+		antialias: true,
+		alpha: true,
+		// Keep the drawing buffer so snapshot export can read the current frame.
+		preserveDrawingBuffer: true
+	} );
 	renderer.setPixelRatio( Math.min( window.devicePixelRatio, 2 ) );
 	renderer.setSize( initialSize.width, initialSize.height, false );
 	renderer.setClearColor( 0x000000, 0 );

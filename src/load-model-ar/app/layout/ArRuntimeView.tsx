@@ -1,6 +1,12 @@
 ﻿import type React from 'react';
 import type { AppActions, AppState } from '../store/ar-state.js';
-import { PANEL_OPTIONS, getGuidanceContent, getPhaseLabel, getWorkspaceLabel } from '../store/selectors.js';
+import {
+	PANEL_OPTIONS,
+	getDisplayModeLabel,
+	getGuidanceContent,
+	getPhaseLabel,
+	getWorkspaceLabel
+} from '../store/selectors.js';
 import { ArCanvas } from './ArCanvas.js';
 import { ArStatusBar } from './ArStatusBar.js';
 import { QuickActions } from './QuickActions.js';
@@ -30,7 +36,8 @@ export function ArRuntimeView(props: {
 	const canOpenTools = true;
 	const placeActionLabel = engine.arSessionPhase === 'ready-to-place' ? '开始放置' : '继续扫描';
 	const drawerToggleLabel = state.ui.drawerOpen ? '收起面板' : `展开${getWorkspaceLabel( engine.workspaceMode )}`;
-	const subtitle = `${getWorkspaceLabel( engine.workspaceMode )} / ${getPhaseLabel( engine.arSessionPhase )} / RMS ${engine.precisionRegistration.rmsText === '--' ? engine.registrationMetrics.rmsText : engine.precisionRegistration.rmsText}`;
+	const displayModeLabel = getDisplayModeLabel( engine.displayMode );
+	const subtitle = `${getWorkspaceLabel( engine.workspaceMode )} / ${getPhaseLabel( engine.arSessionPhase )} / ${displayModeLabel} / RMS ${engine.precisionRegistration.rmsText === '--' ? engine.registrationMetrics.rmsText : engine.precisionRegistration.rmsText}`;
 
 	return (
 		<div className={ `mobile-ar-root${showPlacementUi ? ' mobile-ar-root--placement' : ''}` }>
@@ -65,6 +72,7 @@ export function ArRuntimeView(props: {
 					onDisplay={actions.cycleDisplayMode}
 					onSnapshot={actions.takeSnapshot}
 					onDrawer={actions.toggleDrawer}
+					displayLabel={displayModeLabel}
 				/>
 
 				{showPlacementUi ? (

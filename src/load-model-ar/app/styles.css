@@ -331,6 +331,10 @@ textarea {
 	flex-basis: 96px;
 }
 
+.button-row--compact > * {
+	flex: 0 0 auto;
+}
+
 .panel-stack {
 	display: flex;
 	flex-direction: column;
@@ -549,6 +553,17 @@ textarea {
 	cursor: pointer;
 	font-size: 12px;
 	font-weight: 700;
+}
+
+.tool-button--stacked {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.tool-button--stacked strong {
+	font-size: 11px;
+	line-height: 1;
 }
 
 .primary-bar {

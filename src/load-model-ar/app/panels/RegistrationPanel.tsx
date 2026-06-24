@@ -13,6 +13,7 @@ export function RegistrationPanel(props: {
 	const engine = state.engine;
 	const ui = state.ui;
 	const placed = engine.arSessionPhase === 'placed' || engine.appMode === 'pre-ar';
+	const showExportSnapshotAction = engine.appMode === 'pre-ar';
 
 	return (
 		<div className="panel-stack">
@@ -37,8 +38,13 @@ export function RegistrationPanel(props: {
 				<div className="button-row">
 					<ActionButton label="手动微调" onClick={ () => actions.setRegistrationView( 'manual' ) } kind={ui.registrationView === 'manual' ? 'primary' : undefined} disabled={!placed} />
 					<ActionButton label="控制点配准" onClick={ () => actions.setRegistrationView( 'control' ) } kind={ui.registrationView === 'control' ? 'primary' : undefined} disabled={!placed} />
-					<ActionButton label="导出快照" onClick={actions.exportRegistrationSnapshot} kind="secondary" />
 				</div>
+
+				{showExportSnapshotAction ? (
+					<div className="button-row button-row--compact">
+						<ActionButton label="导出配准快照 JSON" onClick={actions.exportRegistrationSnapshot} kind="secondary" />
+					</div>
+				) : null}
 
 				<div className="button-row">
 					<ActionButton label="保存配准" onClick={actions.saveManualRegistration} kind="primary" disabled={!placed} />

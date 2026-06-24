@@ -811,7 +811,43 @@ export class ThreeEngine {
 
 	takeSnapshot(): void {
 
-		this.setStatus( '截图功能暂未接入。' );
+		try {
+			this.sceneBundle.renderer.render( this.sceneBundle.scene, this.sceneBundle.camera );
+			const canvas = this.sceneBundle.renderer.domElement;
+			const timestamp = createSnapshotTimestamp();
+			const fileBaseName = this.demoModelConfig?.modelId || 'ar-scene';
+			const fileName = `${fileBaseName}-${timestamp}.png`;
+
+			const downloadBlob = ( blob: Blob | null ): void => {
+				if ( blob === null ) {
+					this.setStatus( '当前环境未能生成截图文件。' );
+					return;
+				}
+
+				const url = URL.createObjectURL( blob );
+				const link = document.createElement( 'a' );
+				link.href = url;
+				link.download = fileName;
+				link.click();
+				URL.revokeObjectURL( url );
+				this.setStatus( `截图已导出：${fileName}` );
+			};
+
+			if ( typeof canvas.toBlob === 'function' ) {
+				canvas.toBlob( downloadBlob, 'image/png' );
+				return;
+			}
+
+			const dataUrl = canvas.toDataURL( 'image/png' );
+			const link = document.createElement( 'a' );
+			link.href = dataUrl;
+			link.download = fileName;
+			link.click();
+			this.setStatus( `截图已导出：${fileName}` );
+		} catch ( error ) {
+			console.error( 'Snapshot export failed:', error );
+			this.setStatus( '截图失败，当前环境可能限制了画面导出。' );
+		}
 
 	}
 
@@ -1150,6 +1186,22 @@ export class ThreeEngine {
 		this.sceneBundle.renderer.render( this.sceneBundle.scene, this.sceneBundle.camera );
 
 	};
+
+}
+
+function createSnapshotTimestamp(): string {
+
+	const now = new Date();
+	const pad = (value: number): string => String( value ).padStart( 2, '0' );
+	return [
+		now.getFullYear(),
+		pad( now.getMonth() + 1 ),
+		pad( now.getDate() )
+	].join( '' ) + '-' + [
+		pad( now.getHours() ),
+		pad( now.getMinutes() ),
+		pad( now.getSeconds() )
+	].join( '' );
 
 }
 

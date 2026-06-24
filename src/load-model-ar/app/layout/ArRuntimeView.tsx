@@ -50,9 +50,6 @@ export function ArRuntimeView(props: {
 				data-ar-ui="true"
 				onPointerDownCapture={actions.handleArUiInteraction}
 				onPointerUpCapture={actions.handleArUiInteraction}
-				onTouchStartCapture={actions.handleArUiInteraction}
-				onTouchEndCapture={actions.handleArUiInteraction}
-				onClickCapture={actions.handleArUiInteraction}
 			>
 				<ArStatusBar
 					title={engine.projectName}

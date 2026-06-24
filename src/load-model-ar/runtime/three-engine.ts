@@ -828,31 +828,8 @@ export class ThreeEngine {
 			const fileBaseName = this.demoModelConfig?.modelId || 'ar-scene';
 			const fileName = `${fileBaseName}-${timestamp}.png`;
 
-			const downloadBlob = ( blob: Blob | null ): void => {
-				if ( blob === null ) {
-					this.setStatus( '当前环境未能生成截图文件。' );
-					return;
-				}
-
-				const url = URL.createObjectURL( blob );
-				const link = document.createElement( 'a' );
-				link.href = url;
-				link.download = fileName;
-				link.click();
-				URL.revokeObjectURL( url );
-				this.setStatus( `截图已导出：${fileName}` );
-			};
-
-			if ( typeof canvas.toBlob === 'function' ) {
-				canvas.toBlob( downloadBlob, 'image/png' );
-				return;
-			}
-
 			const dataUrl = canvas.toDataURL( 'image/png' );
-			const link = document.createElement( 'a' );
-			link.href = dataUrl;
-			link.download = fileName;
-			link.click();
+			triggerFileDownload( dataUrl, fileName );
 			this.setStatus( `截图已导出：${fileName}` );
 		} catch ( error ) {
 			console.error( 'Snapshot export failed:', error );
@@ -875,6 +852,11 @@ export class ThreeEngine {
 
 	exportRegistrationSnapshot(): void {
 
+		if ( this.sceneBundle.renderer.xr.isPresenting || this.store.getState().appMode === 'ar-session' ) {
+			this.setStatus( 'AR 运行中不提供配准 JSON 导出，请退出 AR 后再操作。' );
+			return;
+		}
+
 		if ( this.demoModelConfig === null || this.registrationSolution === null ) {
 			this.setStatus( '当前没有可导出的配准快照。' );
 			return;
@@ -890,11 +872,10 @@ export class ThreeEngine {
 
 		const blob = new Blob( [ JSON.stringify( snapshot, null, 2 ) ], { type: 'application/json' } );
 		const url = URL.createObjectURL( blob );
-		const link = document.createElement( 'a' );
-		link.href = url;
-		link.download = `${this.demoModelConfig.modelId}-registration.json`;
-		link.click();
-		URL.revokeObjectURL( url );
+		triggerFileDownload( url, `${this.demoModelConfig.modelId}-registration.json` );
+		window.setTimeout( () => {
+			URL.revokeObjectURL( url );
+		}, 1000 );
 		this.setStatus( '已导出配准 JSON 快照。' );
 
 	}
@@ -1237,6 +1218,21 @@ function createSnapshotTimestamp(): string {
 		pad( now.getMinutes() ),
 		pad( now.getSeconds() )
 	].join( '' );
+
+}
+
+function triggerFileDownload(url: string, filename: string): void {
+
+	const link = document.createElement( 'a' );
+	link.href = url;
+	link.download = filename;
+	link.rel = 'noopener';
+	link.style.display = 'none';
+	document.body.appendChild( link );
+	link.click();
+	window.setTimeout( () => {
+		link.remove();
+	}, 0 );
 
 }
 

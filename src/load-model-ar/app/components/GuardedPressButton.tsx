@@ -1,7 +1,4 @@
-import React, { useCallback } from 'react';
-
-const GHOST_CLICK_WINDOW_MS = 420;
-let suppressGhostClickUntil = 0;
+import React, { useCallback, useRef } from 'react';
 
 export function GuardedPressButton(props: {
 	className: string;
@@ -12,35 +9,55 @@ export function GuardedPressButton(props: {
 }): React.JSX.Element {
 
 	const { className, type = 'button', onPress, disabled = false, children } = props;
+	const activePointerIdRef = useRef<number | null>( null );
 
 	const handlePointerDown = useCallback( ( event: React.PointerEvent<HTMLButtonElement> ) => {
 		event.stopPropagation();
+		if ( disabled ) {
+			return;
+		}
+
+		activePointerIdRef.current = event.pointerId;
+		event.currentTarget.setPointerCapture( event.pointerId );
+	}, [ disabled ] );
+
+	const resetPointerState = useCallback( () => {
+		activePointerIdRef.current = null;
 	}, [] );
 
 	const handlePointerUp = useCallback( ( event: React.PointerEvent<HTMLButtonElement> ) => {
 		event.stopPropagation();
-		if ( disabled ) {
-			event.preventDefault();
+		event.preventDefault();
+		if ( disabled || activePointerIdRef.current !== event.pointerId ) {
+			resetPointerState();
 			return;
 		}
 
-		suppressGhostClickUntil = performance.now() + GHOST_CLICK_WINDOW_MS;
-		event.preventDefault();
+		resetPointerState();
 		onPress();
-	}, [ disabled, onPress ] );
+	}, [ disabled, onPress, resetPointerState ] );
+
+	const handlePointerCancel = useCallback( ( event: React.PointerEvent<HTMLButtonElement> ) => {
+		event.stopPropagation();
+		resetPointerState();
+	}, [ resetPointerState ] );
 
 	const handleClick = useCallback( ( event: React.MouseEvent<HTMLButtonElement> ) => {
 		event.stopPropagation();
+		event.preventDefault();
+	}, [] );
+
+	const handleKeyDown = useCallback( ( event: React.KeyboardEvent<HTMLButtonElement> ) => {
 		if ( disabled ) {
-			event.preventDefault();
 			return;
 		}
 
-		if ( performance.now() < suppressGhostClickUntil ) {
-			event.preventDefault();
+		if ( event.key !== 'Enter' && event.key !== ' ' ) {
 			return;
 		}
 
+		event.preventDefault();
+		event.stopPropagation();
 		onPress();
 	}, [ disabled, onPress ] );
 
@@ -50,7 +67,10 @@ export function GuardedPressButton(props: {
 			type={type}
 			onPointerDown={handlePointerDown}
 			onPointerUp={handlePointerUp}
+			onPointerCancel={handlePointerCancel}
+			onPointerLeave={handlePointerCancel}
 			onClick={handleClick}
+			onKeyDown={handleKeyDown}
 			disabled={disabled}
 		>
 			{children}

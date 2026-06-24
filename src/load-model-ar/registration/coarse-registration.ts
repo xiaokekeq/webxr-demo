@@ -101,6 +101,9 @@ export function createCoarseRegistrationController(
 		groundY: number
 	): CoarsePlacementEstimate | null {
 
+		// Coarse placement needs two runtime signals:
+		// 1. device heading, used to align the ENU frame with the AR world;
+		// 2. target offset, either demo ENU offset or GPS-derived target offset.
 		if ( canEstimate() === false || lastHeadingDeg === null ) {
 			return null;
 		}
@@ -113,6 +116,9 @@ export function createCoarseRegistrationController(
 		const enuToArQuaternion = getEnuToArQuaternion( lastHeadingDeg, tempQuaternion );
 		convertEnuOffsetToArOffset( enuOffset, lastHeadingDeg, tempArOffset );
 
+		// Use the current camera pose as the local AR reference. The horizontal ENU
+		// offset is rotated into AR space, while the vertical component is anchored
+		// to the hit-test ground height.
 		tempPosition.copy( cameraWorldPosition );
 		tempPosition.x += tempArOffset.x;
 		tempPosition.y = groundY + tempArOffset.y;
@@ -239,6 +245,7 @@ export function createCoarseRegistrationController(
 	function getTargetOffsetEnu(): THREE.Vector3 | null {
 
 		if ( target.mode === 'demo-offset' ) {
+			// Demo mode bypasses GPS and uses a fixed local ENU offset.
 			return tempEnuOffset.set( target.eastMeters, target.northMeters, 0 );
 		}
 
@@ -258,6 +265,8 @@ export function createCoarseRegistrationController(
 		};
 		const currentEnuFrame = createEnuFrame( currentGeodetic );
 
+		// Absolute-site mode converts the model/site origin into a local ENU offset
+		// relative to the user's current GPS position.
 		return geodeticToEnu( targetGeodetic, currentEnuFrame, tempEnuOffset );
 
 	}
@@ -279,6 +288,9 @@ export function getEnuToArQuaternion(
 	target = new THREE.Quaternion()
 ): THREE.Quaternion {
 
+	// ENU uses X=east, Y=north, Z=up. Three.js AR world uses Y=up and
+	// camera-forward roughly along -Z, so this matrix maps ENU basis vectors
+	// into the current AR world using the device compass heading.
 	const headingRad = THREE.MathUtils.degToRad( headingDeg );
 	const cosHeading = Math.cos( headingRad );
 	const sinHeading = Math.sin( headingRad );
@@ -300,6 +312,8 @@ function convertEnuOffsetToArOffset(
 	target = new THREE.Vector3()
 ): THREE.Vector3 {
 
+	// Rotate the horizontal ENU offset into AR horizontal axes. ENU altitude maps
+	// to AR Y; north/east are projected onto AR X/Z according to heading.
 	const headingRad = THREE.MathUtils.degToRad( headingDeg );
 	const cosHeading = Math.cos( headingRad );
 	const sinHeading = Math.sin( headingRad );

@@ -46,6 +46,9 @@ const tempScale = new THREE.Vector3();
 
 export function solveEngineeringRegistration(config: DemoModelConfig): EngineeringRegistrationSolution {
 
+	// Build a stable site ENU frame from the configured project origin. All
+	// geodetic control points are converted into this local metric coordinate
+	// system before solving model -> site registration.
 	const siteEnuFrame = createEnuFrame( config.siteFrame.origin );
 
 	const controlPoints = Object.entries( config.controlPoints ).map( ( [ id, point ] ) => {
@@ -67,6 +70,8 @@ export function solveEngineeringRegistration(config: DemoModelConfig): Engineeri
 		);
 	}
 
+	// This is the offline/model-side registration: find the similarity transform
+	// that maps model-local control points into the engineering site ENU frame.
 	const modelToSite = solveSimilarityTransform(
 		controlPoints.map( ( point ) => point.modelLocal ),
 		controlPoints.map( ( point ) => point.worldEnu ),
@@ -95,6 +100,8 @@ export function createCoarseTargetFromEngineeringSolution(
 	solution: EngineeringRegistrationSolution
 ): AbsoluteSiteTarget {
 
+	// The coarse runtime only needs the site origin and a heading seed. The full
+	// model -> site transform remains in EngineeringRegistrationSolution.
 	return {
 		mode: 'absolute-site',
 		label: `${solution.modelId} site origin`,
@@ -113,6 +120,8 @@ export function composeModelQuaternionInAr(
 	target = new THREE.Quaternion()
 ): THREE.Quaternion {
 
+	// Three.js applies the right-hand quaternion first. This composes:
+	// model local -> site ENU -> AR world.
 	return target.copy( enuToArQuaternion ).multiply( solution.modelToSite.rotation );
 
 }
@@ -123,6 +132,8 @@ function solveSimilarityTransform(
 	mode: DemoModelRegistrationMode
 ): SimilarityTransformSolution {
 
+	// Centering separates rotation/scale from translation. The final translation
+	// is recovered after the best rotation and optional uniform scale are known.
 	const sourceCentroid = computeCentroid( sourcePoints );
 	const targetCentroid = computeCentroid( targetPoints );
 
@@ -134,6 +145,8 @@ function solveSimilarityTransform(
 
 	let scale = 1;
 	if ( mode === 'similarity' ) {
+		// Uniform scale is solved after rotation by least squares projection.
+		// Rigid mode keeps this fixed at 1.
 		let numerator = 0;
 		let denominator = 0;
 
@@ -148,6 +161,7 @@ function solveSimilarityTransform(
 		}
 	}
 
+	// Translation aligns the transformed source centroid to the target centroid.
 	const translation = targetCentroid.clone().sub(
 		sourceCentroid.clone().applyQuaternion( rotation ).multiplyScalar( scale )
 	);
@@ -183,6 +197,9 @@ function computeCentroid(points: THREE.Vector3[]): THREE.Vector3 {
 
 function computeCrossCovariance(source: THREE.Vector3[], target: THREE.Vector3[]): number[][] {
 
+	// Cross covariance captures how centered model points correlate with centered
+	// site points. Horn's method turns this 3x3 relation into a 4x4 quaternion
+	// eigen problem.
 	const matrix = [
 		[ 0, 0, 0 ],
 		[ 0, 0, 0 ],
@@ -210,6 +227,8 @@ function computeCrossCovariance(source: THREE.Vector3[], target: THREE.Vector3[]
 
 function solveHornQuaternion(covariance: number[][]): THREE.Quaternion {
 
+	// Horn's absolute orientation method: the dominant eigenvector of this 4x4
+	// matrix is the quaternion that minimizes squared point alignment error.
 	const sxx = covariance[ 0 ][ 0 ];
 	const sxy = covariance[ 0 ][ 1 ];
 	const sxz = covariance[ 0 ][ 2 ];
@@ -229,6 +248,8 @@ function solveHornQuaternion(covariance: number[][]): THREE.Quaternion {
 	];
 
 	const eigenVector = powerIterateLargestEigenVector( hornMatrix );
+	// powerIterateLargestEigenVector returns [w, x, y, z]; THREE.Quaternion
+	// stores values as (x, y, z, w).
 	tempQuaternion.set( eigenVector[ 1 ], eigenVector[ 2 ], eigenVector[ 3 ], eigenVector[ 0 ] );
 	tempQuaternion.normalize();
 
@@ -241,6 +262,8 @@ function powerIterateLargestEigenVector(matrix: number[][]): [ number, number, n
 	let vector: [ number, number, number, number ] = [ 1, 0, 0, 0 ];
 
 	for ( let iteration = 0; iteration < 64; iteration += 1 ) {
+		// Power iteration repeatedly applies the matrix and normalizes the result.
+		// For this symmetric Horn matrix it converges to the dominant eigenvector.
 		const next: [ number, number, number, number ] = [
 			dot4( matrix[ 0 ], vector ),
 			dot4( matrix[ 1 ], vector ),
@@ -273,6 +296,7 @@ function computeRmsError(
 	scale: number
 ): number {
 
+	// RMS is reported in meters because target points are in the site ENU frame.
 	let sumSquaredError = 0;
 
 	for ( let index = 0; index < sourcePoints.length; index += 1 ) {
@@ -291,6 +315,8 @@ function computeRmsError(
 
 function extractHeadingDegFromQuaternion(quaternion: THREE.Quaternion): number {
 
+	// Convert model -> site rotation into a compass-like heading seed. The model
+	// forward vector is projected into the ENU horizontal plane.
 	const matrix = new THREE.Matrix4().compose(
 		new THREE.Vector3(),
 		quaternion,

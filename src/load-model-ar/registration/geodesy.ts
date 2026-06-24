@@ -31,6 +31,8 @@ const tempRecoveredEcef = new THREE.Vector3();
 
 export function createEnuFrame(origin: GeodeticCoordinate): EnuFrame {
 
+	// ENU is a local tangent frame at the project/GPS origin:
+	// X=east, Y=north, Z=up. It keeps nearby site coordinates in meters.
 	const latRad = THREE.MathUtils.degToRad( origin.lat );
 	const lonRad = THREE.MathUtils.degToRad( origin.lon );
 	const sinLat = Math.sin( latRad );
@@ -63,6 +65,8 @@ export function createEnuFrame(origin: GeodeticCoordinate): EnuFrame {
 
 export function geodeticToEcef(geodetic: GeodeticCoordinate, target = new THREE.Vector3()): THREE.Vector3 {
 
+	// Convert WGS84 latitude/longitude/altitude to Earth-Centered Earth-Fixed
+	// coordinates. ECEF is the bridge used before projecting into ENU.
 	const latRad = THREE.MathUtils.degToRad( geodetic.lat );
 	const lonRad = THREE.MathUtils.degToRad( geodetic.lon );
 	const sinLat = Math.sin( latRad );
@@ -113,6 +117,7 @@ export function geodeticToEnu(
 	target = new THREE.Vector3()
 ): THREE.Vector3 {
 
+	// Geodetic -> ECEF -> ENU gives a local meter offset from the ENU origin.
 	const pointEcef = geodeticToEcef( point, tempPointEcef );
 	return ecefToEnu( pointEcef, frameOrOrigin, target );
 

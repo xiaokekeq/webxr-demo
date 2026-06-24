@@ -34,6 +34,7 @@ export function ArRuntimeView(props: {
 	const canInspect = engine.arSessionPhase === 'placed';
 	const canOpenBrowse = engine.arSessionPhase === 'placed' || showPlacementUi;
 	const canOpenTools = true;
+	const canUseDisplayModeQuickAction = engine.arSessionPhase === 'placed';
 	const placeActionLabel = engine.arSessionPhase === 'ready-to-place' ? '开始放置' : '继续扫描';
 	const drawerToggleLabel = state.ui.drawerOpen ? '收起面板' : `展开${getWorkspaceLabel( engine.workspaceMode )}`;
 	const displayModeLabel = getDisplayModeLabel( engine.displayMode );
@@ -73,6 +74,7 @@ export function ArRuntimeView(props: {
 					onSnapshot={actions.takeSnapshot}
 					onDrawer={actions.toggleDrawer}
 					displayLabel={displayModeLabel}
+					displayDisabled={!canUseDisplayModeQuickAction}
 				/>
 
 				{showPlacementUi ? (

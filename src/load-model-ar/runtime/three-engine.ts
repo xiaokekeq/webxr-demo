@@ -24,7 +24,7 @@ import {
 import { createCoarseRegistrationController } from '../registration/coarse-registration.js';
 import { createManualRegistrationController } from '../registration/manual-registration.js';
 import { createPrecisionRegistrationController } from '../registration/precision-registration-controller.js';
-import { createDisplayModeController } from './display-mode.js';
+import { createDisplayModeController, preserveRootTransform } from './display-mode.js';
 import { createARScene, resizeARScene } from './scene.js';
 import { createXRSessionRuntime } from './xr.js';
 
@@ -372,11 +372,11 @@ export class ThreeEngine {
 		this.sceneBundle.renderer.xr.addEventListener( 'sessionend', this.unbindArSelectionSession );
 
 		this.store.subscribe( () => {
-			this.displayModeController.sync( this.store.getState().displayMode );
+			this.syncDisplayModeState();
 			this.emit();
 		} );
 
-		this.displayModeController.sync( this.store.getState().displayMode );
+		this.syncDisplayModeState();
 
 	}
 
@@ -511,6 +511,11 @@ export class ThreeEngine {
 			return;
 		}
 
+		if ( this.canMutatePlacedModelDisplayMode() === false ) {
+			this.setStatus( '请先完成模型放置，再切换显示模式。' );
+			return;
+		}
+
 		if ( this.store.getState().displayMode === mode ) {
 			return;
 		}
@@ -521,6 +526,11 @@ export class ThreeEngine {
 	}
 
 	cycleDisplayMode(): void {
+
+		if ( this.canMutatePlacedModelDisplayMode() === false ) {
+			this.setStatus( '请先完成模型放置，再切换显示模式。' );
+			return;
+		}
 
 		const modes: DisplayMode[] = [ 'normal', 'xray', 'occlusion-outline' ];
 		const currentIndex = modes.indexOf( this.store.getState().displayMode );
@@ -1071,6 +1081,31 @@ export class ThreeEngine {
 
 		resizeARScene( this.sceneBundle.camera, this.sceneBundle.renderer, targetHost );
 		this.sceneBundle.renderer.render( this.sceneBundle.scene, this.sceneBundle.camera );
+
+	}
+
+	private canMutatePlacedModelDisplayMode(): boolean {
+
+		const state = this.store.getState();
+		if ( state.appMode !== 'ar-session' ) {
+			return true;
+		}
+
+		return this.placementSession.getPlacedModel() !== null;
+
+	}
+
+	private syncDisplayModeState(): void {
+
+		const placedModel = this.placementSession.getPlacedModel();
+		if ( placedModel === null ) {
+			this.displayModeController.sync( this.store.getState().displayMode );
+			return;
+		}
+
+		preserveRootTransform( placedModel, () => {
+			this.displayModeController.sync( this.store.getState().displayMode );
+		} );
 
 	}
 

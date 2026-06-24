@@ -190,6 +190,20 @@ export function createDisplayModeController(
 
 }
 
+export function preserveRootTransform(root: THREE.Object3D, apply: () => void): void {
+
+	const position = root.position.clone();
+	const quaternion = root.quaternion.clone();
+	const scale = root.scale.clone();
+
+	apply();
+
+	root.position.copy( position );
+	root.quaternion.copy( quaternion );
+	root.scale.copy( scale );
+
+}
+
 function forEachMaterial(
 	material: THREE.Material | THREE.Material[],
 	callback: (material: THREE.Material) => void

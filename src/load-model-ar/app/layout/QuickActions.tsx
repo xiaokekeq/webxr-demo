@@ -6,11 +6,12 @@ export function QuickActions(props: {
 	onSnapshot(): void;
 	onDrawer(): void;
 	displayLabel: string;
+	displayDisabled?: boolean;
 }): React.JSX.Element {
 
 	return (
 		<div className="quick-tools">
-			<GuardedPressButton className="tool-button tool-button--stacked" onPress={props.onDisplay}>
+			<GuardedPressButton className="tool-button tool-button--stacked" onPress={props.onDisplay} disabled={props.displayDisabled}>
 				<span>模式</span>
 				<strong>{props.displayLabel}</strong>
 			</GuardedPressButton>

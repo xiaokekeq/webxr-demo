@@ -1,4 +1,5 @@
-﻿import type React from 'react';
+import type React from 'react';
+import { GuardedPressButton } from '../components/GuardedPressButton.js';
 
 export function QuickActions(props: {
 	onDisplay(): void;
@@ -8,9 +9,9 @@ export function QuickActions(props: {
 
 	return (
 		<div className="quick-tools">
-			<button className="tool-button" type="button" onClick={props.onDisplay}>模式</button>
-			<button className="tool-button" type="button" onClick={props.onSnapshot}>截图</button>
-			<button className="tool-button" type="button" onClick={props.onDrawer}>面板</button>
+			<GuardedPressButton className="tool-button" onPress={props.onDisplay}>模式</GuardedPressButton>
+			<GuardedPressButton className="tool-button" onPress={props.onSnapshot}>截图</GuardedPressButton>
+			<GuardedPressButton className="tool-button" onPress={props.onDrawer}>面板</GuardedPressButton>
 		</div>
 	);
 

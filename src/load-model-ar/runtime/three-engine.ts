@@ -487,7 +487,7 @@ export class ThreeEngine {
 
 	handleArUiInteraction(): void {
 
-		this.pointerSelection.cancelPendingSelection( 900 );
+		this.pointerSelection.cancelPendingSelection( 1400 );
 
 	}
 

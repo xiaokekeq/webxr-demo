@@ -134,7 +134,7 @@ export function createLoadModelArController(): LoadModelArController {
 		if ( enteredArSession ) {
 			nextUi = {
 				...nextUi,
-				drawerOpen: true,
+				drawerOpen: false,
 				registrationView: 'overview',
 				browseDetailsExpanded: false
 			};

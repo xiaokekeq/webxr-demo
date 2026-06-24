@@ -478,9 +478,29 @@ textarea {
 	text-align: center;
 }
 
+.status-pill--button {
+	border: 0;
+	cursor: pointer;
+}
+
+.status-pill--button:disabled {
+	opacity: 0.66;
+	cursor: not-allowed;
+}
+
 .status-pill--muted {
 	background: #e8eefc;
 	color: #38507d;
+}
+
+.topbar,
+.guidance-card,
+.quick-tools,
+.primary-bar,
+.drawer-anchor,
+.drawer-toggle,
+.bottom-nav {
+	z-index: 2;
 }
 
 .guidance-card {
@@ -589,6 +609,21 @@ textarea {
 	background: rgba(255, 255, 255, 0.96);
 	backdrop-filter: blur(16px);
 	box-shadow: var(--shadow);
+}
+
+.mobile-ar-root--placement .primary-bar {
+	bottom: calc(max(12px, env(safe-area-inset-bottom, 0px)) + 104px);
+	z-index: 5;
+}
+
+.mobile-ar-root--placement .drawer-toggle {
+	bottom: calc(max(12px, env(safe-area-inset-bottom, 0px)) + 166px);
+	z-index: 4;
+}
+
+.mobile-ar-root--placement .drawer-anchor {
+	bottom: calc(max(12px, env(safe-area-inset-bottom, 0px)) + 222px);
+	z-index: 3;
 }
 
 .nav-button {

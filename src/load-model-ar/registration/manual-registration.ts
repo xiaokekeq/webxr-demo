@@ -1,5 +1,5 @@
-import * as THREE from 'three';
-import type { SetStatus } from '../ui/types.js';
+﻿import * as THREE from 'three';
+import type { SetStatus } from '../shared/types.js';
 
 export interface ManualRegistrationState {
 	offset: THREE.Vector3;
@@ -275,3 +275,4 @@ function clamp(value: number, min: number, max: number): number {
 	return Math.min( Math.max( value, min ), max );
 
 }
+

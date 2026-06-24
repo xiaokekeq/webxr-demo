@@ -1,7 +1,7 @@
-import * as THREE from 'three';
+﻿import * as THREE from 'three';
 import { COARSE_REGISTRATION_TARGET, type CoarseRegistrationTarget } from './coarse-registration-config.js';
 import { createEnuFrame, geodeticToEnu } from './geodesy.js';
-import type { CoarsePlacementEstimate, SetStatus } from '../ui/types.js';
+import type { CoarsePlacementEstimate, SetStatus } from '../shared/types.js';
 
 interface CreateCoarseRegistrationControllerOptions {
 	setStatus: SetStatus;
@@ -333,3 +333,4 @@ function normalizeDegrees(value: number): number {
 	return ( ( value % 360 ) + 360 ) % 360;
 
 }
+

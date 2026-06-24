@@ -1,4 +1,4 @@
-import type { SetStatus } from '../ui/types.js';
+﻿import type { SetStatus } from '../shared/types.js';
 import type { GeodeticCoordinate } from '../registration/geodesy.js';
 
 export interface DemoModelLocalPoint {
@@ -188,3 +188,4 @@ function synthesizeWorldControlPoint(
 	};
 
 }
+

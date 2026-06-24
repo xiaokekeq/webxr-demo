@@ -1,8 +1,8 @@
-import * as THREE from 'three';
+﻿import * as THREE from 'three';
 import {
 	createDefaultPrecisionRegistrationState,
 	type RegistrationStore
-} from '../data/registration-store.js';
+} from './registration-store.js';
 import type { EngineeringControlPoint } from './engineering-registration.js';
 import { solveSimilarityTransform } from './engineering-registration.js';
 import {
@@ -361,3 +361,5 @@ function formatVectorLabel(vector: THREE.Vector3): string {
 	return `(${vector.x.toFixed( 2 )}, ${vector.y.toFixed( 2 )}, ${vector.z.toFixed( 2 )})`;
 
 }
+
+

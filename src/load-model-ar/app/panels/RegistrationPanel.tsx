@@ -13,6 +13,7 @@ export function RegistrationPanel(props: {
 	const engine = state.engine;
 	const ui = state.ui;
 	const placed = engine.arSessionPhase === 'placed' || engine.appMode === 'pre-ar';
+	const canManualAdjust = placed && engine.precisionRegistration.rmsText !== '--';
 	const showExportSnapshotAction = engine.appMode === 'pre-ar';
 
 	function handleClearSavedRegistration(): void {
@@ -56,7 +57,7 @@ export function RegistrationPanel(props: {
 				</div>
 
 				<div className="button-row">
-					<ActionButton label="手动微调" onClick={ () => actions.setRegistrationView( 'manual' ) } kind={ui.registrationView === 'manual' ? 'primary' : undefined} disabled={!placed} />
+					<ActionButton label="手动微调" onClick={ () => actions.setRegistrationView( 'manual' ) } kind={ui.registrationView === 'manual' ? 'primary' : undefined} disabled={!canManualAdjust} />
 					<ActionButton label="控制点配准" onClick={ () => actions.setRegistrationView( 'control' ) } kind={ui.registrationView === 'control' ? 'primary' : undefined} disabled={!placed} />
 				</div>
 
@@ -67,33 +68,36 @@ export function RegistrationPanel(props: {
 				) : null}
 
 				<div className="button-row">
-					<ActionButton label="保存配准" onClick={actions.saveManualRegistration} kind="primary" disabled={!placed} />
-					<ActionButton label="重置微调" onClick={actions.resetManualRegistration} kind="secondary" disabled={!placed} />
+					<ActionButton label="保存配准" onClick={actions.saveManualRegistration} kind="primary" disabled={!canManualAdjust} />
+					<ActionButton label="重置微调" onClick={actions.resetManualRegistration} kind="secondary" disabled={!canManualAdjust} />
 					<ActionButton label="清除已保存配准" onClick={handleClearSavedRegistration} kind="secondary" disabled={!placed} />
 				</div>
 			</PanelSection>
 
 			{ui.registrationView === 'manual' ? (
-				<PanelSection title="手动微调" subtitle="平移、旋转和尺度调整都通过运行时控制。">
+				<PanelSection title="手动微调" subtitle="控制点精确配准完成后，再做最后的人为收口。">
 					<div className="manual-grid">
-						<ActionButton label="前移" onClick={ () => actions.adjustTranslation( 'z', -1 ) } />
-						<ActionButton label="左移" onClick={ () => actions.adjustTranslation( 'x', -1 ) } />
-						<ActionButton label="上移" onClick={ () => actions.adjustTranslation( 'y', 1 ) } />
-						<ActionButton label="右移" onClick={ () => actions.adjustTranslation( 'x', 1 ) } />
-						<ActionButton label="后移" onClick={ () => actions.adjustTranslation( 'z', 1 ) } />
-						<ActionButton label="下移" onClick={ () => actions.adjustTranslation( 'y', -1 ) } />
+						<ActionButton label="前移" onClick={ () => actions.adjustTranslation( 'z', -1 ) } disabled={!canManualAdjust} />
+						<ActionButton label="左移" onClick={ () => actions.adjustTranslation( 'x', -1 ) } disabled={!canManualAdjust} />
+						<ActionButton label="上移" onClick={ () => actions.adjustTranslation( 'y', 1 ) } disabled={!canManualAdjust} />
+						<ActionButton label="右移" onClick={ () => actions.adjustTranslation( 'x', 1 ) } disabled={!canManualAdjust} />
+						<ActionButton label="后移" onClick={ () => actions.adjustTranslation( 'z', 1 ) } disabled={!canManualAdjust} />
+						<ActionButton label="下移" onClick={ () => actions.adjustTranslation( 'y', -1 ) } disabled={!canManualAdjust} />
 					</div>
 					<div className="button-row">
-						<ActionButton label="左旋" onClick={ () => actions.adjustYaw( -1 ) } />
-						<ActionButton label="右旋" onClick={ () => actions.adjustYaw( 1 ) } />
-						<ActionButton label="缩小" onClick={ () => actions.adjustScale( -1 ) } />
-						<ActionButton label="放大" onClick={ () => actions.adjustScale( 1 ) } />
+						<ActionButton label="左旋" onClick={ () => actions.adjustYaw( -1 ) } disabled={!canManualAdjust} />
+						<ActionButton label="右旋" onClick={ () => actions.adjustYaw( 1 ) } disabled={!canManualAdjust} />
+						<ActionButton label="缩小" onClick={ () => actions.adjustScale( -1 ) } disabled={!canManualAdjust} />
+						<ActionButton label="放大" onClick={ () => actions.adjustScale( 1 ) } disabled={!canManualAdjust} />
 					</div>
 					<p className="note-block">
 						位置: {engine.manualReadout.positionText}<br />
 						角度: {engine.manualReadout.yawText}<br />
 						尺度: {engine.manualReadout.scaleText}
 					</p>
+					{canManualAdjust ? null : (
+						<p className="note-block">请先完成控制点精确配准，再进入手动微调阶段。</p>
+					)}
 				</PanelSection>
 			) : null}
 

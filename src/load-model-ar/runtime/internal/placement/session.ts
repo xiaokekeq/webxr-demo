@@ -3,6 +3,7 @@ import type { ARSceneBundle, CoarsePlacementEstimate, XRHitTestController } from
 import { clearPlacedModel } from '../../model.js';
 import type { EngineeringRegistrationSolution } from '../../../registration/engineering-registration.js';
 import type { ManualPlacementBase } from '../../../registration/manual-registration.js';
+import type { PrecisionRegistrationResult } from '../../../registration/precision-registration-storage.js';
 import { createPlacementSummaryState } from '../runtime/view-state.js';
 import {
 	createAutoPlacementBase,
@@ -49,14 +50,8 @@ export interface PlacementSession {
 		};
 		modelOrientationTarget: THREE.Quaternion;
 		cameraWorldPosition: THREE.Vector3;
-		manualApplyToPlacement(
-			base: ManualPlacementBase,
-			targetPosition: THREE.Vector3,
-			targetOrientation: THREE.Quaternion
-		): { position: THREE.Vector3; orientation: THREE.Quaternion; scale: number };
-		manualPositionTarget: THREE.Vector3;
-		manualOrientationTarget: THREE.Quaternion;
 	}): void;
+	applyPrecisionRegistrationResult(result: PrecisionRegistrationResult): void;
 	reapplyManualRegistration(args: {
 		modelTemplate: THREE.Group | null;
 		manualApplyToPlacement(
@@ -71,13 +66,6 @@ export interface PlacementSession {
 	ensureDesktopPreviewPlacement(args: {
 		modelTemplate: THREE.Group | null;
 		registrationSolution: EngineeringRegistrationSolution | null;
-		manualApplyToPlacement(
-			base: ManualPlacementBase,
-			targetPosition: THREE.Vector3,
-			targetOrientation: THREE.Quaternion
-		): { position: THREE.Vector3; orientation: THREE.Quaternion; scale: number };
-		manualPositionTarget: THREE.Vector3;
-		manualOrientationTarget: THREE.Quaternion;
 	}): void;
 	fitDesktopPreviewToCamera(): void;
 	updateDesktopInteractionState(isDesktopLayout: boolean, isPresenting: boolean): void;
@@ -159,10 +147,7 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 				registrationSolution,
 				coarseRegistration,
 				modelOrientationTarget,
-				cameraWorldPosition,
-				manualApplyToPlacement,
-				manualPositionTarget,
-				manualOrientationTarget
+				cameraWorldPosition
 			} = args;
 
 			if (
@@ -210,17 +195,15 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 				usePreviewPlacement
 			} );
 
-			const adjustedPlacement = manualApplyToPlacement(
-				lastPlacementBase,
-				manualPositionTarget,
-				manualOrientationTarget
-			);
-
 			placedModel = placeAdjustedModel( {
 				modelTemplate,
 				placedModel,
 				modelAnchor: sceneBundle.modelAnchor,
-				adjustedPlacement
+				adjustedPlacement: {
+					position: lastPlacementBase.position,
+					orientation: lastPlacementBase.orientation,
+					scale: lastPlacementBase.scale
+				}
 			} );
 
 			coarsePlacementPending = false;
@@ -244,6 +227,17 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 
 		},
 
+		applyPrecisionRegistrationResult(result) {
+
+			if ( lastPlacementBase === null ) {
+				return;
+			}
+
+			lastPlacementBase = transformPlacementBase( lastPlacementBase, result );
+			updatePlacementSummary();
+
+		},
+
 		reapplyManualRegistration(args) {
 
 			const {
@@ -258,10 +252,7 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 				if ( canUsePreviewLayout() ) {
 					this.ensureDesktopPreviewPlacement( {
 						modelTemplate,
-						registrationSolution,
-						manualApplyToPlacement,
-						manualPositionTarget,
-						manualOrientationTarget
+						registrationSolution
 					} );
 				}
 				return;
@@ -288,10 +279,7 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 
 			const {
 				modelTemplate,
-				registrationSolution,
-				manualApplyToPlacement,
-				manualPositionTarget,
-				manualOrientationTarget
+				registrationSolution
 			} = args;
 
 			if ( canUsePreviewLayout() === false || modelTemplate === null || registrationSolution === null ) {
@@ -300,17 +288,15 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 
 			lastPlacementBase = createDesktopPreviewBase( modelTemplate, registrationSolution );
 
-			const adjustedPlacement = manualApplyToPlacement(
-				lastPlacementBase,
-				manualPositionTarget,
-				manualOrientationTarget
-			);
-
 			placedModel = placeAdjustedModel( {
 				modelTemplate,
 				placedModel,
 				modelAnchor: sceneBundle.modelAnchor,
-				adjustedPlacement
+				adjustedPlacement: {
+					position: lastPlacementBase.position,
+					orientation: lastPlacementBase.orientation,
+					scale: lastPlacementBase.scale
+				}
 			} );
 
 			store.patch( { desktopPreviewBadge: desktopPreviewBadge } );
@@ -338,6 +324,30 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 			sceneBundle.controls.enabled = nextIsDesktopLayout && isPresenting === false;
 
 		}
+	};
+
+}
+
+function transformPlacementBase(
+	base: ManualPlacementBase,
+	result: Pick<PrecisionRegistrationResult, 'position' | 'quaternion' | 'scale'>
+): ManualPlacementBase {
+
+	const transformedPosition = base.position.clone()
+		.applyQuaternion( result.quaternion )
+		.multiplyScalar( result.scale )
+		.add( result.position );
+	const transformedOrientation = result.quaternion.clone().multiply( base.orientation );
+	const transformedScaleAnchor = base.scaleAnchor?.clone()
+		.applyQuaternion( result.quaternion )
+		.multiplyScalar( result.scale )
+		.add( result.position );
+
+	return {
+		position: transformedPosition,
+		orientation: transformedOrientation,
+		scale: base.scale * result.scale,
+		scaleAnchor: transformedScaleAnchor
 	};
 
 }

@@ -141,6 +141,14 @@ export function createManualRegistrationController(
 
 	}
 
+	function hasAdjustments(): boolean {
+
+		return state.offset.lengthSq() > 1e-10
+			|| Math.abs( state.yawDeg ) > 1e-6
+			|| Math.abs( state.scaleMultiplier - 1 ) > 1e-6;
+
+	}
+
 	function applyToPlacement(
 		base: ManualPlacementBase,
 		targetPosition = new THREE.Vector3(),
@@ -188,6 +196,7 @@ export function createManualRegistrationController(
 		save,
 		load,
 		clearSaved,
+		hasAdjustments,
 		applyToPlacement
 	};
 

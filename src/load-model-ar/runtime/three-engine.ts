@@ -222,7 +222,12 @@ export class ThreeEngine {
 			getCurrentModelId: () => this.demoModelConfig?.modelId ?? null,
 			getTargetPoint: ( target ) => this.xrRuntime.getHitTestController().getHitPosition( target ),
 			getTargetPointQuality: () => this.xrRuntime.getHitTestController().getHitTestQuality(),
-			onApplied: () => {
+			onApplied: ( result ) => {
+				this.placementSession.applyPrecisionRegistrationResult( result );
+				if ( this.manualRegistration.hasAdjustments() ) {
+					this.reapplyManualPlacement();
+					return;
+				}
 				this.syncArSessionPhase();
 				this.emit();
 			}
@@ -634,6 +639,11 @@ export class ThreeEngine {
 
 	adjustTranslation(axis: 'x' | 'y' | 'z', direction: 1 | -1): void {
 
+		if ( this.canUseManualRegistration() === false ) {
+			this.setStatus( '请先完成精确配准，再进行手动微调。' );
+			return;
+		}
+
 		this.manualRegistration.adjustTranslation( axis, direction );
 		this.reapplyManualPlacement();
 
@@ -641,12 +651,22 @@ export class ThreeEngine {
 
 	adjustYaw(direction: 1 | -1): void {
 
+		if ( this.canUseManualRegistration() === false ) {
+			this.setStatus( '请先完成精确配准，再进行手动微调。' );
+			return;
+		}
+
 		this.manualRegistration.adjustYaw( direction );
 		this.reapplyManualPlacement();
 
 	}
 
 	adjustScale(direction: 1 | -1): void {
+
+		if ( this.canUseManualRegistration() === false ) {
+			this.setStatus( '请先完成精确配准，再进行手动微调。' );
+			return;
+		}
 
 		this.manualRegistration.adjustScale( direction );
 		this.reapplyManualPlacement();
@@ -660,12 +680,22 @@ export class ThreeEngine {
 			return;
 		}
 
+		if ( this.canUseManualRegistration() === false ) {
+			this.setStatus( '请先完成精确配准，再保存手动微调。' );
+			return;
+		}
+
 		this.manualRegistration.save( this.demoModelConfig.modelId );
 		this.setStatus( '手动配准已保存。' );
 
 	}
 
 	resetManualRegistration(): void {
+
+		if ( this.canUseManualRegistration() === false ) {
+			this.setStatus( '当前还没有可重置的精确配准后微调。' );
+			return;
+		}
 
 		if ( this.demoModelConfig !== null ) {
 			this.manualRegistration.clearSaved( this.demoModelConfig.modelId );
@@ -923,10 +953,7 @@ export class ThreeEngine {
 			registrationSolution: this.registrationSolution,
 			coarseRegistration: this.coarseRegistration,
 			modelOrientationTarget: this.modelOrientation,
-			cameraWorldPosition: this.cameraWorldPosition,
-			manualApplyToPlacement: this.manualRegistration.applyToPlacement,
-			manualPositionTarget: this.manualPosition,
-			manualOrientationTarget: this.manualOrientation
+			cameraWorldPosition: this.cameraWorldPosition
 		} );
 
 		const placedModel = this.placementSession.getPlacedModel();
@@ -997,10 +1024,7 @@ export class ThreeEngine {
 
 		this.placementSession.ensureDesktopPreviewPlacement( {
 			modelTemplate: this.modelTemplate,
-			registrationSolution: this.registrationSolution,
-			manualApplyToPlacement: this.manualRegistration.applyToPlacement,
-			manualPositionTarget: this.manualPosition,
-			manualOrientationTarget: this.manualOrientation
+			registrationSolution: this.registrationSolution
 		} );
 
 	}
@@ -1031,6 +1055,19 @@ export class ThreeEngine {
 			isDesktopLayout: this.isDesktopLayout,
 			appMode: this.store.getState().appMode
 		} );
+
+	}
+
+	private canUseManualRegistration(): boolean {
+
+		return this.placementSession.getPlacedModel() !== null
+			&& this.hasPrecisionRegistrationResult();
+
+	}
+
+	private hasPrecisionRegistrationResult(): boolean {
+
+		return this.store.getState().precisionRegistration.rmsText !== '--';
 
 	}
 

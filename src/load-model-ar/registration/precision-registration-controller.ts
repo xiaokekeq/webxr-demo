@@ -24,7 +24,7 @@ interface CreatePrecisionRegistrationControllerOptions {
 	getCurrentModelId(): string | null;
 	getTargetPoint(target: THREE.Vector3): THREE.Vector3 | null;
 	getTargetPointQuality?(): XRHitTestQuality | null;
-	onApplied?(): void;
+	onApplied?(result: PrecisionRegistrationResult): void;
 }
 
 interface PrecisionPair {
@@ -275,7 +275,7 @@ export function createPrecisionRegistrationController(
 
 			applyDeltaToModel( placedModel, solvedResult );
 			appliedModels.add( placedModel );
-			onApplied?.();
+			onApplied?.( solvedResult );
 
 			patchPrecisionState( {
 				pairSummaries: createPairSummaries(),
@@ -366,7 +366,7 @@ export function createPrecisionRegistrationController(
 
 			applyDeltaToModel( placedModel, savedResult );
 			appliedModels.add( placedModel );
-			onApplied?.();
+			onApplied?.( savedResult );
 			patchPrecisionState( {
 				pairResidualSummaries: createPairResidualSummaries( savedResult.pairResidualMeters ),
 				rmsText: formatMeters( savedResult.rmsErrorMeters ),

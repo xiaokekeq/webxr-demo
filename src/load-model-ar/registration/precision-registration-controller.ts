@@ -250,6 +250,9 @@ export function createPrecisionRegistrationController(
 				stagedSourcePoint: PRECISION_WORKFLOW_MESSAGES.notSelected,
 				stagedTargetPoint: PRECISION_WORKFLOW_MESSAGES.notConfirmed,
 				targetQualityText: PRECISION_WORKFLOW_MESSAGES.notSampled,
+				lastCapturedSourcePoint: stagedSourcePoint.id,
+				lastCapturedTargetPoint: formatVectorLabel( stagedTargetPoint ),
+				lastCapturedQualityText: store.getState().precisionRegistration.targetQualityText,
 				pairSummaries: createPairSummaries(),
 				pairResidualSummaries: createPairResidualSummaries(),
 				rmsText: '--',
@@ -289,6 +292,8 @@ export function createPrecisionRegistrationController(
 		},
 
 		solve() {
+
+			patchPrecisionState( {}, '正在计算精确配准...', 'info' );
 
 			const placedModel = getPlacedModel();
 			const modelId = getCurrentModelId();
@@ -496,12 +501,24 @@ export function createPrecisionRegistrationController(
 		feedbackTone?: PrecisionFeedbackTone
 	): void {
 
+		const nextFeedbackText = feedbackText ?? store.getState().precisionRegistration.feedbackText;
+		const nextFeedbackTone = feedbackTone ?? store.getState().precisionRegistration.feedbackTone;
+		const feedbackUpdatedAt = feedbackText === undefined && feedbackTone === undefined
+			? store.getState().precisionRegistration.feedbackUpdatedAt
+			: new Date().toLocaleTimeString( 'zh-CN', {
+				hour12: false,
+				hour: '2-digit',
+				minute: '2-digit',
+				second: '2-digit'
+			} );
+
 		store.patch( {
 			precisionRegistration: {
 				...store.getState().precisionRegistration,
 				...partialState,
-				feedbackText: feedbackText ?? store.getState().precisionRegistration.feedbackText,
-				feedbackTone: feedbackTone ?? store.getState().precisionRegistration.feedbackTone
+				feedbackText: nextFeedbackText,
+				feedbackTone: nextFeedbackTone,
+				feedbackUpdatedAt
 			}
 		} );
 

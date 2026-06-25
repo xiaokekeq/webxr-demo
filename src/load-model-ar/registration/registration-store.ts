@@ -44,12 +44,16 @@ export interface PrecisionRegistrationState {
 	stagedSourcePoint: string;
 	stagedTargetPoint: string;
 	targetQualityText: string;
+	lastCapturedSourcePoint: string;
+	lastCapturedTargetPoint: string;
+	lastCapturedQualityText: string;
 	pairSummaries: string[];
 	pairResidualSummaries: string[];
 	rmsText: string;
 	workflowStatusText: string;
 	feedbackText: string;
 	feedbackTone: PrecisionFeedbackTone;
+	feedbackUpdatedAt: string;
 	isSourceLocked: boolean;
 	hasConfirmedTarget: boolean;
 }
@@ -167,12 +171,16 @@ export function createDefaultPrecisionRegistrationState(): PrecisionRegistration
 		stagedSourcePoint: '未选择',
 		stagedTargetPoint: '未确认',
 		targetQualityText: '尚未采样',
+		lastCapturedSourcePoint: '暂无',
+		lastCapturedTargetPoint: '暂无',
+		lastCapturedQualityText: '暂无',
 		pairSummaries: [],
 		pairResidualSummaries: [],
 		rmsText: '--',
 		workflowStatusText: '完成粗配准后可继续采集控制点。',
 		feedbackText: '',
 		feedbackTone: 'neutral',
+		feedbackUpdatedAt: '',
 		isSourceLocked: false,
 		hasConfirmedTarget: false
 	};

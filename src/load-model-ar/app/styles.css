@@ -395,6 +395,11 @@ textarea {
 	font-size: 12px;
 }
 
+.alert-block__meta {
+	font-size: 12px;
+	opacity: 0.78;
+}
+
 .alert-block--neutral,
 .alert-block--info {
 	background: #eff6ff;

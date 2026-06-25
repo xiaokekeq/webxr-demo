@@ -27,6 +27,15 @@ export function RegistrationPanel(props: {
 		: precisionState.isSourceLocked
 			? '模型点已锁定，请到现场画面确认对应点。'
 			: precisionPrimaryHint;
+	const sampledSourceText = precisionState.isSourceLocked
+		? precisionState.stagedSourcePoint
+		: precisionState.lastCapturedSourcePoint;
+	const sampledTargetText = precisionState.hasConfirmedTarget
+		? precisionState.stagedTargetPoint
+		: precisionState.lastCapturedTargetPoint;
+	const sampledQualityText = precisionState.hasConfirmedTarget
+		? precisionState.targetQualityText
+		: precisionState.lastCapturedQualityText;
 
 	function handleClearSavedRegistration(): void {
 
@@ -139,10 +148,10 @@ export function RegistrationPanel(props: {
 					</div>
 					<div className="summary-grid">
 						<div className="summary-card">
-							<strong>当前采样</strong>
-							<span>模型点: {precisionState.stagedSourcePoint}</span>
-							<span>现场点: {precisionState.stagedTargetPoint}</span>
-							<span>采样质量: {precisionState.targetQualityText}</span>
+							<strong>当前 / 最近采样</strong>
+							<span>模型点: {sampledSourceText}</span>
+							<span>现场点: {sampledTargetText}</span>
+							<span>采样质量: {sampledQualityText}</span>
 						</div>
 						<div className="summary-card">
 							<strong>当前结果</strong>
@@ -155,9 +164,11 @@ export function RegistrationPanel(props: {
 						<div className={ `alert-block alert-block--${precisionState.feedbackTone}` }>
 							<strong>{precisionState.feedbackTone === 'error' ? '当前阻塞' : precisionState.feedbackTone === 'success' ? '当前结果' : '流程提示'}</strong>
 							<span>{precisionState.feedbackText}</span>
+							{precisionState.feedbackUpdatedAt ? (
+								<span className="alert-block__meta">更新时间: {precisionState.feedbackUpdatedAt}</span>
+							) : null}
 						</div>
 					) : null}
-					<p className="note-block">{precisionState.workflowStatusText}</p>
 					<div className="button-row">
 						<ActionButton
 							label="加入点对"

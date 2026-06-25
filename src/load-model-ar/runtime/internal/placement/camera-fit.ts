@@ -35,15 +35,10 @@ export function getPlacementResidualScale(
 	registrationScale: number
 ): number {
 
-	const bakedScaleFactor = typeof modelTemplateGroup.userData.__bakedScaleFactor === 'number'
-		? modelTemplateGroup.userData.__bakedScaleFactor
-		: 1;
-
-	if ( Math.abs( bakedScaleFactor ) < 1e-9 ) {
-		return registrationScale;
-	}
-
-	return registrationScale / bakedScaleFactor;
+	// modelTemplate already carries the baked asset scale on its root transform.
+	// Placement should only apply the engineering registration scale on top.
+	void modelTemplateGroup;
+	return registrationScale;
 
 }
 

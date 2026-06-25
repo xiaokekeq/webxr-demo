@@ -178,7 +178,10 @@ function normalizeLocalDebugModelConfig(config: LocalDebugModelConfig): DemoMode
 		yaw: 0,
 		scale: 1,
 		registration: {
-			mode: 'similarity',
+			// Local debug control points are usually hand-authored helper markers
+			// rather than surveyed correspondences on the full model geometry.
+			// Keep scale fixed so the model does not collapse to the helper span.
+			mode: 'rigid',
 			minControlPoints: 3
 		},
 		controlPoints: normalizedControlPoints

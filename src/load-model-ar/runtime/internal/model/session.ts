@@ -271,6 +271,12 @@ function analyzeControlPointDiagnostics(
 		);
 	}
 
+	if ( diagonal > 1e-6 && maxControlSpan > 0 && maxControlSpan < diagonal * 0.05 ) {
+		diagnostics.push(
+			`控制点最大跨度仅 ${maxControlSpan.toFixed( 2 )}m，远小于模型包围盒对角线 ${diagonal.toFixed( 2 )}m，可能会把模型缩得过小。`
+		);
+	}
+
 	return diagnostics;
 
 }

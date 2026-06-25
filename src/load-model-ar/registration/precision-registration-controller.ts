@@ -239,6 +239,9 @@ export function createPrecisionRegistrationController(
 				sourceModelLocal: stagedSourcePoint.modelLocal.clone(),
 				targetAr: stagedTargetPoint.clone()
 			} );
+			const capturedSourcePointId = stagedSourcePoint.id;
+			const capturedTargetLabel = formatVectorLabel( stagedTargetPoint );
+			const capturedQualityText = store.getState().precisionRegistration.targetQualityText;
 			stagedSourcePoint = null;
 			stagedTargetPoint = null;
 			solvedResult = null;
@@ -250,9 +253,9 @@ export function createPrecisionRegistrationController(
 				stagedSourcePoint: PRECISION_WORKFLOW_MESSAGES.notSelected,
 				stagedTargetPoint: PRECISION_WORKFLOW_MESSAGES.notConfirmed,
 				targetQualityText: PRECISION_WORKFLOW_MESSAGES.notSampled,
-				lastCapturedSourcePoint: stagedSourcePoint.id,
-				lastCapturedTargetPoint: formatVectorLabel( stagedTargetPoint ),
-				lastCapturedQualityText: store.getState().precisionRegistration.targetQualityText,
+				lastCapturedSourcePoint: capturedSourcePointId,
+				lastCapturedTargetPoint: capturedTargetLabel,
+				lastCapturedQualityText: capturedQualityText,
 				pairSummaries: createPairSummaries(),
 				pairResidualSummaries: createPairResidualSummaries(),
 				rmsText: '--',

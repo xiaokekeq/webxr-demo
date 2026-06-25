@@ -7,6 +7,7 @@ export type AppMode = 'pre-ar' | 'ar-session';
 export type ArSupportState = 'checking' | 'supported' | 'unsupported';
 export type ArSessionPhase = 'scanning' | 'ready-to-place' | 'placing' | 'placed';
 export type DisplayMode = 'normal' | 'xray' | 'occlusion-outline';
+export type PrecisionFeedbackTone = 'neutral' | 'info' | 'success' | 'error';
 
 export interface PropertyPanelState {
 	name: string;
@@ -47,6 +48,8 @@ export interface PrecisionRegistrationState {
 	pairResidualSummaries: string[];
 	rmsText: string;
 	workflowStatusText: string;
+	feedbackText: string;
+	feedbackTone: PrecisionFeedbackTone;
 	isSourceLocked: boolean;
 	hasConfirmedTarget: boolean;
 }
@@ -168,6 +171,8 @@ export function createDefaultPrecisionRegistrationState(): PrecisionRegistration
 		pairResidualSummaries: [],
 		rmsText: '--',
 		workflowStatusText: '完成粗配准后可继续采集控制点。',
+		feedbackText: '',
+		feedbackTone: 'neutral',
 		isSourceLocked: false,
 		hasConfirmedTarget: false
 	};

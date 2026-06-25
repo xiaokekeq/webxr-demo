@@ -380,6 +380,37 @@ textarea {
 	font-weight: 700;
 }
 
+.alert-block {
+	margin-top: 12px;
+	padding: 12px 14px;
+	border-radius: 16px;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	font-size: 13px;
+	line-height: 1.7;
+}
+
+.alert-block strong {
+	font-size: 12px;
+}
+
+.alert-block--neutral,
+.alert-block--info {
+	background: #eff6ff;
+	color: #1d4ed8;
+}
+
+.alert-block--success {
+	background: #ecfdf3;
+	color: #16794b;
+}
+
+.alert-block--error {
+	background: #fef2f2;
+	color: #b91c1c;
+}
+
 .detail-grid {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));

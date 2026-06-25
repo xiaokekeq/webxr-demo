@@ -104,6 +104,8 @@ function createInitialState(): RegistrationStoreState {
 			pairResidualSummaries: [],
 			rmsText: '--',
 			workflowStatusText: '完成粗配准后可继续采集控制点。',
+			feedbackText: '',
+			feedbackTone: 'neutral',
 			isSourceLocked: false,
 			hasConfirmedTarget: false
 		},

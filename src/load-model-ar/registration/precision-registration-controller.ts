@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {
 	createDefaultPrecisionRegistrationState,
+	type PrecisionFeedbackTone,
 	type RegistrationStore
 } from './registration-store.js';
 import type { EngineeringControlPoint } from './engineering-registration.js';
@@ -103,7 +104,7 @@ export function createPrecisionRegistrationController(
 			if ( sourcePoint === null ) {
 				patchPrecisionState( {
 					workflowStatusText: PRECISION_STATUS_MESSAGES.selectSourceFirst
-				} );
+				}, PRECISION_STATUS_MESSAGES.selectSourceFirst, 'error' );
 				setStatus( PRECISION_STATUS_MESSAGES.selectSourceFirst );
 				return;
 			}
@@ -117,7 +118,7 @@ export function createPrecisionRegistrationController(
 				workflowStatusText: PRECISION_WORKFLOW_MESSAGES.lockedSource( sourcePoint.id ),
 				isSourceLocked: true,
 				hasConfirmedTarget: false
-			} );
+			}, PRECISION_WORKFLOW_MESSAGES.lockedSource( sourcePoint.id ), 'info' );
 			setStatus( PRECISION_STATUS_MESSAGES.selectedSource( sourcePoint.id ) );
 
 		},
@@ -128,7 +129,7 @@ export function createPrecisionRegistrationController(
 				patchPrecisionState( {
 					workflowStatusText: PRECISION_STATUS_MESSAGES.lockSourceFirst,
 					hasConfirmedTarget: false
-				} );
+				}, PRECISION_STATUS_MESSAGES.lockSourceFirst, 'error' );
 				setStatus( PRECISION_STATUS_MESSAGES.lockSourceFirst );
 				return;
 			}
@@ -138,7 +139,7 @@ export function createPrecisionRegistrationController(
 				patchPrecisionState( {
 					workflowStatusText: PRECISION_WORKFLOW_MESSAGES.noTargetPoint,
 					hasConfirmedTarget: false
-				} );
+				}, PRECISION_WORKFLOW_MESSAGES.noTargetPoint, 'error' );
 				setStatus( PRECISION_STATUS_MESSAGES.noTargetPoint );
 				return;
 			}
@@ -149,15 +150,16 @@ export function createPrecisionRegistrationController(
 				targetQualityText: qualityLabel,
 				workflowStatusText: PRECISION_WORKFLOW_MESSAGES.targetSampling( qualityLabel ),
 				hasConfirmedTarget: false
-			} );
+			}, PRECISION_WORKFLOW_MESSAGES.targetSampling( qualityLabel ), 'info' );
 
 			if ( targetQuality !== null && targetQuality.sampleCount < MIN_TARGET_SAMPLE_COUNT ) {
+				const message = PRECISION_WORKFLOW_MESSAGES.targetSamplingShort(
+					targetQuality.sampleCount,
+					MIN_TARGET_SAMPLE_COUNT
+				);
 				patchPrecisionState( {
-					workflowStatusText: PRECISION_WORKFLOW_MESSAGES.targetSamplingShort(
-						targetQuality.sampleCount,
-						MIN_TARGET_SAMPLE_COUNT
-					)
-				} );
+					workflowStatusText: message
+				}, message, 'error' );
 				setStatus(
 					PRECISION_STATUS_MESSAGES.targetSamplingShort(
 						targetQuality.sampleCount,
@@ -170,27 +172,26 @@ export function createPrecisionRegistrationController(
 			if ( targetQuality !== null && targetQuality.jitterMeters > MAX_TARGET_JITTER_METERS ) {
 				const jitterText = formatMeters( targetQuality.jitterMeters );
 				const maxJitterText = formatMeters( MAX_TARGET_JITTER_METERS );
+				const message = PRECISION_WORKFLOW_MESSAGES.targetTooUnstable(
+					jitterText,
+					maxJitterText
+				);
 				patchPrecisionState( {
-					workflowStatusText: PRECISION_WORKFLOW_MESSAGES.targetTooUnstable(
-						jitterText,
-						maxJitterText
-					)
-				} );
+					workflowStatusText: message
+				}, message, 'error' );
 				setStatus( PRECISION_STATUS_MESSAGES.targetTooUnstable( jitterText, maxJitterText ) );
 				return;
 			}
 
 			stagedTargetPoint = targetPoint.clone();
 			const targetLabel = formatVectorLabel( stagedTargetPoint );
+			const message = PRECISION_WORKFLOW_MESSAGES.confirmedTarget( targetLabel, qualityLabel );
 			patchPrecisionState( {
 				stagedTargetPoint: targetLabel,
 				targetQualityText: qualityLabel,
-				workflowStatusText: PRECISION_WORKFLOW_MESSAGES.confirmedTarget(
-					targetLabel,
-					qualityLabel
-				),
+				workflowStatusText: message,
 				hasConfirmedTarget: true
-			} );
+			}, message, 'success' );
 			setStatus( PRECISION_STATUS_MESSAGES.confirmedTarget( targetLabel, qualityLabel ) );
 
 		},
@@ -199,16 +200,17 @@ export function createPrecisionRegistrationController(
 
 			stagedSourcePoint = null;
 			stagedTargetPoint = null;
+			const message = pairs.length === 0
+				? PRECISION_WORKFLOW_MESSAGES.captureCanceled
+				: PRECISION_WORKFLOW_MESSAGES.collectedPairs( pairs.length, MIN_SOLVE_PAIR_COUNT );
 			patchPrecisionState( {
 				stagedSourcePoint: PRECISION_WORKFLOW_MESSAGES.notSelected,
 				stagedTargetPoint: PRECISION_WORKFLOW_MESSAGES.notConfirmed,
 				targetQualityText: PRECISION_WORKFLOW_MESSAGES.notSampled,
-				workflowStatusText: pairs.length === 0
-					? PRECISION_WORKFLOW_MESSAGES.captureCanceled
-					: PRECISION_WORKFLOW_MESSAGES.collectedPairs( pairs.length, MIN_SOLVE_PAIR_COUNT ),
+				workflowStatusText: message,
 				isSourceLocked: false,
 				hasConfirmedTarget: false
-			} );
+			}, message, 'info' );
 			setStatus( PRECISION_STATUS_MESSAGES.captureCanceled );
 
 		},
@@ -218,7 +220,7 @@ export function createPrecisionRegistrationController(
 			if ( stagedSourcePoint === null || stagedTargetPoint === null ) {
 				patchPrecisionState( {
 					workflowStatusText: PRECISION_STATUS_MESSAGES.addPairRequiresPoints
-				} );
+				}, PRECISION_STATUS_MESSAGES.addPairRequiresPoints, 'error' );
 				setStatus( PRECISION_STATUS_MESSAGES.addPairRequiresPoints );
 				return;
 			}
@@ -227,7 +229,7 @@ export function createPrecisionRegistrationController(
 				const duplicateMessage = PRECISION_STATUS_MESSAGES.duplicateSourcePoint( stagedSourcePoint.id );
 				patchPrecisionState( {
 					workflowStatusText: duplicateMessage
-				} );
+				}, duplicateMessage, 'error' );
 				setStatus( duplicateMessage );
 				return;
 			}
@@ -241,6 +243,9 @@ export function createPrecisionRegistrationController(
 			stagedTargetPoint = null;
 			solvedResult = null;
 
+			const message = pairs.length >= MIN_SOLVE_PAIR_COUNT
+				? PRECISION_WORKFLOW_MESSAGES.enoughPairs
+				: PRECISION_WORKFLOW_MESSAGES.collectedPairs( pairs.length, MIN_SOLVE_PAIR_COUNT );
 			patchPrecisionState( {
 				stagedSourcePoint: PRECISION_WORKFLOW_MESSAGES.notSelected,
 				stagedTargetPoint: PRECISION_WORKFLOW_MESSAGES.notConfirmed,
@@ -248,12 +253,10 @@ export function createPrecisionRegistrationController(
 				pairSummaries: createPairSummaries(),
 				pairResidualSummaries: createPairResidualSummaries(),
 				rmsText: '--',
-				workflowStatusText: pairs.length >= MIN_SOLVE_PAIR_COUNT
-					? PRECISION_WORKFLOW_MESSAGES.enoughPairs
-					: PRECISION_WORKFLOW_MESSAGES.collectedPairs( pairs.length, MIN_SOLVE_PAIR_COUNT ),
+				workflowStatusText: message,
 				isSourceLocked: false,
 				hasConfirmedTarget: false
-			} );
+			}, message, 'success' );
 			setStatus( PRECISION_STATUS_MESSAGES.addedPair( pairs.length ) );
 
 		},
@@ -263,23 +266,24 @@ export function createPrecisionRegistrationController(
 			if ( index < 0 || index >= pairs.length ) {
 				patchPrecisionState( {
 					workflowStatusText: PRECISION_STATUS_MESSAGES.removePairOutOfRange
-				} );
+				}, PRECISION_STATUS_MESSAGES.removePairOutOfRange, 'error' );
 				setStatus( PRECISION_STATUS_MESSAGES.removePairOutOfRange );
 				return;
 			}
 
 			pairs.splice( index, 1 );
 			solvedResult = null;
+			const message = pairs.length === 0
+				? createDefaultPrecisionRegistrationState().workflowStatusText
+				: PRECISION_WORKFLOW_MESSAGES.collectedPairs( pairs.length, MIN_SOLVE_PAIR_COUNT );
 			patchPrecisionState( {
 				pairSummaries: createPairSummaries(),
 				pairResidualSummaries: createPairResidualSummaries(),
 				rmsText: '--',
-				workflowStatusText: pairs.length === 0
-					? createDefaultPrecisionRegistrationState().workflowStatusText
-					: PRECISION_WORKFLOW_MESSAGES.collectedPairs( pairs.length, MIN_SOLVE_PAIR_COUNT ),
+				workflowStatusText: message,
 				isSourceLocked: false,
 				hasConfirmedTarget: false
-			} );
+			}, message, 'info' );
 			setStatus( PRECISION_STATUS_MESSAGES.removedPair( pairs.length ) );
 
 		},
@@ -289,20 +293,22 @@ export function createPrecisionRegistrationController(
 			const placedModel = getPlacedModel();
 			const modelId = getCurrentModelId();
 			if ( placedModel === null || modelId === null ) {
+				const message = PRECISION_WORKFLOW_MESSAGES.solveBlockedByPlacement;
 				patchPrecisionState( {
-					workflowStatusText: PRECISION_WORKFLOW_MESSAGES.solveBlockedByPlacement
-				} );
+					workflowStatusText: message
+				}, message, 'error' );
 				setStatus( PRECISION_STATUS_MESSAGES.placeModelBeforeSolve );
 				return;
 			}
 
 			if ( pairs.length < MIN_SOLVE_PAIR_COUNT ) {
+				const message = PRECISION_WORKFLOW_MESSAGES.solveBlockedByPairs(
+					pairs.length,
+					MIN_SOLVE_PAIR_COUNT
+				);
 				patchPrecisionState( {
-					workflowStatusText: PRECISION_WORKFLOW_MESSAGES.solveBlockedByPairs(
-						pairs.length,
-						MIN_SOLVE_PAIR_COUNT
-					)
-				} );
+					workflowStatusText: message
+				}, message, 'error' );
 				setStatus( PRECISION_STATUS_MESSAGES.solveRequiresMinPairs( MIN_SOLVE_PAIR_COUNT ) );
 				return;
 			}
@@ -317,9 +323,10 @@ export function createPrecisionRegistrationController(
 				hasSufficientPointSpread( sourcePoints ) === false
 				|| hasSufficientPointSpread( targetPoints ) === false
 			) {
+				const message = PRECISION_WORKFLOW_MESSAGES.solveBlockedByGeometry;
 				patchPrecisionState( {
-					workflowStatusText: PRECISION_WORKFLOW_MESSAGES.solveBlockedByGeometry
-				} );
+					workflowStatusText: message
+				}, message, 'error' );
 				setStatus( PRECISION_STATUS_MESSAGES.solveGeometryWeak );
 				return;
 			}
@@ -345,12 +352,13 @@ export function createPrecisionRegistrationController(
 			appliedModels.add( placedModel );
 			onApplied?.( solvedResult );
 
+			const message = PRECISION_WORKFLOW_MESSAGES.solvedApplied( pairs.length, rmsText );
 			patchPrecisionState( {
 				pairSummaries: createPairSummaries(),
 				pairResidualSummaries: createPairResidualSummaries( pairResidualMeters ),
 				rmsText,
-				workflowStatusText: PRECISION_WORKFLOW_MESSAGES.solvedApplied( pairs.length, rmsText )
-			} );
+				workflowStatusText: message
+			}, message, 'success' );
 			setStatus( PRECISION_STATUS_MESSAGES.solved( rmsText, maxResidualText ) );
 
 		},
@@ -358,9 +366,10 @@ export function createPrecisionRegistrationController(
 		save() {
 
 			if ( solvedResult === null ) {
+				const message = PRECISION_WORKFLOW_MESSAGES.saveBlocked;
 				patchPrecisionState( {
-					workflowStatusText: PRECISION_WORKFLOW_MESSAGES.saveBlocked
-				} );
+					workflowStatusText: message
+				}, message, 'error' );
 				setStatus( PRECISION_STATUS_MESSAGES.saveBeforeSolve );
 				return;
 			}
@@ -369,7 +378,7 @@ export function createPrecisionRegistrationController(
 			savedResult = solvedResult;
 			patchPrecisionState( {
 				workflowStatusText: PRECISION_WORKFLOW_MESSAGES.saved
-			} );
+			}, PRECISION_WORKFLOW_MESSAGES.saved, 'success' );
 			setStatus( PRECISION_STATUS_MESSAGES.saved );
 
 		},
@@ -403,7 +412,7 @@ export function createPrecisionRegistrationController(
 				workflowStatusText: PRECISION_WORKFLOW_MESSAGES.clearedSaved,
 				isSourceLocked: false,
 				hasConfirmedTarget: false
-			} );
+			}, PRECISION_WORKFLOW_MESSAGES.clearedSaved, 'info' );
 			setStatus( PRECISION_STATUS_MESSAGES.clearedSaved );
 
 		},
@@ -421,7 +430,7 @@ export function createPrecisionRegistrationController(
 					workflowStatusText: PRECISION_WORKFLOW_MESSAGES.noSaved,
 					isSourceLocked: false,
 					hasConfirmedTarget: false
-				} );
+				}, PRECISION_WORKFLOW_MESSAGES.noSaved, 'info' );
 				return;
 			}
 
@@ -431,7 +440,7 @@ export function createPrecisionRegistrationController(
 				workflowStatusText: PRECISION_WORKFLOW_MESSAGES.loadedSaved( savedResult.updatedAt ),
 				isSourceLocked: false,
 				hasConfirmedTarget: false
-			} );
+			}, PRECISION_WORKFLOW_MESSAGES.loadedSaved( savedResult.updatedAt ), 'info' );
 
 		},
 
@@ -444,15 +453,14 @@ export function createPrecisionRegistrationController(
 			applyDeltaToModel( placedModel, savedResult );
 			appliedModels.add( placedModel );
 			onApplied?.( savedResult );
+			const rmsText = formatMeters( savedResult.rmsErrorMeters );
 			patchPrecisionState( {
 				pairResidualSummaries: createPairResidualSummaries( savedResult.pairResidualMeters ),
-				rmsText: formatMeters( savedResult.rmsErrorMeters ),
-				workflowStatusText: PRECISION_WORKFLOW_MESSAGES.appliedSaved(
-					formatMeters( savedResult.rmsErrorMeters )
-				),
+				rmsText,
+				workflowStatusText: PRECISION_WORKFLOW_MESSAGES.appliedSaved( rmsText ),
 				isSourceLocked: false,
 				hasConfirmedTarget: false
-			} );
+			}, PRECISION_WORKFLOW_MESSAGES.appliedSaved( rmsText ), 'success' );
 			setStatus( PRECISION_STATUS_MESSAGES.appliedSaved );
 			return true;
 
@@ -483,13 +491,17 @@ export function createPrecisionRegistrationController(
 	};
 
 	function patchPrecisionState(
-		partialState: Partial<ReturnType<typeof createDefaultPrecisionRegistrationState>>
+		partialState: Partial<ReturnType<typeof createDefaultPrecisionRegistrationState>>,
+		feedbackText?: string,
+		feedbackTone?: PrecisionFeedbackTone
 	): void {
 
 		store.patch( {
 			precisionRegistration: {
 				...store.getState().precisionRegistration,
-				...partialState
+				...partialState,
+				feedbackText: feedbackText ?? store.getState().precisionRegistration.feedbackText,
+				feedbackTone: feedbackTone ?? store.getState().precisionRegistration.feedbackTone
 			}
 		} );
 

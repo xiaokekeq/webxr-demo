@@ -15,6 +15,18 @@ export function RegistrationPanel(props: {
 	const placed = engine.arSessionPhase === 'placed' || engine.appMode === 'pre-ar';
 	const canManualAdjust = placed && engine.precisionRegistration.rmsText !== '--';
 	const showExportSnapshotAction = engine.appMode === 'pre-ar';
+	const canSavePrecisionRegistration = engine.precisionRegistration.rmsText !== '--';
+	const isDesktopLayout = window.matchMedia( '(any-pointer: fine)' ).matches;
+	const useInlineTargetCapture = isDesktopLayout || engine.appMode !== 'ar-session';
+	const precisionState = engine.precisionRegistration;
+	const precisionPrimaryHint = useInlineTargetCapture
+		? '先选模型点，再确认现场点。'
+		: '移动端 AR 中，选择模型点后会进入现场采点浮层。';
+	const precisionActionHint = precisionState.hasConfirmedTarget
+		? '现场点已确认，可以加入点对。'
+		: precisionState.isSourceLocked
+			? '模型点已锁定，请到现场画面确认对应点。'
+			: precisionPrimaryHint;
 
 	function handleClearSavedRegistration(): void {
 
@@ -105,11 +117,11 @@ export function RegistrationPanel(props: {
 				<PanelSection title="控制点配准" subtitle="先选择模型控制点，再确认现场控制点。">
 					<SelectField
 						label="模型控制点"
-						value={engine.precisionRegistration.selectedSourcePoint}
+						value={precisionState.selectedSourcePoint}
 						onChange={actions.selectPrecisionSourcePoint}
 						options={[
 							{ value: '', label: '请选择模型控制点' },
-							...engine.precisionRegistration.availableSourcePoints.map( ( point ) => ( {
+							...precisionState.availableSourcePoints.map( ( point ) => ( {
 								value: point,
 								label: point
 							} ) )
@@ -117,34 +129,57 @@ export function RegistrationPanel(props: {
 					/>
 					<div className="button-row">
 						<ActionButton label="选择模型点" onClick={actions.armPrecisionSourcePoint} />
-						<ActionButton label="确认现场点" onClick={actions.confirmPrecisionTargetPoint} />
+						{useInlineTargetCapture ? (
+							<ActionButton
+								label="确认现场点"
+								onClick={actions.confirmPrecisionTargetPoint}
+								disabled={!precisionState.isSourceLocked}
+							/>
+						) : null}
 					</div>
-					<p className="note-block">
-						模型点: {engine.precisionRegistration.stagedSourcePoint}<br />
-						现场点: {engine.precisionRegistration.stagedTargetPoint}<br />
-						采样质量: {engine.precisionRegistration.targetQualityText}<br />
-						点对: {engine.precisionRegistration.pairSummaries.length} / 建议至少 4 组<br />
-						RMS: {engine.precisionRegistration.rmsText}
-					</p>
-					<p className="note-block">
-						流程提示: {engine.precisionRegistration.workflowStatusText}
-					</p>
-					<p className="note-block">
-						移动端提示: 选择模型点后会进入现场采点模式，大面板会暂时收起，只保留现场确认按钮。
-					</p>
+					<div className="summary-grid">
+						<div className="summary-card">
+							<strong>当前采样</strong>
+							<span>模型点: {precisionState.stagedSourcePoint}</span>
+							<span>现场点: {precisionState.stagedTargetPoint}</span>
+							<span>采样质量: {precisionState.targetQualityText}</span>
+						</div>
+						<div className="summary-card">
+							<strong>当前结果</strong>
+							<span>点对: {precisionState.pairSummaries.length} / 建议至少 4 组</span>
+							<span>RMS: {precisionState.rmsText}</span>
+							<span>{precisionActionHint}</span>
+						</div>
+					</div>
+					{precisionState.feedbackText ? (
+						<div className={ `alert-block alert-block--${precisionState.feedbackTone}` }>
+							<strong>{precisionState.feedbackTone === 'error' ? '当前阻塞' : precisionState.feedbackTone === 'success' ? '当前结果' : '流程提示'}</strong>
+							<span>{precisionState.feedbackText}</span>
+						</div>
+					) : null}
+					<p className="note-block">{precisionState.workflowStatusText}</p>
 					<div className="button-row">
-						<ActionButton label="加入点对" onClick={actions.addPrecisionPair} kind="secondary" />
+						<ActionButton
+							label="加入点对"
+							onClick={actions.addPrecisionPair}
+							kind="secondary"
+							disabled={!precisionState.hasConfirmedTarget}
+						/>
 						<ActionButton label="计算配准" onClick={actions.solvePrecisionRegistration} kind="primary" />
-						<ActionButton label="保存结果" onClick={actions.savePrecisionRegistration} />
+						<ActionButton
+							label="保存结果"
+							onClick={actions.savePrecisionRegistration}
+							disabled={!canSavePrecisionRegistration}
+						/>
 						<ActionButton label="清空" onClick={actions.clearPrecisionPairs} />
 					</div>
 					<div className="list-block">
-						{engine.precisionRegistration.pairSummaries.length === 0 ? (
+						{precisionState.pairSummaries.length === 0 ? (
 							<div className="list-item">还没有采集控制点对。</div>
-						) : engine.precisionRegistration.pairSummaries.map( ( item, index ) => (
+						) : precisionState.pairSummaries.map( ( item, index ) => (
 							<div key={item} className="list-item">
 								<div>{item}</div>
-								<div>{engine.precisionRegistration.pairResidualSummaries[ index ] ?? '待求解'}</div>
+								<div>{precisionState.pairResidualSummaries[ index ] ?? '待求解'}</div>
 								<ActionButton
 									label="删除"
 									onClick={ () => actions.removePrecisionPair( index ) }

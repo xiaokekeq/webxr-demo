@@ -1,36 +1,35 @@
 {
-  "modelId": "dz1207",
-  "siteFrame": {
-    "origin": {
-      "lat": 31.943824,
-      "lon": 118.747774,
-      "alt": 54
-    },
-    "axes": "enu"
+  "siteId": "dz1207",
+  "origin": {
+    "lng": 118.741163,
+    "lat": 31.938175,
+    "height": 20,
+    "coordType": "GCJ-02"
   },
-  "anchor": {
-    "lat": 31.943824,
-    "lon": 118.747774,
-    "alt": 54
-  },
-  "yaw": 35.0,
-  "scale": 1.0,
-  "registration": {
-    "mode": "similarity",
-    "minControlPoints": 3
-  },
-  "controlPoints": {
-    "ORIGIN": {
-      "modelLocal": { "x": 0.0, "y": 0.0, "z": 0.0 },
-      "world": { "lat": 31.943824, "lon": 118.747774, "alt": 54.0 }
+  "controlPoints": [
+    {
+      "id": "CP_01",
+      "name": "Debug Point A",
+      "modelLocal": [0, 0, 0],
+      "siteENU": [0, 0, 0]
     },
-    "A": {
-      "modelLocal": { "x": 1.25, "y": 0.0, "z": -3.4 },
-      "world": { "lat": 31.943805421609728, "lon": 118.74780548444873, "alt": 54.0 }
+    {
+      "id": "CP_02",
+      "name": "Debug Point B",
+      "modelLocal": [2, 0, 0],
+      "siteENU": [2, 0, 0]
     },
-    "B": {
-      "modelLocal": { "x": 4.8, "y": 0.0, "z": -1.2 },
-      "world": { "lat": 31.943839901764655, "lon": 118.74782291063887, "alt": 54.0 }
+    {
+      "id": "CP_03",
+      "name": "Debug Point C",
+      "modelLocal": [2, 0, -2],
+      "siteENU": [2, 0, 2]
+    },
+    {
+      "id": "CP_04",
+      "name": "Debug Point D",
+      "modelLocal": [0, 0, -2],
+      "siteENU": [0, 0, 2]
     }
-  }
+  ]
 }

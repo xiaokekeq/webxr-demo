@@ -158,7 +158,9 @@ function normalizeLocalDebugModelConfig(config: LocalDebugModelConfig): DemoMode
 	for ( const point of config.controlPoints ) {
 		const modelLocal = normalizePointLike( point.modelLocal, `${point.id}.modelLocal` );
 		const siteEnu = normalizePointLike( point.siteENU, `${point.id}.siteENU` );
-		const world = enuToGeodetic( new THREE.Vector3( siteEnu.x, siteEnu.y, siteEnu.z ), origin );
+		// Local debug configs are authored as [east, height, north] so remap them
+		// into the runtime ENU basis [east, north, up].
+		const world = enuToGeodetic( new THREE.Vector3( siteEnu.x, siteEnu.z, siteEnu.y ), origin );
 
 		normalizedControlPoints[ point.id ] = {
 			modelLocal,

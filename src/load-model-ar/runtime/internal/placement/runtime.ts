@@ -40,7 +40,7 @@ export function createAutoPlacementBase(options: {
 	const position = ( usePreviewPlacement
 		? getPreviewPlacementPosition( camera, cameraWorldPosition, groundY, previewDistanceMeters )
 		: composeAnchoredPlacementPosition(
-			groundPosition,
+			estimate.position,
 			estimate.orientation,
 			registrationSolution.modelToSite.translation,
 			tempSiteOffset
@@ -58,7 +58,7 @@ export function createAutoPlacementBase(options: {
 			modelOrientationTarget
 		).clone(),
 		scale: getPlacementResidualScale( modelTemplate, registrationSolution.modelToSite.scale ),
-		scaleAnchor: ( usePreviewPlacement ? position : groundPosition ).clone()
+		scaleAnchor: position.clone()
 	};
 
 }

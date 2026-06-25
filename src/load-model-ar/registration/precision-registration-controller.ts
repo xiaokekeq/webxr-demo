@@ -1,4 +1,4 @@
-﻿import * as THREE from 'three';
+import * as THREE from 'three';
 import {
 	createDefaultPrecisionRegistrationState,
 	type RegistrationStore
@@ -11,6 +11,11 @@ import {
 	savePrecisionRegistrationResult,
 	type PrecisionRegistrationResult
 } from './precision-registration-storage.js';
+import {
+	PRECISION_STATUS_MESSAGES,
+	PRECISION_WORKFLOW_MESSAGES
+} from './precision-registration-messages.js';
+import type { XRHitTestQuality } from '../shared/types.js';
 
 interface CreatePrecisionRegistrationControllerOptions {
 	store: RegistrationStore;
@@ -18,6 +23,7 @@ interface CreatePrecisionRegistrationControllerOptions {
 	getPlacedModel(): THREE.Group | null;
 	getCurrentModelId(): string | null;
 	getTargetPoint(target: THREE.Vector3): THREE.Vector3 | null;
+	getTargetPointQuality?(): XRHitTestQuality | null;
 	onApplied?(): void;
 }
 
@@ -32,6 +38,7 @@ export interface PrecisionRegistrationController {
 	armSourcePoint(): void;
 	confirmTargetPoint(): void;
 	addPair(): void;
+	removePair(index: number): void;
 	solve(): void;
 	save(): void;
 	clear(): void;
@@ -42,12 +49,18 @@ export interface PrecisionRegistrationController {
 }
 
 const MIN_SOLVE_PAIR_COUNT = 3;
+const MIN_TARGET_SAMPLE_COUNT = 6;
+const MAX_TARGET_JITTER_METERS = 0.025;
+const MIN_POINT_SPREAD_METERS = 0.12;
+
 const tempTargetPoint = new THREE.Vector3();
 const tempSourcePoint = new THREE.Vector3();
+const tempResidualPoint = new THREE.Vector3();
 const tempDeltaScale = new THREE.Vector3();
 const tempParentInverse = new THREE.Matrix4();
 const tempNextWorldMatrix = new THREE.Matrix4();
 const tempNextLocalMatrix = new THREE.Matrix4();
+
 export function createPrecisionRegistrationController(
 	options: CreatePrecisionRegistrationControllerOptions
 ): PrecisionRegistrationController {
@@ -58,6 +71,7 @@ export function createPrecisionRegistrationController(
 		getPlacedModel,
 		getCurrentModelId,
 		getTargetPoint,
+		getTargetPointQuality,
 		onApplied
 	} = options;
 
@@ -86,7 +100,7 @@ export function createPrecisionRegistrationController(
 			const precisionState = store.getState().precisionRegistration;
 			const sourcePoint = sourcePointsById.get( precisionState.selectedSourcePoint ) ?? null;
 			if ( sourcePoint === null ) {
-				setStatus( 'Please select a model control point first.' );
+				setStatus( PRECISION_STATUS_MESSAGES.selectSourceFirst );
 				return;
 			}
 
@@ -94,23 +108,51 @@ export function createPrecisionRegistrationController(
 			stagedTargetPoint = null;
 			patchPrecisionState( {
 				stagedSourcePoint: sourcePoint.id,
-				stagedTargetPoint: 'Not confirmed',
-				workflowStatusText: `Locked source point ${sourcePoint.id}. Confirm the matching field point.`
+				stagedTargetPoint: PRECISION_WORKFLOW_MESSAGES.notConfirmed,
+				targetQualityText: PRECISION_WORKFLOW_MESSAGES.notSampled,
+				workflowStatusText: PRECISION_WORKFLOW_MESSAGES.lockedSource( sourcePoint.id )
 			} );
-			setStatus( `Selected source control point ${sourcePoint.id}.` );
+			setStatus( PRECISION_STATUS_MESSAGES.selectedSource( sourcePoint.id ) );
 
 		},
 
 		confirmTargetPoint() {
 
 			if ( stagedSourcePoint === null ) {
-				setStatus( 'Please lock a source control point first.' );
+				setStatus( PRECISION_STATUS_MESSAGES.lockSourceFirst );
 				return;
 			}
 
 			const targetPoint = getTargetPoint( tempTargetPoint );
 			if ( targetPoint === null ) {
-				setStatus( 'No valid field point is available. Aim at a detected plane and try again.' );
+				setStatus( PRECISION_STATUS_MESSAGES.noTargetPoint );
+				return;
+			}
+
+			const targetQuality = getTargetPointQuality?.() ?? null;
+			const qualityLabel = formatQualityLabel( targetQuality );
+			patchPrecisionState( {
+				targetQualityText: qualityLabel,
+				workflowStatusText: PRECISION_WORKFLOW_MESSAGES.targetSampling( qualityLabel )
+			} );
+
+			if ( targetQuality !== null && targetQuality.sampleCount < MIN_TARGET_SAMPLE_COUNT ) {
+				setStatus(
+					PRECISION_STATUS_MESSAGES.targetSamplingShort(
+						targetQuality.sampleCount,
+						MIN_TARGET_SAMPLE_COUNT
+					)
+				);
+				return;
+			}
+
+			if ( targetQuality !== null && targetQuality.jitterMeters > MAX_TARGET_JITTER_METERS ) {
+				setStatus(
+					PRECISION_STATUS_MESSAGES.targetTooUnstable(
+						formatMeters( targetQuality.jitterMeters ),
+						formatMeters( MAX_TARGET_JITTER_METERS )
+					)
+				);
 				return;
 			}
 
@@ -118,16 +160,25 @@ export function createPrecisionRegistrationController(
 			const targetLabel = formatVectorLabel( stagedTargetPoint );
 			patchPrecisionState( {
 				stagedTargetPoint: targetLabel,
-				workflowStatusText: `Confirmed field point ${targetLabel}. Add this pair to the solve list.`
+				targetQualityText: qualityLabel,
+				workflowStatusText: PRECISION_WORKFLOW_MESSAGES.confirmedTarget(
+					targetLabel,
+					qualityLabel
+				)
 			} );
-			setStatus( `Confirmed field point ${targetLabel}.` );
+			setStatus( PRECISION_STATUS_MESSAGES.confirmedTarget( targetLabel, qualityLabel ) );
 
 		},
 
 		addPair() {
 
 			if ( stagedSourcePoint === null || stagedTargetPoint === null ) {
-				setStatus( 'Prepare both a source point and a field target point before adding a pair.' );
+				setStatus( PRECISION_STATUS_MESSAGES.addPairRequiresPoints );
+				return;
+			}
+
+			if ( pairs.some( ( pair ) => pair.sourcePointId === stagedSourcePoint?.id ) ) {
+				setStatus( PRECISION_STATUS_MESSAGES.duplicateSourcePoint( stagedSourcePoint.id ) );
 				return;
 			}
 
@@ -142,15 +193,38 @@ export function createPrecisionRegistrationController(
 			solvedResult = null;
 
 			patchPrecisionState( {
-				stagedSourcePoint: 'Not selected',
-				stagedTargetPoint: 'Not confirmed',
+				stagedSourcePoint: PRECISION_WORKFLOW_MESSAGES.notSelected,
+				stagedTargetPoint: PRECISION_WORKFLOW_MESSAGES.notConfirmed,
+				targetQualityText: PRECISION_WORKFLOW_MESSAGES.notSampled,
 				pairSummaries: createPairSummaries(),
+				pairResidualSummaries: createPairResidualSummaries(),
 				rmsText: '--',
 				workflowStatusText: pairs.length >= MIN_SOLVE_PAIR_COUNT
-					? 'Enough pairs collected. Solve precision registration when ready.'
-					: `Collected ${pairs.length} pair(s). At least ${MIN_SOLVE_PAIR_COUNT} are required.`
+					? PRECISION_WORKFLOW_MESSAGES.enoughPairs
+					: PRECISION_WORKFLOW_MESSAGES.collectedPairs( pairs.length, MIN_SOLVE_PAIR_COUNT )
 			} );
-			setStatus( `Added precision pair ${pairs.length}.` );
+			setStatus( PRECISION_STATUS_MESSAGES.addedPair( pairs.length ) );
+
+		},
+
+		removePair(index) {
+
+			if ( index < 0 || index >= pairs.length ) {
+				setStatus( PRECISION_STATUS_MESSAGES.removePairOutOfRange );
+				return;
+			}
+
+			pairs.splice( index, 1 );
+			solvedResult = null;
+			patchPrecisionState( {
+				pairSummaries: createPairSummaries(),
+				pairResidualSummaries: createPairResidualSummaries(),
+				rmsText: '--',
+				workflowStatusText: pairs.length === 0
+					? createDefaultPrecisionRegistrationState().workflowStatusText
+					: PRECISION_WORKFLOW_MESSAGES.collectedPairs( pairs.length, MIN_SOLVE_PAIR_COUNT )
+			} );
+			setStatus( PRECISION_STATUS_MESSAGES.removedPair( pairs.length ) );
 
 		},
 
@@ -159,12 +233,12 @@ export function createPrecisionRegistrationController(
 			const placedModel = getPlacedModel();
 			const modelId = getCurrentModelId();
 			if ( placedModel === null || modelId === null ) {
-				setStatus( 'Place a model before solving precision registration.' );
+				setStatus( PRECISION_STATUS_MESSAGES.placeModelBeforeSolve );
 				return;
 			}
 
 			if ( pairs.length < MIN_SOLVE_PAIR_COUNT ) {
-				setStatus( `At least ${MIN_SOLVE_PAIR_COUNT} control-point pairs are required.` );
+				setStatus( PRECISION_STATUS_MESSAGES.solveRequiresMinPairs( MIN_SOLVE_PAIR_COUNT ) );
 				return;
 			}
 
@@ -173,7 +247,19 @@ export function createPrecisionRegistrationController(
 				placedModel.localToWorld( tempSourcePoint.copy( pair.sourceModelLocal ) ).clone()
 			) );
 			const targetPoints = pairs.map( ( pair ) => pair.targetAr.clone() );
+
+			if (
+				hasSufficientPointSpread( sourcePoints ) === false
+				|| hasSufficientPointSpread( targetPoints ) === false
+			) {
+				setStatus( PRECISION_STATUS_MESSAGES.solveGeometryWeak );
+				return;
+			}
+
 			const delta = solveSimilarityTransform( sourcePoints, targetPoints, 'similarity' );
+			const pairResidualMeters = computePairResidualMeters( sourcePoints, targetPoints, delta );
+			const rmsText = formatMeters( delta.rmsErrorMeters );
+			const maxResidualText = formatMeters( Math.max( ...pairResidualMeters ) );
 
 			solvedResult = {
 				modelId,
@@ -183,6 +269,7 @@ export function createPrecisionRegistrationController(
 				rmsErrorMeters: delta.rmsErrorMeters,
 				pairCount: pairs.length,
 				sourcePointIds: pairs.map( ( pair ) => pair.sourcePointId ),
+				pairResidualMeters,
 				updatedAt: new Date().toISOString()
 			};
 
@@ -191,26 +278,28 @@ export function createPrecisionRegistrationController(
 			onApplied?.();
 
 			patchPrecisionState( {
-				rmsText: `${delta.rmsErrorMeters.toFixed( 3 )}m`,
-				workflowStatusText: `Solved and applied precision delta from ${pairs.length} pair(s). Save to reuse it next time.`
+				pairSummaries: createPairSummaries(),
+				pairResidualSummaries: createPairResidualSummaries( pairResidualMeters ),
+				rmsText,
+				workflowStatusText: PRECISION_WORKFLOW_MESSAGES.solvedApplied( pairs.length, rmsText )
 			} );
-			setStatus( `Precision registration solved. RMS ${delta.rmsErrorMeters.toFixed( 3 )}m.` );
+			setStatus( PRECISION_STATUS_MESSAGES.solved( rmsText, maxResidualText ) );
 
 		},
 
 		save() {
 
 			if ( solvedResult === null ) {
-				setStatus( 'Solve precision registration before saving.' );
+				setStatus( PRECISION_STATUS_MESSAGES.saveBeforeSolve );
 				return;
 			}
 
 			savePrecisionRegistrationResult( solvedResult );
 			savedResult = solvedResult;
 			patchPrecisionState( {
-				workflowStatusText: `Saved precision registration. It will be reused on the next placement.`
+				workflowStatusText: PRECISION_WORKFLOW_MESSAGES.saved
 			} );
-			setStatus( 'Precision registration saved.' );
+			setStatus( PRECISION_STATUS_MESSAGES.saved );
 
 		},
 
@@ -227,7 +316,7 @@ export function createPrecisionRegistrationController(
 					selectedSourcePoint: store.getState().precisionRegistration.selectedSourcePoint
 				}
 			} );
-			setStatus( 'Precision registration pairs cleared.' );
+			setStatus( PRECISION_STATUS_MESSAGES.clearedPairs );
 
 		},
 
@@ -238,10 +327,11 @@ export function createPrecisionRegistrationController(
 			solvedResult = null;
 			appliedModels = new WeakSet<THREE.Group>();
 			patchPrecisionState( {
+				pairResidualSummaries: createPairResidualSummaries(),
 				rmsText: '--',
-				workflowStatusText: 'Cleared saved precision registration. Collect control points again if needed.'
+				workflowStatusText: PRECISION_WORKFLOW_MESSAGES.clearedSaved
 			} );
-			setStatus( 'Saved precision registration cleared.' );
+			setStatus( PRECISION_STATUS_MESSAGES.clearedSaved );
 
 		},
 
@@ -253,15 +343,17 @@ export function createPrecisionRegistrationController(
 
 			if ( savedResult === null ) {
 				patchPrecisionState( {
+					pairResidualSummaries: createPairResidualSummaries(),
 					rmsText: '--',
-					workflowStatusText: 'No saved precision registration. Collect control points if field correction is needed.'
+					workflowStatusText: PRECISION_WORKFLOW_MESSAGES.noSaved
 				} );
 				return;
 			}
 
 			patchPrecisionState( {
-				rmsText: `${savedResult.rmsErrorMeters.toFixed( 3 )}m`,
-				workflowStatusText: `Loaded saved precision registration from ${savedResult.updatedAt}. It will apply after placement.`
+				pairResidualSummaries: createPairResidualSummaries( savedResult.pairResidualMeters ),
+				rmsText: formatMeters( savedResult.rmsErrorMeters ),
+				workflowStatusText: PRECISION_WORKFLOW_MESSAGES.loadedSaved( savedResult.updatedAt )
 			} );
 
 		},
@@ -276,10 +368,13 @@ export function createPrecisionRegistrationController(
 			appliedModels.add( placedModel );
 			onApplied?.();
 			patchPrecisionState( {
-				rmsText: `${savedResult.rmsErrorMeters.toFixed( 3 )}m`,
-				workflowStatusText: `Applied saved precision registration. RMS ${savedResult.rmsErrorMeters.toFixed( 3 )}m.`
+				pairResidualSummaries: createPairResidualSummaries( savedResult.pairResidualMeters ),
+				rmsText: formatMeters( savedResult.rmsErrorMeters ),
+				workflowStatusText: PRECISION_WORKFLOW_MESSAGES.appliedSaved(
+					formatMeters( savedResult.rmsErrorMeters )
+				)
 			} );
-			setStatus( 'Applied saved precision registration result.' );
+			setStatus( PRECISION_STATUS_MESSAGES.appliedSaved );
 			return true;
 
 		},
@@ -292,11 +387,16 @@ export function createPrecisionRegistrationController(
 			}
 
 			const sourcePointIds = sourcePoints.map( ( point ) => point.id );
+			const currentSelection = store.getState().precisionRegistration.selectedSourcePoint;
+			const nextSelection = sourcePointIds.includes( currentSelection )
+				? currentSelection
+				: sourcePointIds[ 0 ] ?? '';
+
 			store.patch( {
 				precisionRegistration: {
 					...store.getState().precisionRegistration,
 					availableSourcePoints: sourcePointIds,
-					selectedSourcePoint: sourcePointIds[ 0 ] ?? ''
+					selectedSourcePoint: nextSelection
 				}
 			} );
 
@@ -321,6 +421,17 @@ export function createPrecisionRegistrationController(
 		return pairs.map( ( pair, index ) => (
 			`${index + 1}. ${pair.sourcePointId} -> ${formatVectorLabel( pair.targetAr )}`
 		) );
+
+	}
+
+	function createPairResidualSummaries(pairResidualMeters?: number[]): string[] {
+
+		return pairs.map( ( _, index ) => {
+			const residualMeters = pairResidualMeters?.[ index ];
+			return residualMeters === undefined
+				? '待求解'
+				: `残差 ${formatMeters( residualMeters )}`;
+		} );
 
 	}
 
@@ -356,10 +467,53 @@ function applyDeltaToModel(
 
 }
 
+function computePairResidualMeters(
+	sourcePoints: THREE.Vector3[],
+	targetPoints: THREE.Vector3[],
+	result: Pick<PrecisionRegistrationResult, 'position' | 'quaternion' | 'scale'>
+): number[] {
+
+	return sourcePoints.map( ( sourcePoint, index ) => tempResidualPoint
+		.copy( sourcePoint )
+		.applyQuaternion( result.quaternion )
+		.multiplyScalar( result.scale )
+		.add( result.position )
+		.distanceTo( targetPoints[ index ] ) );
+
+}
+
+function hasSufficientPointSpread(points: THREE.Vector3[]): boolean {
+
+	let maxDistance = 0;
+
+	for ( let i = 0; i < points.length; i += 1 ) {
+		for ( let j = i + 1; j < points.length; j += 1 ) {
+			maxDistance = Math.max( maxDistance, points[ i ].distanceTo( points[ j ] ) );
+		}
+	}
+
+	return maxDistance >= MIN_POINT_SPREAD_METERS;
+
+}
+
 function formatVectorLabel(vector: THREE.Vector3): string {
 
 	return `(${vector.x.toFixed( 2 )}, ${vector.y.toFixed( 2 )}, ${vector.z.toFixed( 2 )})`;
 
 }
 
+function formatMeters(value: number): string {
 
+	return `${value.toFixed( 3 )}m`;
+
+}
+
+function formatQualityLabel(quality: XRHitTestQuality | null): string {
+
+	if ( quality === null ) {
+		return PRECISION_WORKFLOW_MESSAGES.notSampled;
+	}
+
+	return `${quality.sampleCount} 帧 / 抖动 ${formatMeters( quality.jitterMeters )}`;
+
+}

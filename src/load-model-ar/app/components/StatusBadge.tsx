@@ -5,10 +5,11 @@ export function StatusBadge(props: {
 	tone?: 'default' | 'supported' | 'unsupported' | 'checking';
 }): React.JSX.Element {
 
-	const toneClass = props.tone && props.tone !== 'default'
-		? ` support-badge--${props.tone}`
-		: '';
+	const className = [
+		'support-badge',
+		props.tone && props.tone !== 'default' ? `support-badge--${props.tone}` : ''
+	].filter( Boolean ).join( ' ' );
 
-	return <span className={ `support-badge${toneClass}` }>{props.label}</span>;
+	return <span className={className}>{props.label}</span>;
 
 }

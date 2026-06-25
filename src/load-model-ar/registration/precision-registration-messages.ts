@@ -1,0 +1,40 @@
+export const PRECISION_STATUS_MESSAGES = {
+	selectSourceFirst: '请先选择一个模型控制点。',
+	lockSourceFirst: '请先锁定当前模型控制点。',
+	noTargetPoint: '当前没有可用的现场点，请先对准已识别的平面。',
+	targetSamplingShort: (sampleCount: number, minSampleCount: number) => `现场点采样还不够稳定，当前 ${sampleCount} 帧，至少需要 ${minSampleCount} 帧。`,
+	targetTooUnstable: (jitterText: string, maxJitterText: string) => `现场点抖动仍然偏大（${jitterText}），请稳住设备直到低于 ${maxJitterText}。`,
+	addPairRequiresPoints: '请先准备好一组模型点和现场点，再加入点对。',
+	duplicateSourcePoint: (sourcePointId: string) => `控制点 ${sourcePointId} 已经加入过，请换一个模型控制点。`,
+	removePairOutOfRange: '没有找到要删除的控制点对。',
+	removedPair: (pairCount: number) => `已删除控制点对，当前剩余 ${pairCount} 组。`,
+	placeModelBeforeSolve: '请先完成模型放置，再进行精确配准。',
+	solveRequiresMinPairs: (pairCount: number) => `至少需要 ${pairCount} 组控制点对才能求解。`,
+	solveGeometryWeak: '控制点分布过于集中，建议采集更分散的控制点对后再求解。',
+	solved: (rmsText: string, maxResidualText: string) => `精确配准已求解，RMS ${rmsText}，最大残差 ${maxResidualText}。`,
+	saveBeforeSolve: '请先完成精确配准求解，再保存结果。',
+	saved: '精确配准结果已保存。',
+	clearedPairs: '已清空当前控制点对。',
+	clearedSaved: '已清除已保存的精确配准结果。',
+	appliedSaved: '已应用上次保存的精确配准结果。',
+	selectedSource: (sourcePointId: string) => `已选择模型控制点 ${sourcePointId}。`,
+	confirmedTarget: (targetLabel: string, qualityLabel: string) => `已确认现场点 ${targetLabel}，${qualityLabel}。`,
+	addedPair: (pairCount: number) => `已加入第 ${pairCount} 组控制点对。`
+} as const;
+
+export const PRECISION_WORKFLOW_MESSAGES = {
+	notConfirmed: '未确认',
+	notSelected: '未选择',
+	notSampled: '尚未采样',
+	lockedSource: (sourcePointId: string) => `已锁定模型点 ${sourcePointId}，请确认对应的现场点。`,
+	targetSampling: (qualityLabel: string) => `现场点采样结果：${qualityLabel}。`,
+	confirmedTarget: (targetLabel: string, qualityLabel: string) => `已确认现场点 ${targetLabel}，${qualityLabel}，可加入点对。`,
+	enoughPairs: '控制点对数量已足够，可以开始求解精确配准。',
+	collectedPairs: (pairCount: number, minPairCount: number) => `已收集 ${pairCount} 组控制点对，至少需要 ${minPairCount} 组。`,
+	solvedApplied: (pairCount: number, rmsText: string) => `已根据 ${pairCount} 组控制点对完成求解并应用结果，RMS ${rmsText}。`,
+	saved: '精确配准结果已保存，下次放置模型时会自动复用。',
+	clearedSaved: '已清除保存结果，如需修正请重新采集控制点。',
+	noSaved: '当前没有已保存的精确配准结果。',
+	loadedSaved: (updatedAt: string) => `已读取 ${updatedAt} 的保存结果，放置模型后会自动应用。`,
+	appliedSaved: (rmsText: string) => `已自动应用保存结果，RMS ${rmsText}。`
+} as const;

@@ -180,7 +180,14 @@ export interface XRHitTestController {
 	update(frame: XRFrame): void;
 	hasGroundHit(): boolean;
 	getHitPosition(target: THREE.Vector3): THREE.Vector3 | null;
+	getHitTestQuality(): XRHitTestQuality | null;
 	requestSession(): void;
+}
+
+export interface XRHitTestQuality {
+	sampleCount: number;
+	jitterMeters: number;
+	ageMs: number;
 }
 
 export interface CoarsePlacementEstimate {

@@ -15,6 +15,26 @@ export function RegistrationPanel(props: {
 	const placed = engine.arSessionPhase === 'placed' || engine.appMode === 'pre-ar';
 	const showExportSnapshotAction = engine.appMode === 'pre-ar';
 
+	function handleClearSavedRegistration(): void {
+
+		if ( window.confirm( '确认清除当前模型的已保存配准结果吗？' ) === false ) {
+			return;
+		}
+
+		actions.clearSavedRegistration();
+
+	}
+
+	function handleExportRegistrationSnapshot(): void {
+
+		if ( window.confirm( '确认导出当前配准快照 JSON 吗？' ) === false ) {
+			return;
+		}
+
+		actions.exportRegistrationSnapshot();
+
+	}
+
 	return (
 		<div className="panel-stack">
 			<PanelSection title="当前状态" subtitle="粗配准、精配准和微调都从这里进入。">
@@ -42,14 +62,14 @@ export function RegistrationPanel(props: {
 
 				{showExportSnapshotAction ? (
 					<div className="button-row button-row--compact">
-						<ActionButton label="导出配准快照 JSON" onClick={actions.exportRegistrationSnapshot} kind="secondary" />
+						<ActionButton label="导出配准快照 JSON" onClick={handleExportRegistrationSnapshot} kind="secondary" />
 					</div>
 				) : null}
 
 				<div className="button-row">
 					<ActionButton label="保存配准" onClick={actions.saveManualRegistration} kind="primary" disabled={!placed} />
 					<ActionButton label="重置微调" onClick={actions.resetManualRegistration} kind="secondary" disabled={!placed} />
-					<ActionButton label="清除已保存配准" onClick={actions.clearSavedRegistration} kind="secondary" disabled={!placed} />
+					<ActionButton label="清除已保存配准" onClick={handleClearSavedRegistration} kind="secondary" disabled={!placed} />
 				</div>
 			</PanelSection>
 
@@ -98,6 +118,7 @@ export function RegistrationPanel(props: {
 					<p className="note-block">
 						模型点: {engine.precisionRegistration.stagedSourcePoint}<br />
 						现场点: {engine.precisionRegistration.stagedTargetPoint}<br />
+						采样质量: {engine.precisionRegistration.targetQualityText}<br />
 						点对: {engine.precisionRegistration.pairSummaries.length} / 建议至少 4 组<br />
 						RMS: {engine.precisionRegistration.rmsText}
 					</p>
@@ -110,8 +131,16 @@ export function RegistrationPanel(props: {
 					<div className="list-block">
 						{engine.precisionRegistration.pairSummaries.length === 0 ? (
 							<div className="list-item">还没有采集控制点对。</div>
-						) : engine.precisionRegistration.pairSummaries.map( ( item ) => (
-							<div key={item} className="list-item">{item}</div>
+						) : engine.precisionRegistration.pairSummaries.map( ( item, index ) => (
+							<div key={item} className="list-item">
+								<div>{item}</div>
+								<div>{engine.precisionRegistration.pairResidualSummaries[ index ] ?? '待求解'}</div>
+								<ActionButton
+									label="删除"
+									onClick={ () => actions.removePrecisionPair( index ) }
+									kind="secondary"
+								/>
+							</div>
 						) )}
 					</div>
 				</PanelSection>

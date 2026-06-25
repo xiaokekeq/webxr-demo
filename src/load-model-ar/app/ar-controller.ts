@@ -57,6 +57,7 @@ export interface LoadModelArController {
 		armPrecisionSourcePoint(): void;
 		confirmPrecisionTargetPoint(): void;
 		addPrecisionPair(): void;
+		removePrecisionPair(index: number): void;
 		solvePrecisionRegistration(): void;
 		savePrecisionRegistration(): void;
 		clearPrecisionPairs(): void;
@@ -154,7 +155,6 @@ export function createLoadModelArController(): LoadModelArController {
 				drawerOpen: true,
 				browseDetailsExpanded: true
 			};
-			engine.setWorkspaceMode( 'browse' );
 		}
 
 		previousEngineState = nextState;
@@ -332,9 +332,7 @@ export function createLoadModelArController(): LoadModelArController {
 
 			clearSavedRegistration() {
 
-				if ( window.confirm( '确认清除当前模型的已保存配准结果吗？' ) ) {
-					engine.clearSavedRegistration();
-				}
+				engine.clearSavedRegistration();
 
 			},
 
@@ -359,6 +357,12 @@ export function createLoadModelArController(): LoadModelArController {
 			addPrecisionPair() {
 
 				engine.addPrecisionPair();
+
+			},
+
+			removePrecisionPair(index) {
+
+				engine.removePrecisionPair( index );
 
 			},
 
@@ -468,9 +472,7 @@ export function createLoadModelArController(): LoadModelArController {
 
 			exportRegistrationSnapshot() {
 
-				if ( window.confirm( '确认导出当前配准快照 JSON 吗？' ) ) {
-					engine.exportRegistrationSnapshot();
-				}
+				engine.exportRegistrationSnapshot();
 
 			}
 		}

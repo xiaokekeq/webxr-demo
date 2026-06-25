@@ -42,7 +42,9 @@ export interface PrecisionRegistrationState {
 	selectedSourcePoint: string;
 	stagedSourcePoint: string;
 	stagedTargetPoint: string;
+	targetQualityText: string;
 	pairSummaries: string[];
+	pairResidualSummaries: string[];
 	rmsText: string;
 	workflowStatusText: string;
 }
@@ -110,14 +112,14 @@ export function createRegistrationStore(
 export function createDefaultPropertyPanelState(): PropertyPanelState {
 
 	return {
-		name: '请选择一个堤防构件',
+		name: '未选择构件',
 		statusBadge: '待选择',
 		type: '-',
 		diameter: '-',
 		material: '-',
 		depth: '-',
 		status: '-',
-		remark: '点击模型即可查看该堤防构件的属性、位置和备注信息。'
+		remark: '点击模型构件后可查看属性、位置和备注信息。'
 	};
 
 }
@@ -159,9 +161,11 @@ export function createDefaultPrecisionRegistrationState(): PrecisionRegistration
 		selectedSourcePoint: '',
 		stagedSourcePoint: '未选择',
 		stagedTargetPoint: '未确认',
+		targetQualityText: '尚未采样',
 		pairSummaries: [],
+		pairResidualSummaries: [],
 		rmsText: '--',
-		workflowStatusText: '已有粗配准结果，接下来可采集控制点。'
+		workflowStatusText: '完成粗配准后可继续采集控制点。'
 	};
 
 }

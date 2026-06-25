@@ -5,8 +5,13 @@ import { createPointerSelectionSession } from './internal/interaction/pointer-se
 import { createPropertySelectionController } from './internal/interaction/property-selection.js';
 import { createModelSession } from './internal/model/session.js';
 import { createPlacementSession } from './internal/placement/session.js';
+import { createArSessionStateRuntime } from './internal/runtime/ar-session-state-runtime.js';
+import {
+	exportRegistrationSnapshotFile,
+	exportSceneSnapshot
+} from './internal/runtime/export-runtime.js';
+import { createSceneHostRuntime, type SceneHostRuntimeHosts } from './internal/runtime/scene-host-runtime.js';
 import { createStatusRuntime } from './internal/runtime/status-runtime.js';
-import { createRegistrationSnapshot } from './internal/runtime/view-state.js';
 import { createWorkspaceRuntime } from './internal/runtime/workspace-runtime.js';
 import type { DemoModelConfig } from '../data/demo-model-config.js';
 import {
@@ -40,14 +45,7 @@ const PROJECT_NAME = '堤防现场辅助核查';
 const TIMELINE_STAGES = [ '施工前', '基础开挖', '堤身填筑', '护坡施工', '完工核查' ] as const;
 const STATIC_LAYER_NAMES = [ '三维模型', '堤身结构', '防渗层', '排水设施', '控制点', '辅助标注' ] as const;
 
-type ArSessionPhase = RegistrationStoreState['arSessionPhase'];
-
-export interface ThreeEngineHosts {
-	arCanvasHost: HTMLElement;
-	preArCanvasHost: HTMLElement;
-	desktopCanvasHost: HTMLElement;
-	xrButtonHost: HTMLElement;
-}
+export interface ThreeEngineHosts extends SceneHostRuntimeHosts {}
 
 export interface ThreeEngineSnapshot extends RegistrationStoreState {
 	hasSelection: boolean;
@@ -101,7 +99,9 @@ function createInitialState(): RegistrationStoreState {
 			selectedSourcePoint: '',
 			stagedSourcePoint: '未选择',
 			stagedTargetPoint: '未确认',
+			targetQualityText: '尚未采样',
 			pairSummaries: [],
+			pairResidualSummaries: [],
 			rmsText: '--',
 			workflowStatusText: '完成粗配准后可继续采集控制点。'
 		},
@@ -116,7 +116,8 @@ function createInitialState(): RegistrationStoreState {
 function hasSelectedPipe(state: RegistrationStoreState): boolean {
 
 	return (
-		state.propertyPanel.type !== '-'
+		state.propertyPanel.name !== '未选择构件'
+		|| state.propertyPanel.type !== '-'
 		|| state.propertyPanel.diameter !== '-'
 		|| state.propertyPanel.material !== '-'
 		|| state.propertyPanel.depth !== '-'
@@ -166,9 +167,10 @@ export class ThreeEngine {
 	private readonly precisionRegistration;
 	private readonly workspaceRuntime;
 	private readonly pointerSelection;
+	private readonly arSessionStateRuntime;
+	private readonly sceneHostRuntime;
 	private readonly listeners = new Set<() => void>();
 
-	private hosts: ThreeEngineHosts | null = null;
 	private initialized = false;
 	private disposed = false;
 	private isDesktopLayout = window.matchMedia( '(any-pointer: fine)' ).matches;
@@ -177,7 +179,6 @@ export class ThreeEngine {
 	private demoModelConfig: DemoModelConfig | null = null;
 	private registrationSolution: EngineeringRegistrationSolution | null = null;
 	private pipesByName = new Map<string, PipeRecord>();
-	private hasCommittedArPlacement = false;
 	private coarseWarmupPromise: Promise<void> | null = null;
 	private coarseRegistration = createCoarseRegistrationController( {
 		setStatus: ( message ) => {
@@ -220,6 +221,7 @@ export class ThreeEngine {
 			getPlacedModel: () => this.placementSession.getPlacedModel(),
 			getCurrentModelId: () => this.demoModelConfig?.modelId ?? null,
 			getTargetPoint: ( target ) => this.xrRuntime.getHitTestController().getHitPosition( target ),
+			getTargetPointQuality: () => this.xrRuntime.getHitTestController().getHitTestQuality(),
 			onApplied: () => {
 				this.syncArSessionPhase();
 				this.emit();
@@ -263,6 +265,23 @@ export class ThreeEngine {
 			}
 		} );
 
+		this.arSessionStateRuntime = createArSessionStateRuntime( {
+			store: this.store,
+			isPresenting: () => this.sceneBundle.renderer.xr.isPresenting,
+			hasGroundHit: () => this.xrRuntime.getHitTestController().hasGroundHit(),
+			hasPlacedModel: () => this.placementSession.getPlacedModel() !== null,
+			isCoarsePlacementPending: () => this.placementSession.getCoarsePlacementPending()
+		} );
+
+		this.sceneHostRuntime = createSceneHostRuntime( {
+			sceneBundle: this.sceneBundle,
+			desktopAxesHelper: this.desktopAxesHelper,
+			resizeScene: resizeARScene,
+			updateDesktopInteractionState: ( nextIsDesktopLayout, isPresenting ) => {
+				this.placementSession.updateDesktopInteractionState( nextIsDesktopLayout, isPresenting );
+			}
+		} );
+
 		this.pointerSelection = createPointerSelectionSession( {
 			sceneBundle: this.sceneBundle,
 			propertySelection: this.propertySelection,
@@ -271,8 +290,7 @@ export class ThreeEngine {
 				this.emit();
 			},
 			onInspectSelection: () => {
-				const state = this.store.getState();
-				if ( state.appMode === 'ar-session' && state.arSessionPhase === 'placed' ) {
+				if ( this.store.getState().workspaceMode !== 'browse' ) {
 					this.store.patch( { workspaceMode: 'browse' } );
 				}
 				this.emit();
@@ -402,10 +420,7 @@ export class ThreeEngine {
 
 	mount(hosts: ThreeEngineHosts): void {
 
-		this.hosts = hosts;
-		if ( this.xrButtonWrap.parentElement !== hosts.xrButtonHost ) {
-			hosts.xrButtonHost.appendChild( this.xrButtonWrap );
-		}
+		this.sceneHostRuntime.mount( hosts, this.xrButtonWrap );
 		this.syncSceneHost();
 
 	}
@@ -602,7 +617,7 @@ export class ThreeEngine {
 
 	resetPlacement(): void {
 
-		this.hasCommittedArPlacement = false;
+		this.arSessionStateRuntime.markPlacementCommitted( false );
 		this.placementSession.resetPlacement();
 		this.syncArSessionPhase();
 		this.syncSceneHost();
@@ -720,6 +735,12 @@ export class ThreeEngine {
 
 	}
 
+	removePrecisionPair(index: number): void {
+
+		this.precisionRegistration.removePair( index );
+
+	}
+
 	enterAr(): void {
 
 		if ( this.store.getState().arSupportState !== 'supported' ) {
@@ -786,13 +807,6 @@ export class ThreeEngine {
 			return;
 		}
 
-		this.hasCommittedArPlacement = true;
-		this.store.patch( { workspaceMode: 'browse' } );
-		this.patchArSessionPhase( 'placed' );
-		this.pointerSelection.suppressSelectionFor( 1200 );
-		this.syncSceneHost();
-		this.setStatus( '模型已放置，已切换到浏览模式。' );
-
 	}
 
 	exitAr(): void {
@@ -821,20 +835,13 @@ export class ThreeEngine {
 
 	takeSnapshot(): void {
 
-		try {
-			this.sceneBundle.renderer.render( this.sceneBundle.scene, this.sceneBundle.camera );
-			const canvas = this.sceneBundle.renderer.domElement;
-			const timestamp = createSnapshotTimestamp();
-			const fileBaseName = this.demoModelConfig?.modelId || 'ar-scene';
-			const fileName = `${fileBaseName}-${timestamp}.png`;
-
-			const dataUrl = canvas.toDataURL( 'image/png' );
-			triggerFileDownload( dataUrl, fileName );
-			this.setStatus( `截图已导出：${fileName}` );
-		} catch ( error ) {
-			console.error( 'Snapshot export failed:', error );
-			this.setStatus( '截图失败，当前环境可能限制了画面导出。' );
-		}
+		const result = exportSceneSnapshot( {
+			renderer: this.sceneBundle.renderer,
+			scene: this.sceneBundle.scene,
+			camera: this.sceneBundle.camera,
+			modelId: this.demoModelConfig?.modelId ?? null
+		} );
+		this.setStatus( result.statusMessage );
 
 	}
 
@@ -852,31 +859,17 @@ export class ThreeEngine {
 
 	exportRegistrationSnapshot(): void {
 
-		if ( this.sceneBundle.renderer.xr.isPresenting || this.store.getState().appMode === 'ar-session' ) {
-			this.setStatus( 'AR 运行中不提供配准 JSON 导出，请退出 AR 后再操作。' );
-			return;
-		}
-
-		if ( this.demoModelConfig === null || this.registrationSolution === null ) {
-			this.setStatus( '当前没有可导出的配准快照。' );
-			return;
-		}
-
-		const snapshot = createRegistrationSnapshot( {
+		const state = this.store.getState();
+		const result = exportRegistrationSnapshotFile( {
+			appMode: state.appMode,
+			isPresenting: this.sceneBundle.renderer.xr.isPresenting,
 			demoModelConfig: this.demoModelConfig,
 			registrationSolution: this.registrationSolution,
-			currentStage: this.store.getState().timelineStages[ this.store.getState().currentTimelineStageIndex ],
-			manualReadout: this.store.getState().manualReadout,
+			currentStage: state.timelineStages[ state.currentTimelineStageIndex ],
+			manualReadout: state.manualReadout,
 			placedModel: this.placementSession.getPlacedModel()
 		} );
-
-		const blob = new Blob( [ JSON.stringify( snapshot, null, 2 ) ], { type: 'application/json' } );
-		const url = URL.createObjectURL( blob );
-		triggerFileDownload( url, `${this.demoModelConfig.modelId}-registration.json` );
-		window.setTimeout( () => {
-			URL.revokeObjectURL( url );
-		}, 1000 );
-		this.setStatus( '已导出配准 JSON 快照。' );
+		this.setStatus( result.statusMessage );
 
 	}
 
@@ -939,6 +932,7 @@ export class ThreeEngine {
 		const placedModel = this.placementSession.getPlacedModel();
 		if ( hadPlacedModel === false && placedModel !== null ) {
 			this.precisionRegistration.applySavedResult( placedModel );
+			this.handlePlacementCompleted();
 		}
 
 		this.syncArSessionPhase();
@@ -967,15 +961,9 @@ export class ThreeEngine {
 
 	private handleXRSessionStart(): void {
 
-		this.hasCommittedArPlacement = false;
+		this.arSessionStateRuntime.handleSessionStart();
 		this.pointerSelection.suppressSelectionFor( 1200 );
-		this.store.patch( {
-			appMode: 'ar-session',
-			arSessionPhase: 'scanning',
-			workspaceMode: 'registration'
-		} );
 		this.placementSession.resetPlacement();
-		this.store.patch( { registrationStatusDetail: '状态：扫描平面中' } );
 		this.syncArSessionPhase();
 		this.syncSceneHost();
 		this.emit();
@@ -984,18 +972,24 @@ export class ThreeEngine {
 
 	private handleXRSessionEnd(): void {
 
-		this.hasCommittedArPlacement = false;
-		this.store.patch( {
-			appMode: 'pre-ar',
-			arSessionPhase: 'scanning',
-			workspaceMode: 'browse'
-		} );
+		this.arSessionStateRuntime.handleSessionEnd();
 		this.placementSession.resetPlacement();
-		this.store.patch( { registrationStatusDetail: '状态：等待识别平面' } );
 		this.ensureDesktopPreviewPlacement();
 		this.placementSession.fitDesktopPreviewToCamera();
 		this.syncSceneHost();
 		this.emit();
+
+	}
+
+	private handlePlacementCompleted(): void {
+
+		this.arSessionStateRuntime.markPlacementCommitted( true );
+		if ( this.store.getState().workspaceMode !== 'browse' ) {
+			this.store.patch( { workspaceMode: 'browse' } );
+		}
+		this.pointerSelection.suppressSelectionFor( 1200 );
+		this.syncSceneHost();
+		this.setStatus( '模型已放置，已切换到浏览模式。' );
 
 	}
 
@@ -1022,7 +1016,7 @@ export class ThreeEngine {
 		} );
 
 		if ( this.sceneBundle.renderer.xr.isPresenting && this.placementSession.getPlacedModel() !== null ) {
-			this.hasCommittedArPlacement = true;
+			this.arSessionStateRuntime.markPlacementCommitted( true );
 		}
 
 		this.syncArSessionPhase();
@@ -1033,35 +1027,10 @@ export class ThreeEngine {
 
 	private syncSceneHost(): void {
 
-		if ( this.hosts === null ) {
-			return;
-		}
-
-		const state = this.store.getState();
-		const targetHost = this.isDesktopLayout
-			? this.hosts.desktopCanvasHost
-			: state.appMode === 'pre-ar'
-				? this.hosts.preArCanvasHost
-				: this.hosts.arCanvasHost;
-
-		if ( this.sceneBundle.renderer.domElement.parentElement !== targetHost ) {
-			targetHost.appendChild( this.sceneBundle.renderer.domElement );
-		}
-
-		const shouldShowAxes = this.isDesktopLayout;
-		if ( shouldShowAxes ) {
-			this.sceneBundle.scene.add( this.desktopAxesHelper );
-		} else {
-			this.sceneBundle.scene.remove( this.desktopAxesHelper );
-		}
-
-		this.placementSession.updateDesktopInteractionState(
-			this.isDesktopLayout || state.appMode === 'pre-ar',
-			this.sceneBundle.renderer.xr.isPresenting
-		);
-
-		resizeARScene( this.sceneBundle.camera, this.sceneBundle.renderer, targetHost );
-		this.sceneBundle.renderer.render( this.sceneBundle.scene, this.sceneBundle.camera );
+		this.sceneHostRuntime.sync( {
+			isDesktopLayout: this.isDesktopLayout,
+			appMode: this.store.getState().appMode
+		} );
 
 	}
 
@@ -1092,54 +1061,7 @@ export class ThreeEngine {
 
 	private syncArSessionPhase(): void {
 
-		if ( this.sceneBundle.renderer.xr.isPresenting === false ) {
-			this.hasCommittedArPlacement = false;
-			this.patchArSessionPhase( 'scanning' );
-			return;
-		}
-
-		if ( this.placementSession.getCoarsePlacementPending() ) {
-			this.patchArSessionPhase( 'placing' );
-			return;
-		}
-
-		if ( this.hasCommittedArPlacement || this.placementSession.getPlacedModel() !== null ) {
-			this.hasCommittedArPlacement = this.placementSession.getPlacedModel() !== null;
-			this.patchArSessionPhase( 'placed' );
-			return;
-		}
-
-		if ( this.xrRuntime.getHitTestController().hasGroundHit() ) {
-			this.patchArSessionPhase( 'ready-to-place' );
-			return;
-		}
-
-		this.patchArSessionPhase( 'scanning' );
-
-	}
-
-	private patchArSessionPhase(nextPhase: ArSessionPhase): void {
-
-		if ( this.store.getState().arSessionPhase === nextPhase ) {
-			return;
-		}
-
-		this.store.patch( { arSessionPhase: nextPhase } );
-
-		switch ( nextPhase ) {
-			case 'scanning':
-				this.store.patch( { registrationStatusDetail: '状态：扫描平面中' } );
-				break;
-			case 'ready-to-place':
-				this.store.patch( { registrationStatusDetail: '状态：已识别平面，可开始放置' } );
-				break;
-			case 'placing':
-				this.store.patch( { registrationStatusDetail: '状态：正在放置模型' } );
-				break;
-			case 'placed':
-				this.store.patch( { registrationStatusDetail: '状态：模型已放置' } );
-				break;
-		}
+		this.arSessionStateRuntime.syncPhase();
 
 	}
 
@@ -1194,45 +1116,12 @@ export class ThreeEngine {
 
 	private handleWindowResize = (): void => {
 
-		const host = this.sceneBundle.renderer.domElement.parentElement;
-		resizeARScene( this.sceneBundle.camera, this.sceneBundle.renderer, host );
 		if ( this.isDesktopLayout && this.store.getState().appMode === 'pre-ar' ) {
 			this.placementSession.fitDesktopPreviewToCamera();
 		}
-		this.sceneBundle.renderer.render( this.sceneBundle.scene, this.sceneBundle.camera );
+		this.sceneHostRuntime.resize();
 
 	};
-
-}
-
-function createSnapshotTimestamp(): string {
-
-	const now = new Date();
-	const pad = (value: number): string => String( value ).padStart( 2, '0' );
-	return [
-		now.getFullYear(),
-		pad( now.getMonth() + 1 ),
-		pad( now.getDate() )
-	].join( '' ) + '-' + [
-		pad( now.getHours() ),
-		pad( now.getMinutes() ),
-		pad( now.getSeconds() )
-	].join( '' );
-
-}
-
-function triggerFileDownload(url: string, filename: string): void {
-
-	const link = document.createElement( 'a' );
-	link.href = url;
-	link.download = filename;
-	link.rel = 'noopener';
-	link.style.display = 'none';
-	document.body.appendChild( link );
-	link.click();
-	window.setTimeout( () => {
-		link.remove();
-	}, 0 );
 
 }
 

@@ -11,7 +11,7 @@ import { PreArView } from './PreArView.js';
 import { ArRuntimeView } from './ArRuntimeView.js';
 import { ArCanvas } from './ArCanvas.js';
 import { StatusBadge } from '../components/StatusBadge.js';
-import { getSupportLabel, getWorkspaceLabel } from '../store/selectors.js';
+import { getSupportLabel } from '../store/selectors.js';
 import { BrowsePanel } from '../panels/BrowsePanel.js';
 import { RegistrationPanel } from '../panels/RegistrationPanel.js';
 import { ToolsPanel } from '../panels/ToolsPanel.js';
@@ -111,7 +111,6 @@ export function ArPage(): React.JSX.Element {
 						<div className="desktop-header__meta">
 							<StatusBadge label={getSupportLabel( engine.arSupportState )} tone={engine.arSupportState} />
 							<span className="status-pill status-pill--muted">桌面预览</span>
-							<span className="status-pill">{getWorkspaceLabel( engine.workspaceMode )}</span>
 						</div>
 					</header>
 

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 
 export interface SerializedPrecisionRegistrationResult {
+	schemaVersion: 2;
 	modelId: string;
 	deltaTransform: {
 		position: [ number, number, number ];
@@ -10,6 +11,7 @@ export interface SerializedPrecisionRegistrationResult {
 	rmsErrorMeters: number;
 	pairCount: number;
 	sourcePointIds: string[];
+	pairResidualMeters: number[];
 	updatedAt: string;
 }
 
@@ -21,6 +23,7 @@ export interface PrecisionRegistrationResult {
 	rmsErrorMeters: number;
 	pairCount: number;
 	sourcePointIds: string[];
+	pairResidualMeters: number[];
 	updatedAt: string;
 }
 
@@ -64,6 +67,7 @@ function serializePrecisionRegistrationResult(
 ): SerializedPrecisionRegistrationResult {
 
 	return {
+		schemaVersion: 2,
 		modelId: result.modelId,
 		deltaTransform: {
 			position: result.position.toArray() as [ number, number, number ],
@@ -78,6 +82,7 @@ function serializePrecisionRegistrationResult(
 		rmsErrorMeters: result.rmsErrorMeters,
 		pairCount: result.pairCount,
 		sourcePointIds: result.sourcePointIds,
+		pairResidualMeters: result.pairResidualMeters,
 		updatedAt: result.updatedAt
 	};
 
@@ -105,6 +110,9 @@ function deserializePrecisionRegistrationResult(
 		rmsErrorMeters: typeof raw.rmsErrorMeters === 'number' ? raw.rmsErrorMeters : Number.NaN,
 		pairCount: typeof raw.pairCount === 'number' ? raw.pairCount : 0,
 		sourcePointIds: Array.isArray( raw.sourcePointIds ) ? raw.sourcePointIds : [],
+		pairResidualMeters: Array.isArray( raw.pairResidualMeters )
+			? raw.pairResidualMeters.filter( ( value ): value is number => typeof value === 'number' )
+			: [],
 		updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : ''
 	};
 

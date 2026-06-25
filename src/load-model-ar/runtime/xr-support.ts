@@ -1,6 +1,6 @@
 ﻿import * as THREE from 'three';
 import { ARButton } from 'three/addons/webxr/ARButton.js';
-import type { SetStatus, XRHitTestController } from '../shared/types.js';
+import type { SetStatus, XRHitTestController, XRHitTestQuality } from '../shared/types.js';
 
 interface CreateXRHitTestControllerOptions {
 	renderer: THREE.WebGLRenderer;
@@ -14,8 +14,12 @@ interface CreateXRHitTestControllerOptions {
 }
 
 const reticlePosition = new THREE.Vector3();
+const qualityCentroid = new THREE.Vector3();
+const qualityDelta = new THREE.Vector3();
 const RETICLE_PERSIST_MS = 350;
 const PLACEABLE_HIT_RETENTION_MS = 1600;
+const HIT_QUALITY_WINDOW_MS = 700;
+const MAX_HIT_QUALITY_SAMPLES = 24;
 
 export interface ImmersiveArSupportInfo {
 	supported: boolean;
@@ -70,6 +74,7 @@ export function createXRHitTestController(
 	let hitTestSourceRequested = false;
 	let lastSuccessfulHitTime = 0;
 	let lastStableHitPosition: THREE.Vector3 | null = null;
+	let recentHitSamples: Array<{ position: THREE.Vector3; time: number }> = [];
 	let launchElement: HTMLElement | null = null;
 
 	function setup(): void {
@@ -92,6 +97,7 @@ export function createXRHitTestController(
 		reticle.visible = false;
 		lastSuccessfulHitTime = 0;
 		lastStableHitPosition = null;
+		recentHitSamples = [];
 		setStatus( '已进入 AR，请缓慢移动手机，让系统持续识别地面或墙面。' );
 
 		const session = renderer.xr.getSession();
@@ -126,6 +132,7 @@ export function createXRHitTestController(
 		hitTestSourceRequested = false;
 		lastSuccessfulHitTime = 0;
 		lastStableHitPosition = null;
+		recentHitSamples = [];
 		onSessionEnd?.();
 		setStatus( 'AR 会话已结束，可再次点击进入 AR 重新开始。' );
 
@@ -167,6 +174,7 @@ export function createXRHitTestController(
 		reticle.matrix.fromArray( pose.transform.matrix );
 		reticlePosition.setFromMatrixPosition( reticle.matrix );
 		lastStableHitPosition = reticlePosition.clone();
+		pushHitSample( reticlePosition, lastSuccessfulHitTime );
 
 		if ( canReportStatus?.() !== false ) {
 			setStatus( '已找到可用平面，可继续观察地面或墙面上的命中效果。' );
@@ -224,17 +232,75 @@ export function createXRHitTestController(
 
 	}
 
+	function getHitTestQuality(): XRHitTestQuality | null {
+
+		if ( hasGroundHit() === false ) {
+			return null;
+		}
+
+		const now = performance.now();
+		pruneHitSamples( now );
+		if ( recentHitSamples.length === 0 ) {
+			return null;
+		}
+
+		qualityCentroid.set( 0, 0, 0 );
+		for ( const sample of recentHitSamples ) {
+			qualityCentroid.add( sample.position );
+		}
+		qualityCentroid.divideScalar( recentHitSamples.length );
+
+		let sumSquaredDistance = 0;
+		for ( const sample of recentHitSamples ) {
+			sumSquaredDistance += qualityDelta
+				.copy( sample.position )
+				.sub( qualityCentroid )
+				.lengthSq();
+		}
+
+		return {
+			sampleCount: recentHitSamples.length,
+			jitterMeters: Math.sqrt( sumSquaredDistance / recentHitSamples.length ),
+			ageMs: now - recentHitSamples[ recentHitSamples.length - 1 ].time
+		};
+
+	}
+
 	return {
 		setup,
 		update,
 		hasGroundHit,
 		getHitPosition,
+		getHitTestQuality,
 		requestSession() {
 
 			launchElement?.click();
 
 		}
 	};
+
+	function pushHitSample(position: THREE.Vector3, time: number): void {
+
+		recentHitSamples.push( {
+			position: position.clone(),
+			time
+		} );
+
+		if ( recentHitSamples.length > MAX_HIT_QUALITY_SAMPLES ) {
+			recentHitSamples.splice( 0, recentHitSamples.length - MAX_HIT_QUALITY_SAMPLES );
+		}
+
+		pruneHitSamples( time );
+
+	}
+
+	function pruneHitSamples(now: number): void {
+
+		recentHitSamples = recentHitSamples.filter(
+			( sample ) => now - sample.time <= HIT_QUALITY_WINDOW_MS
+		);
+
+	}
 
 }
 

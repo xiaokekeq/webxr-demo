@@ -1,5 +1,11 @@
 ﻿import * as THREE from 'three';
 import type { SetStatus } from '../shared/types.js';
+import {
+	clearManualRegistrationState,
+	loadManualRegistrationState,
+	saveManualRegistrationState,
+	type SerializedManualRegistrationState
+} from './manual-registration-storage.js';
 
 export interface ManualRegistrationState {
 	offset: THREE.Vector3;
@@ -21,7 +27,6 @@ interface CreateManualRegistrationControllerOptions {
 
 export type ManualTranslationAxis = 'x' | 'y' | 'z';
 
-const STORAGE_KEY_PREFIX = 'webxr-manual-registration:';
 const TRANSLATION_STEP_METERS = 0.1;
 const YAW_STEP_DEGREES = 5;
 const SCALE_STEP_FACTOR = 1.05;
@@ -81,28 +86,29 @@ export function createManualRegistrationController(
 
 	function save(modelId: string): boolean {
 
-		try {
-			localStorage.setItem( getStorageKey( modelId ), JSON.stringify( serializeState( state ) ) );
+		const saved = saveManualRegistrationState( modelId, serializeState( state ) );
+		if ( saved ) {
 			setStatus( `Manual registration saved for ${modelId}.` );
 			return true;
-		} catch ( error ) {
-			console.error( 'Failed to save manual registration:', error );
-			setStatus( 'Failed to save manual registration.' );
-			return false;
 		}
+
+		setStatus( 'Failed to save manual registration.' );
+		return false;
 
 	}
 
 	function load(modelId: string): ManualRegistrationState {
 
-		try {
-			const raw = localStorage.getItem( getStorageKey( modelId ) );
-			if ( raw === null ) {
-				emitState();
-				return getState();
-			}
+		const parsed = loadManualRegistrationState( modelId );
+		if ( parsed === null ) {
+			state.offset.set( 0, 0, 0 );
+			state.yawDeg = 0;
+			state.scaleMultiplier = 1;
+			emitState();
+			return getState();
+		}
 
-			const parsed = JSON.parse( raw ) as Partial<SerializedManualRegistrationState>;
+		try {
 			state.offset.set(
 				toFiniteNumber( parsed.offsetX, 0 ),
 				toFiniteNumber( parsed.offsetY, 0 ),
@@ -111,8 +117,7 @@ export function createManualRegistrationController(
 			state.yawDeg = normalizeDegrees( toFiniteNumber( parsed.yawDeg, 0 ) );
 			state.scaleMultiplier = clamp( toFiniteNumber( parsed.scaleMultiplier, 1 ), 0.1, 10 );
 			emitState();
-		} catch ( error ) {
-			console.error( 'Failed to load manual registration:', error );
+		} catch {
 			state.offset.set( 0, 0, 0 );
 			state.yawDeg = 0;
 			state.scaleMultiplier = 1;
@@ -125,15 +130,14 @@ export function createManualRegistrationController(
 
 	function clearSaved(modelId: string): boolean {
 
-		try {
-			localStorage.removeItem( getStorageKey( modelId ) );
+		const cleared = clearManualRegistrationState( modelId );
+		if ( cleared ) {
 			setStatus( `Saved manual registration cleared for ${modelId}.` );
 			return true;
-		} catch ( error ) {
-			console.error( 'Failed to clear saved manual registration:', error );
-			setStatus( 'Failed to clear saved manual registration.' );
-			return false;
 		}
+
+		setStatus( 'Failed to clear saved manual registration.' );
+		return false;
 
 	}
 
@@ -199,14 +203,6 @@ export function createManualRegistrationController(
 
 }
 
-interface SerializedManualRegistrationState {
-	offsetX: number;
-	offsetY: number;
-	offsetZ: number;
-	yawDeg: number;
-	scaleMultiplier: number;
-}
-
 function createDefaultState(): ManualRegistrationState {
 
 	return {
@@ -236,12 +232,6 @@ function serializeState(state: ManualRegistrationState): SerializedManualRegistr
 		yawDeg: state.yawDeg,
 		scaleMultiplier: state.scaleMultiplier
 	};
-
-}
-
-function getStorageKey(modelId: string): string {
-
-	return `${STORAGE_KEY_PREFIX}${modelId}`;
 
 }
 

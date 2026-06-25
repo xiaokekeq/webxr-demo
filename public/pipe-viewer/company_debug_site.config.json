@@ -1,35 +1,67 @@
 {
   "siteId": "company_debug_site",
   "origin": {
-    "lng": 118.741163,
-    "lat": 31.938175,
-    "height": 20,
+    "lng": 118.73646,
+    "lat": 31.94031,
+    "height": 54,
     "coordType": "GCJ-02"
   },
   "controlPoints": [
     {
       "id": "CP_01",
       "name": "Debug Point A",
-      "modelLocal": [0, 0, 0],
-      "siteENU": [0, 0, 0]
+      "modelLocal": [
+        0,
+        0,
+        0
+      ],
+      "siteENU": [
+        0,
+        0,
+        0
+      ]
     },
     {
       "id": "CP_02",
       "name": "Debug Point B",
-      "modelLocal": [2, 0, 0],
-      "siteENU": [2, 0, 0]
+      "modelLocal": [
+        2,
+        0,
+        0
+      ],
+      "siteENU": [
+        2,
+        0,
+        0
+      ]
     },
     {
       "id": "CP_03",
       "name": "Debug Point C",
-      "modelLocal": [2, 0, -2],
-      "siteENU": [2, 0, 2]
+      "modelLocal": [
+        2,
+        0,
+        -2
+      ],
+      "siteENU": [
+        2,
+        0,
+        2
+      ]
     },
     {
       "id": "CP_04",
       "name": "Debug Point D",
-      "modelLocal": [0, 0, -2],
-      "siteENU": [0, 0, 2]
+      "modelLocal": [
+        0,
+        0,
+        -2
+      ],
+      "siteENU": [
+        0,
+        0,
+        2
+      ]
     }
   ]
 }

@@ -372,8 +372,8 @@ export class ThreeEngine {
 			},
 			onAfterModelLoaded: () => {
 				this.ensureDesktopPreviewPlacement();
-				this.placementSession.fitDesktopPreviewToCamera();
 				this.syncSceneHost();
+				this.placementSession.fitDesktopPreviewToCamera();
 				this.emit();
 			},
 			onCreateCoarseRegistrationTarget: ( solution ) => {
@@ -467,6 +467,9 @@ export class ThreeEngine {
 
 		this.sceneHostRuntime.mount( hosts, this.xrButtonWrap );
 		this.syncSceneHost();
+		if ( this.isDesktopLayout || this.store.getState().appMode === 'pre-ar' ) {
+			this.placementSession.fitDesktopPreviewToCamera();
+		}
 
 	}
 
@@ -762,8 +765,8 @@ export class ThreeEngine {
 		this.store.patch( { autoPreviewPlacementEnabled: enabled } );
 		this.setStatus(
 			enabled
-				? '已开启近距离预览放置。'
-				: '已关闭近距离预览放置，将优先按真实目标位置放置。'
+				? '已开启近距离预览放置，放置时会优先显示到手机前方。'
+				: '已关闭近距离预览放置，将按真实目标位置放置。'
 		);
 		this.emit();
 
@@ -1105,8 +1108,8 @@ export class ThreeEngine {
 		this.arSessionStateRuntime.handleSessionEnd();
 		this.placementSession.resetPlacement();
 		this.ensureDesktopPreviewPlacement();
-		this.placementSession.fitDesktopPreviewToCamera();
 		this.syncSceneHost();
+		this.placementSession.fitDesktopPreviewToCamera();
 		this.emit();
 
 	}
@@ -1270,10 +1273,10 @@ export class ThreeEngine {
 
 	private handleWindowResize = (): void => {
 
-		if ( this.isDesktopLayout && this.store.getState().appMode === 'pre-ar' ) {
+		this.sceneHostRuntime.resize();
+		if ( this.isDesktopLayout || this.store.getState().appMode === 'pre-ar' ) {
 			this.placementSession.fitDesktopPreviewToCamera();
 		}
-		this.sceneHostRuntime.resize();
 
 	};
 

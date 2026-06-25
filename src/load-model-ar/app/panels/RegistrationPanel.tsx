@@ -55,8 +55,8 @@ export function RegistrationPanel(props: {
 					value={engine.autoPreviewPlacementEnabled ? 'enabled' : 'disabled'}
 					onChange={ ( value ) => actions.setAutoPreviewPlacementEnabled( value === 'enabled' ) }
 					options={[
-						{ value: 'disabled', label: '关闭: 始终按真实目标位置放置' },
-						{ value: 'enabled', label: '开启: 超距或低精度时改为贴近预览' }
+						{ value: 'disabled', label: '关闭: 按真实目标位置放置' },
+						{ value: 'enabled', label: '开启: 优先放到手机前方预览' }
 					]}
 				/>
 

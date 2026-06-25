@@ -6,7 +6,7 @@ export function createARScene(canvasContainer: HTMLElement): ARSceneBundle {
 
 	const scene = new THREE.Scene();
 	const initialSize = getHostSize( canvasContainer );
-	const camera = new THREE.PerspectiveCamera( 70, initialSize.width / initialSize.height, 0.01, 30 );
+	const camera = new THREE.PerspectiveCamera( 70, initialSize.width / initialSize.height, 0.01, 2000 );
 
 	const renderer = new THREE.WebGLRenderer( {
 		antialias: true,

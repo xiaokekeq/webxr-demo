@@ -187,8 +187,8 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 					&& estimate.accuracyMeters > maxReliableGpsAccuracyMeters
 				)
 			);
-			const usePreviewPlacement = shouldUsePreviewPlacementFallback
-				&& store.getState().autoPreviewPlacementEnabled;
+			const previewPlacementRequested = store.getState().autoPreviewPlacementEnabled;
+			const usePreviewPlacement = previewPlacementRequested;
 
 			lastPlacementBase = createAutoPlacementBase( {
 				camera: sceneBundle.camera,
@@ -224,7 +224,9 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 
 			if ( usePreviewPlacement ) {
 				setStatus(
-					`目标距离约 ${Math.round( estimate.distanceMeters )}m，${accuracyText}。已切换到近距离预览放置。`
+					shouldUsePreviewPlacementFallback
+						? `目标距离约 ${Math.round( estimate.distanceMeters )}m，${accuracyText}。已切换到近距离预览放置。`
+						: `已按近距离预览放置模型，${accuracyText}。`
 				);
 				return;
 			}

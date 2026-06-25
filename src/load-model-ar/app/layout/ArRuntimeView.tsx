@@ -48,6 +48,7 @@ export function ArRuntimeView(props: {
 		: actions.confirmPrecisionTargetPoint;
 	const measurementCaptureActionLabel = `记录第 ${engine.measurement.capturedPointLabels.length + 1} 点`;
 	const showCaptureOverlay = showPrecisionCaptureOverlay || showMeasurementCaptureOverlay;
+	const showTargetGuidance = engine.arSessionPhase === 'placed' && engine.targetGuidance.visible;
 
 	return (
 		<div className={ `mobile-ar-root${showPlacementUi ? ' mobile-ar-root--placement' : ''}` }>
@@ -74,6 +75,15 @@ export function ArRuntimeView(props: {
 					<div className="guidance-card">
 						<h2>{guidance.title}</h2>
 						<p>{guidance.body}</p>
+					</div>
+				) : null}
+
+				{showCaptureOverlay ? null : showTargetGuidance ? (
+					<div className={ `target-guidance-card target-guidance-card--${engine.targetGuidance.alignment}` }>
+						<div className="target-guidance-card__eyebrow">当前未看到模型</div>
+						<div className="target-guidance-card__direction">{engine.targetGuidance.directionText}</div>
+						<div className="target-guidance-card__distance">{engine.targetGuidance.distanceText}</div>
+						<p>{engine.targetGuidance.detailText}</p>
 					</div>
 				) : null}
 

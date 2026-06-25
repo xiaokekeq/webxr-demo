@@ -22,6 +22,7 @@ import {
 	createDefaultPrecisionRegistrationState,
 	createDefaultPropertyPanelState,
 	createDefaultRegistrationMetricsState,
+	createDefaultTargetGuidanceState,
 	createRegistrationStore,
 	type DisplayMode
 } from '../../registration/registration-store.js';
@@ -77,6 +78,7 @@ const store = createRegistrationStore( {
 	autoPreviewPlacementEnabled: false,
 	registrationMetrics: createDefaultRegistrationMetricsState(),
 	placementSummary: createDefaultPlacementSummaryState(),
+	targetGuidance: createDefaultTargetGuidanceState(),
 	precisionRegistration: createDefaultPrecisionRegistrationState(),
 	registrationStatusDetail: '鐘舵€侊細绛夊緟璇嗗埆骞抽潰',
 	runtimeStatus: '绛夊緟鍒濆鍖?,
@@ -316,7 +318,8 @@ const xrRuntime = createXRSessionRuntime( {
 		placementSession.getPlacedModel() === null
 		&& placementSession.getCoarsePlacementPending() === false
 	),
-	onAttemptCoarsePlacement
+	onAttemptCoarsePlacement,
+	onFrameUpdate: () => {}
 } );
 
 initialize();

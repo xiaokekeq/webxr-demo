@@ -4,6 +4,7 @@ import { clearPlacedModel } from '../../model.js';
 import type { EngineeringRegistrationSolution } from '../../../registration/engineering-registration.js';
 import type { ManualPlacementBase } from '../../../registration/manual-registration.js';
 import type { PrecisionRegistrationResult } from '../../../registration/precision-registration-storage.js';
+import { createDefaultTargetGuidanceState } from '../../../registration/registration-store.js';
 import { createPlacementSummaryState } from '../runtime/view-state.js';
 import {
 	createAutoPlacementBase,
@@ -20,6 +21,7 @@ interface CreatePlacementSessionOptions {
 		};
 		patch(partialState: {
 			placementSummary?: ReturnType<typeof createPlacementSummaryState>;
+			targetGuidance?: ReturnType<typeof createDefaultTargetGuidanceState>;
 			desktopPreviewBadge?: string;
 		}): void;
 	};
@@ -128,6 +130,7 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 			propertySelection.clearSelection();
 			store.patch( { desktopPreviewBadge: defaultDesktopPreviewBadge } );
 			updatePlacementSummary();
+			store.patch( { targetGuidance: createDefaultTargetGuidanceState() } );
 
 		},
 

@@ -535,6 +535,7 @@ textarea {
 
 .topbar,
 .guidance-card,
+.target-guidance-card,
 .primary-bar,
 .precision-capture-bar,
 .drawer-anchor,
@@ -567,6 +568,60 @@ textarea {
 	font-size: 13px;
 	line-height: 1.7;
 	color: rgba(255, 255, 255, 0.84);
+}
+
+.target-guidance-card {
+	position: fixed;
+	left: 16px;
+	right: 16px;
+	top: calc(max(14px, env(safe-area-inset-top, 0px)) + 84px);
+	padding: 14px 16px 15px;
+	border-radius: 20px;
+	background:
+		linear-gradient(180deg, rgba(248, 250, 252, 0.96) 0%, rgba(226, 232, 240, 0.94) 100%);
+	color: #0f172a;
+	box-shadow: 0 16px 38px rgba(15, 23, 42, 0.22);
+}
+
+.target-guidance-card--left {
+	border-left: 5px solid #1d4ed8;
+}
+
+.target-guidance-card--center {
+	border-left: 5px solid #0f766e;
+}
+
+.target-guidance-card--right {
+	border-left: 5px solid #ea580c;
+}
+
+.target-guidance-card__eyebrow {
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: #475569;
+}
+
+.target-guidance-card__direction {
+	margin-top: 4px;
+	font-size: 24px;
+	font-weight: 800;
+	line-height: 1.15;
+}
+
+.target-guidance-card__distance {
+	margin-top: 4px;
+	font-size: 14px;
+	font-weight: 700;
+	color: #1e3a8a;
+}
+
+.target-guidance-card p {
+	margin: 8px 0 0;
+	font-size: 13px;
+	line-height: 1.6;
+	color: #334155;
 }
 
 .primary-bar {

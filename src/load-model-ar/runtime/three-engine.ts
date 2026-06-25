@@ -17,6 +17,7 @@ import { createMeasurementController } from './internal/tools/measurement-contro
 import type { DemoModelConfig } from '../data/demo-model-config.js';
 import {
 	createDefaultMeasurementState,
+	createDefaultTargetGuidanceState,
 	createRegistrationStore,
 	type DisplayMode,
 	type MeasurementMode,
@@ -36,6 +37,7 @@ import {
 } from '../registration/manual-registration.js';
 import { createPrecisionRegistrationController } from '../registration/precision-registration-controller.js';
 import { createDisplayModeController, preserveRootTransform } from './display-mode.js';
+import { computeTargetGuidanceState } from './internal/placement/target-guidance.js';
 import { createARScene, resizeARScene } from './scene.js';
 import { createXRSessionRuntime } from './xr.js';
 
@@ -102,6 +104,7 @@ function createInitialState(): RegistrationStoreState {
 			quaternionText: '-',
 			scaleText: '-'
 		},
+		targetGuidance: createDefaultTargetGuidanceState(),
 		precisionRegistration: {
 			availableSourcePoints: [],
 			selectedSourcePoint: '',
@@ -193,6 +196,7 @@ export class ThreeEngine {
 	private disposed = false;
 	private isDesktopLayout = window.matchMedia( '(any-pointer: fine)' ).matches;
 	private currentStatus = '正在准备 AR 工作区。';
+	private targetGuidanceSignature = 'hidden';
 	private modelTemplate: THREE.Group | null = null;
 	private demoModelConfig: DemoModelConfig | null = null;
 	private registrationSolution: EngineeringRegistrationSolution | null = null;
@@ -415,6 +419,9 @@ export class ThreeEngine {
 			),
 			onAttemptCoarsePlacement: () => {
 				this.onAttemptCoarsePlacement();
+			},
+			onFrameUpdate: () => {
+				this.updateTargetGuidance();
 			}
 		} );
 
@@ -1188,6 +1195,27 @@ export class ThreeEngine {
 	private syncArSessionPhase(): void {
 
 		this.arSessionStateRuntime.syncPhase();
+
+	}
+
+	private updateTargetGuidance(): void {
+
+		const nextGuidance = this.sceneBundle.renderer.xr.isPresenting
+			? computeTargetGuidanceState(
+				this.placementSession.getPlacedModel(),
+				this.sceneBundle.renderer.xr.getCamera()
+			)
+			: createDefaultTargetGuidanceState();
+		const nextSignature = nextGuidance.visible
+			? `${nextGuidance.alignment}|${nextGuidance.directionText}|${nextGuidance.distanceText}|${nextGuidance.detailText}`
+			: 'hidden';
+
+		if ( nextSignature === this.targetGuidanceSignature ) {
+			return;
+		}
+
+		this.targetGuidanceSignature = nextSignature;
+		this.store.patch( { targetGuidance: nextGuidance } );
 
 	}
 

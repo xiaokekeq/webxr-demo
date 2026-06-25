@@ -40,6 +40,14 @@ export interface PlacementSummaryState {
 	scaleText: string;
 }
 
+export interface TargetGuidanceState {
+	visible: boolean;
+	directionText: string;
+	distanceText: string;
+	detailText: string;
+	alignment: 'left' | 'center' | 'right';
+}
+
 export interface PrecisionRegistrationState {
 	availableSourcePoints: string[];
 	selectedSourcePoint: string;
@@ -95,6 +103,7 @@ export interface RegistrationStoreState {
 	autoPreviewPlacementEnabled: boolean;
 	registrationMetrics: RegistrationMetricsState;
 	placementSummary: PlacementSummaryState;
+	targetGuidance: TargetGuidanceState;
 	precisionRegistration: PrecisionRegistrationState;
 	measurement: MeasurementState;
 	registrationStatusDetail: string;
@@ -178,6 +187,18 @@ export function createDefaultPlacementSummaryState(): PlacementSummaryState {
 		positionText: '-',
 		quaternionText: '-',
 		scaleText: '-'
+	};
+
+}
+
+export function createDefaultTargetGuidanceState(): TargetGuidanceState {
+
+	return {
+		visible: false,
+		directionText: '',
+		distanceText: '',
+		detailText: '',
+		alignment: 'center'
 	};
 
 }

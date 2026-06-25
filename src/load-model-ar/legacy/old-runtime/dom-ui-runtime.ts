@@ -73,6 +73,7 @@ const store = createRegistrationStore( {
 	pipeList: [],
 	propertyPanel: createDefaultPropertyPanelState(),
 	manualReadout: createDefaultManualReadoutState(),
+	manualAdjustmentPreset: 'fine',
 	registrationMetrics: createDefaultRegistrationMetricsState(),
 	placementSummary: createDefaultPlacementSummaryState(),
 	precisionRegistration: createDefaultPrecisionRegistrationState(),

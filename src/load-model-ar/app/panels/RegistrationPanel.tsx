@@ -1,4 +1,4 @@
-﻿import type React from 'react';
+import type React from 'react';
 import type { AppActions, AppState } from '../store/ar-state.js';
 import { ActionButton } from '../components/ActionButton.js';
 import { SelectField } from '../components/SelectField.js';
@@ -13,29 +13,8 @@ export function RegistrationPanel(props: {
 	const engine = state.engine;
 	const ui = state.ui;
 	const placed = engine.arSessionPhase === 'placed' || engine.appMode === 'pre-ar';
-	const canManualAdjust = placed && engine.precisionRegistration.rmsText !== '--';
+	const canManualAdjust = placed;
 	const showExportSnapshotAction = engine.appMode === 'pre-ar';
-	const canSavePrecisionRegistration = engine.precisionRegistration.rmsText !== '--';
-	const isDesktopLayout = window.matchMedia( '(any-pointer: fine)' ).matches;
-	const useInlineTargetCapture = isDesktopLayout || engine.appMode !== 'ar-session';
-	const precisionState = engine.precisionRegistration;
-	const precisionPrimaryHint = useInlineTargetCapture
-		? '先选模型点，再确认现场点。'
-		: '移动端 AR 中，选择模型点后会进入现场采点浮层。';
-	const precisionActionHint = precisionState.hasConfirmedTarget
-		? '现场点已确认，可以加入点对。'
-		: precisionState.isSourceLocked
-			? '模型点已锁定，请到现场画面确认对应点。'
-			: precisionPrimaryHint;
-	const sampledSourceText = precisionState.isSourceLocked
-		? precisionState.stagedSourcePoint
-		: precisionState.lastCapturedSourcePoint;
-	const sampledTargetText = precisionState.hasConfirmedTarget
-		? precisionState.stagedTargetPoint
-		: precisionState.lastCapturedTargetPoint;
-	const sampledQualityText = precisionState.hasConfirmedTarget
-		? precisionState.targetQualityText
-		: precisionState.lastCapturedQualityText;
 
 	function handleClearSavedRegistration(): void {
 
@@ -59,15 +38,15 @@ export function RegistrationPanel(props: {
 
 	return (
 		<div className="panel-stack">
-			<PanelSection title="当前状态" subtitle="粗配准、精配准和微调都从这里进入。">
+			<PanelSection title="当前状态" subtitle="先做粗配准，再通过手动微调收口。">
 				<div className="summary-grid">
 					<div className="summary-card">
 						<strong>状态</strong>
 						<span>{engine.registrationStatusDetail}</span>
 					</div>
 					<div className="summary-card">
-						<strong>RMS</strong>
-						<span>{engine.precisionRegistration.rmsText === '--' ? engine.registrationMetrics.rmsText : engine.precisionRegistration.rmsText}</span>
+						<strong>工程 RMS</strong>
+						<span>{engine.registrationMetrics.rmsText}</span>
 					</div>
 				</div>
 
@@ -78,8 +57,12 @@ export function RegistrationPanel(props: {
 				</div>
 
 				<div className="button-row">
-					<ActionButton label="手动微调" onClick={ () => actions.setRegistrationView( 'manual' ) } kind={ui.registrationView === 'manual' ? 'primary' : undefined} disabled={!canManualAdjust} />
-					<ActionButton label="控制点配准" onClick={ () => actions.setRegistrationView( 'control' ) } kind={ui.registrationView === 'control' ? 'primary' : undefined} disabled={!placed} />
+					<ActionButton
+						label="手动微调"
+						onClick={ () => actions.setRegistrationView( 'manual' ) }
+						kind={ui.registrationView === 'manual' ? 'primary' : undefined}
+						disabled={!canManualAdjust}
+					/>
 				</div>
 
 				{showExportSnapshotAction ? (
@@ -89,14 +72,24 @@ export function RegistrationPanel(props: {
 				) : null}
 
 				<div className="button-row">
-					<ActionButton label="保存配准" onClick={actions.saveManualRegistration} kind="primary" disabled={!canManualAdjust} />
+					<ActionButton label="保存微调" onClick={actions.saveManualRegistration} kind="primary" disabled={!canManualAdjust} />
 					<ActionButton label="重置微调" onClick={actions.resetManualRegistration} kind="secondary" disabled={!canManualAdjust} />
 					<ActionButton label="清除已保存配准" onClick={handleClearSavedRegistration} kind="secondary" disabled={!placed} />
 				</div>
 			</PanelSection>
 
 			{ui.registrationView === 'manual' ? (
-				<PanelSection title="手动微调" subtitle="控制点精确配准完成后，再做最后的人为收口。">
+				<PanelSection title="手动微调" subtitle="模型放置完成后，就可以直接微调位置、角度和尺度。">
+					<SelectField
+						label="微调强度"
+						value={engine.manualAdjustmentPreset}
+						onChange={ ( value ) => actions.setManualAdjustmentPreset( value as 'fine' | 'medium' | 'coarse' ) }
+						options={[
+							{ value: 'fine', label: '细调: 0.02m / 1deg / 1.01x' },
+							{ value: 'medium', label: '中调: 0.10m / 5deg / 1.05x' },
+							{ value: 'coarse', label: '粗调: 0.30m / 15deg / 1.10x' }
+						]}
+					/>
 					<div className="manual-grid">
 						<ActionButton label="前移" onClick={ () => actions.adjustTranslation( 'z', -1 ) } disabled={!canManualAdjust} />
 						<ActionButton label="左移" onClick={ () => actions.adjustTranslation( 'x', -1 ) } disabled={!canManualAdjust} />
@@ -116,89 +109,11 @@ export function RegistrationPanel(props: {
 						角度: {engine.manualReadout.yawText}<br />
 						尺度: {engine.manualReadout.scaleText}
 					</p>
-					{canManualAdjust ? null : (
-						<p className="note-block">请先完成控制点精确配准，再进入手动微调阶段。</p>
+					{canManualAdjust ? (
+						<p className="note-block">建议先用“粗调”把模型拉到位，再切到“细调”慢慢收口。</p>
+					) : (
+						<p className="note-block">请先完成模型放置，再进入手动微调。</p>
 					)}
-				</PanelSection>
-			) : null}
-
-			{ui.registrationView === 'control' ? (
-				<PanelSection title="控制点配准" subtitle="先选择模型控制点，再确认现场控制点。">
-					<SelectField
-						label="模型控制点"
-						value={precisionState.selectedSourcePoint}
-						onChange={actions.selectPrecisionSourcePoint}
-						options={[
-							{ value: '', label: '请选择模型控制点' },
-							...precisionState.availableSourcePoints.map( ( point ) => ( {
-								value: point,
-								label: point
-							} ) )
-						]}
-					/>
-					<div className="button-row">
-						<ActionButton label="选择模型点" onClick={actions.armPrecisionSourcePoint} />
-						{useInlineTargetCapture ? (
-							<ActionButton
-								label="确认现场点"
-								onClick={actions.confirmPrecisionTargetPoint}
-								disabled={!precisionState.isSourceLocked}
-							/>
-						) : null}
-					</div>
-					<div className="summary-grid">
-						<div className="summary-card">
-							<strong>当前 / 最近采样</strong>
-							<span>模型点: {sampledSourceText}</span>
-							<span>现场点: {sampledTargetText}</span>
-							<span>采样质量: {sampledQualityText}</span>
-						</div>
-						<div className="summary-card">
-							<strong>当前结果</strong>
-							<span>点对: {precisionState.pairSummaries.length} / 建议至少 4 组</span>
-							<span>RMS: {precisionState.rmsText}</span>
-							<span>{precisionActionHint}</span>
-						</div>
-					</div>
-					{precisionState.feedbackText ? (
-						<div className={ `alert-block alert-block--${precisionState.feedbackTone}` }>
-							<strong>{precisionState.feedbackTone === 'error' ? '当前阻塞' : precisionState.feedbackTone === 'success' ? '当前结果' : '流程提示'}</strong>
-							<span>{precisionState.feedbackText}</span>
-							{precisionState.feedbackUpdatedAt ? (
-								<span className="alert-block__meta">更新时间: {precisionState.feedbackUpdatedAt}</span>
-							) : null}
-						</div>
-					) : null}
-					<div className="button-row">
-						<ActionButton
-							label="加入点对"
-							onClick={actions.addPrecisionPair}
-							kind="secondary"
-							disabled={!precisionState.hasConfirmedTarget}
-						/>
-						<ActionButton label="计算配准" onClick={actions.solvePrecisionRegistration} kind="primary" />
-						<ActionButton
-							label="保存结果"
-							onClick={actions.savePrecisionRegistration}
-							disabled={!canSavePrecisionRegistration}
-						/>
-						<ActionButton label="清空" onClick={actions.clearPrecisionPairs} />
-					</div>
-					<div className="list-block">
-						{precisionState.pairSummaries.length === 0 ? (
-							<div className="list-item">还没有采集控制点对。</div>
-						) : precisionState.pairSummaries.map( ( item, index ) => (
-							<div key={item} className="list-item">
-								<div>{item}</div>
-								<div>{precisionState.pairResidualSummaries[ index ] ?? '待求解'}</div>
-								<ActionButton
-									label="删除"
-									onClick={ () => actions.removePrecisionPair( index ) }
-									kind="secondary"
-								/>
-							</div>
-						) )}
-					</div>
 				</PanelSection>
 			) : null}
 		</div>

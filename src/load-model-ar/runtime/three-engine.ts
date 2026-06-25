@@ -30,7 +30,10 @@ import {
 	type EngineeringRegistrationSolution
 } from '../registration/engineering-registration.js';
 import { createCoarseRegistrationController } from '../registration/coarse-registration.js';
-import { createManualRegistrationController } from '../registration/manual-registration.js';
+import {
+	createManualRegistrationController,
+	type ManualAdjustmentPreset
+} from '../registration/manual-registration.js';
 import { createPrecisionRegistrationController } from '../registration/precision-registration-controller.js';
 import { createDisplayModeController, preserveRootTransform } from './display-mode.js';
 import { createARScene, resizeARScene } from './scene.js';
@@ -87,6 +90,7 @@ function createInitialState(): RegistrationStoreState {
 			yawText: '0deg',
 			scaleText: '1.000x'
 		},
+		manualAdjustmentPreset: 'fine',
 		registrationMetrics: {
 			gpsText: '-',
 			enuText: '-',
@@ -222,6 +226,10 @@ export class ThreeEngine {
 			},
 			onStateChange: ( state ) => {
 				this.manualReadoutSync.update( state );
+			},
+			onPresetChange: ( preset ) => {
+				this.store.patch( { manualAdjustmentPreset: preset } );
+				this.emit();
 			}
 		} );
 
@@ -652,7 +660,7 @@ export class ThreeEngine {
 	adjustTranslation(axis: 'x' | 'y' | 'z', direction: 1 | -1): void {
 
 		if ( this.canUseManualRegistration() === false ) {
-			this.setStatus( '请先完成精确配准，再进行手动微调。' );
+			this.setStatus( '请先完成模型放置，再进行手动微调。' );
 			return;
 		}
 
@@ -664,7 +672,7 @@ export class ThreeEngine {
 	adjustYaw(direction: 1 | -1): void {
 
 		if ( this.canUseManualRegistration() === false ) {
-			this.setStatus( '请先完成精确配准，再进行手动微调。' );
+			this.setStatus( '请先完成模型放置，再进行手动微调。' );
 			return;
 		}
 
@@ -676,7 +684,7 @@ export class ThreeEngine {
 	adjustScale(direction: 1 | -1): void {
 
 		if ( this.canUseManualRegistration() === false ) {
-			this.setStatus( '请先完成精确配准，再进行手动微调。' );
+			this.setStatus( '请先完成模型放置，再进行手动微调。' );
 			return;
 		}
 
@@ -693,7 +701,7 @@ export class ThreeEngine {
 		}
 
 		if ( this.canUseManualRegistration() === false ) {
-			this.setStatus( '请先完成精确配准，再保存手动微调。' );
+			this.setStatus( '请先完成模型放置，再保存手动微调。' );
 			return;
 		}
 
@@ -705,7 +713,7 @@ export class ThreeEngine {
 	resetManualRegistration(): void {
 
 		if ( this.canUseManualRegistration() === false ) {
-			this.setStatus( '当前还没有可重置的精确配准后微调。' );
+			this.setStatus( '当前还没有可重置的微调结果。' );
 			return;
 		}
 
@@ -732,6 +740,12 @@ export class ThreeEngine {
 		this.reapplyManualPlacement();
 		this.setStatus( '已清除保存的配准结果。' );
 		return true;
+
+	}
+
+	setManualAdjustmentPreset(preset: ManualAdjustmentPreset): void {
+
+		this.manualRegistration.setAdjustmentPreset( preset );
 
 	}
 
@@ -1129,14 +1143,7 @@ export class ThreeEngine {
 
 	private canUseManualRegistration(): boolean {
 
-		return this.placementSession.getPlacedModel() !== null
-			&& this.hasPrecisionRegistrationResult();
-
-	}
-
-	private hasPrecisionRegistrationResult(): boolean {
-
-		return this.store.getState().precisionRegistration.rmsText !== '--';
+		return this.placementSession.getPlacedModel() !== null;
 
 	}
 

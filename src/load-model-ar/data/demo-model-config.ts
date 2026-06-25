@@ -1,5 +1,9 @@
-﻿import type { SetStatus } from '../shared/types.js';
-import type { GeodeticCoordinate } from '../registration/geodesy.js';
+import * as THREE from 'three';
+import type { SetStatus } from '../shared/types.js';
+import {
+	enuToGeodetic,
+	type GeodeticCoordinate
+} from '../registration/geodesy.js';
 
 export interface DemoModelLocalPoint {
 	x: number;
@@ -36,11 +40,36 @@ interface LegacyControlPointShape {
 	z: number;
 }
 
+type PointLike = DemoModelLocalPoint | [ number, number, number ] | number[];
+
+interface LocalDebugOriginShape {
+	lng: number;
+	lat: number;
+	height?: number;
+	alt?: number;
+	coordType?: string;
+}
+
+interface LocalDebugControlPointShape {
+	id: string;
+	name?: string;
+	modelLocal: PointLike;
+	siteENU: PointLike;
+}
+
+interface LocalDebugModelConfig {
+	siteId: string;
+	origin: LocalDebugOriginShape;
+	controlPoints: LocalDebugControlPointShape[];
+}
+
 interface LegacyDemoModelConfig extends Omit<DemoModelConfig, 'siteFrame' | 'registration' | 'controlPoints'> {
 	siteFrame?: DemoModelConfig['siteFrame'];
 	registration?: DemoModelConfig['registration'];
 	controlPoints: Record<string, DemoModelControlPointCorrespondence | LegacyControlPointShape>;
 }
+
+type RawDemoModelConfig = LegacyDemoModelConfig | LocalDebugModelConfig;
 
 export async function loadDemoModelConfig(
 	url: string,
@@ -54,7 +83,7 @@ export async function loadDemoModelConfig(
 		throw new Error( `Failed to load model config: HTTP ${response.status}` );
 	}
 
-	const raw = await response.json() as LegacyDemoModelConfig;
+	const raw = await response.json() as RawDemoModelConfig;
 	const normalized = normalizeDemoModelConfig( raw );
 	validateDemoModelConfig( normalized );
 
@@ -64,7 +93,11 @@ export async function loadDemoModelConfig(
 
 }
 
-function normalizeDemoModelConfig(config: LegacyDemoModelConfig): DemoModelConfig {
+function normalizeDemoModelConfig(config: RawDemoModelConfig): DemoModelConfig {
+
+	if ( isLocalDebugModelConfig( config ) ) {
+		return normalizeLocalDebugModelConfig( config );
+	}
 
 	const siteFrame = config.siteFrame ?? {
 		origin: {
@@ -112,6 +145,40 @@ function normalizeDemoModelConfig(config: LegacyDemoModelConfig): DemoModelConfi
 		yaw: config.yaw,
 		scale: config.scale,
 		registration,
+		controlPoints: normalizedControlPoints
+	};
+
+}
+
+function normalizeLocalDebugModelConfig(config: LocalDebugModelConfig): DemoModelConfig {
+
+	const origin = normalizeLocalDebugOrigin( config.origin );
+	const normalizedControlPoints: Record<string, DemoModelControlPointCorrespondence> = {};
+
+	for ( const point of config.controlPoints ) {
+		const modelLocal = normalizePointLike( point.modelLocal, `${point.id}.modelLocal` );
+		const siteEnu = normalizePointLike( point.siteENU, `${point.id}.siteENU` );
+		const world = enuToGeodetic( new THREE.Vector3( siteEnu.x, siteEnu.y, siteEnu.z ), origin );
+
+		normalizedControlPoints[ point.id ] = {
+			modelLocal,
+			world
+		};
+	}
+
+	return {
+		modelId: config.siteId,
+		siteFrame: {
+			origin,
+			axes: 'enu'
+		},
+		anchor: origin,
+		yaw: 0,
+		scale: 1,
+		registration: {
+			mode: 'similarity',
+			minControlPoints: 3
+		},
 		controlPoints: normalizedControlPoints
 	};
 
@@ -165,6 +232,70 @@ function isControlPointCorrespondence(
 
 }
 
+function isLocalDebugModelConfig(config: RawDemoModelConfig): config is LocalDebugModelConfig {
+
+	return 'siteId' in config
+		&& typeof config.siteId === 'string'
+		&& 'origin' in config
+		&& typeof config.origin === 'object'
+		&& config.origin !== null
+		&& 'controlPoints' in config
+		&& Array.isArray( config.controlPoints );
+
+}
+
+function normalizeLocalDebugOrigin(origin: LocalDebugOriginShape): GeodeticCoordinate {
+
+	if ( typeof origin.lat !== 'number' || typeof origin.lng !== 'number' ) {
+		throw new Error( 'Debug site config is missing a valid origin lat/lng.' );
+	}
+
+	const altitude = typeof origin.height === 'number'
+		? origin.height
+		: typeof origin.alt === 'number'
+			? origin.alt
+			: 0;
+
+	return {
+		lat: origin.lat,
+		lon: origin.lng,
+		alt: altitude
+	};
+
+}
+
+function normalizePointLike(point: PointLike, label: string): DemoModelLocalPoint {
+
+	if ( Array.isArray( point ) ) {
+		if ( point.length < 3 || point.slice( 0, 3 ).some( ( value ) => typeof value !== 'number' ) ) {
+			throw new Error( `Debug site point ${label} must contain three numeric entries.` );
+		}
+
+		return {
+			x: point[ 0 ],
+			y: point[ 1 ],
+			z: point[ 2 ]
+		};
+	}
+
+	if (
+		typeof point === 'object'
+		&& point !== null
+		&& typeof point.x === 'number'
+		&& typeof point.y === 'number'
+		&& typeof point.z === 'number'
+	) {
+		return {
+			x: point.x,
+			y: point.y,
+			z: point.z
+		};
+	}
+
+	throw new Error( `Debug site point ${label} is invalid.` );
+
+}
+
 function synthesizeWorldControlPoint(
 	localPoint: DemoModelLocalPoint,
 	anchor: GeodeticCoordinate,
@@ -188,4 +319,3 @@ function synthesizeWorldControlPoint(
 	};
 
 }
-

@@ -1,5 +1,17 @@
 [
   {
+    "id": "company_debug_site",
+    "name": "公司调试局部坐标",
+    "modelUrl": "/pipe-viewer/dz1207/dizhi1207.obj",
+    "materialUrl": "/pipe-viewer/dz1207/dizhi1207.mtl",
+    "assetTransform": {
+      "upAxis": "y",
+      "scaleFactor": 1.6
+    },
+    "configUrl": "/pipe-viewer/company_debug_site.config.json",
+    "pipesUrl": "/pipe-viewer/dz1207.pipes.json"
+  },
+  {
     "id": "pipe-demo-01",
     "name": "堤防示例模型 01",
     "modelUrl": "/pipe-viewer/water+pipe+system+3d+model.glb",

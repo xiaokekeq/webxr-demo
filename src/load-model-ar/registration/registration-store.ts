@@ -1,6 +1,7 @@
 import type { PipeRecord } from '../../load-model/types.js';
 import { createStore } from 'zustand/vanilla';
 import type { ModelCatalogItem } from './model-catalog.js';
+import type { ManualAdjustmentPreset } from './manual-registration.js';
 
 export type WorkspaceMode = 'browse' | 'registration' | 'tools' | 'inspection';
 export type AppMode = 'pre-ar' | 'ar-session';
@@ -90,6 +91,7 @@ export interface RegistrationStoreState {
 	pipeList: PipeRecord[];
 	propertyPanel: PropertyPanelState;
 	manualReadout: ManualReadoutState;
+	manualAdjustmentPreset: ManualAdjustmentPreset;
 	registrationMetrics: RegistrationMetricsState;
 	placementSummary: PlacementSummaryState;
 	precisionRegistration: PrecisionRegistrationState;

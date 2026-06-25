@@ -4,6 +4,7 @@ import type {
 	MeasurementMode,
 	WorkspaceMode
 } from '../registration/registration-store.js';
+import type { ManualAdjustmentPreset } from '../registration/manual-registration.js';
 import type { ThreeEngineHosts, ThreeEngineSnapshot } from '../runtime/three-engine.js';
 import { ThreeEngine } from '../runtime/three-engine.js';
 
@@ -52,6 +53,7 @@ export interface LoadModelArController {
 		enableCoarseRegistration(): Promise<void>;
 		refreshGeoLocation(): Promise<void>;
 		resetPlacement(): void;
+		setManualAdjustmentPreset(preset: ManualAdjustmentPreset): void;
 		adjustTranslation(axis: 'x' | 'y' | 'z', direction: 1 | -1): void;
 		adjustYaw(direction: 1 | -1): void;
 		adjustScale(direction: 1 | -1): void;
@@ -376,6 +378,12 @@ export function createLoadModelArController(): LoadModelArController {
 				engine.resetPlacement();
 				stopPrecisionCapture( { drawerOpen: false, registrationView: 'overview' } );
 				stopMeasurementCapture( { drawerOpen: false } );
+
+			},
+
+			setManualAdjustmentPreset(preset) {
+
+				engine.setManualAdjustmentPreset( preset );
 
 			},
 

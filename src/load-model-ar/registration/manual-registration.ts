@@ -1,4 +1,4 @@
-﻿import * as THREE from 'three';
+import * as THREE from 'three';
 import type { SetStatus } from '../shared/types.js';
 import {
 	clearManualRegistrationState,
@@ -13,6 +13,8 @@ export interface ManualRegistrationState {
 	scaleMultiplier: number;
 }
 
+export type ManualAdjustmentPreset = 'fine' | 'medium' | 'coarse';
+
 export interface ManualPlacementBase {
 	position: THREE.Vector3;
 	orientation: THREE.Quaternion;
@@ -23,13 +25,32 @@ export interface ManualPlacementBase {
 interface CreateManualRegistrationControllerOptions {
 	setStatus: SetStatus;
 	onStateChange: (state: ManualRegistrationState) => void;
+	onPresetChange?: (preset: ManualAdjustmentPreset) => void;
 }
 
 export type ManualTranslationAxis = 'x' | 'y' | 'z';
 
-const TRANSLATION_STEP_METERS = 0.1;
-const YAW_STEP_DEGREES = 5;
-const SCALE_STEP_FACTOR = 1.05;
+const MANUAL_ADJUSTMENT_STEPS: Record<ManualAdjustmentPreset, {
+	translationMeters: number;
+	yawDegrees: number;
+	scaleFactor: number;
+}> = {
+	fine: {
+		translationMeters: 0.02,
+		yawDegrees: 1,
+		scaleFactor: 1.01
+	},
+	medium: {
+		translationMeters: 0.1,
+		yawDegrees: 5,
+		scaleFactor: 1.05
+	},
+	coarse: {
+		translationMeters: 0.3,
+		yawDegrees: 15,
+		scaleFactor: 1.1
+	}
+};
 
 const tempYawQuaternion = new THREE.Quaternion();
 const tempScaleOffset = new THREE.Vector3();
@@ -39,9 +60,10 @@ export function createManualRegistrationController(
 	options: CreateManualRegistrationControllerOptions
 ) {
 
-	const { setStatus, onStateChange } = options;
+	const { setStatus, onStateChange, onPresetChange } = options;
 
 	const state = createDefaultState();
+	let adjustmentPreset: ManualAdjustmentPreset = 'fine';
 
 	function getState(): ManualRegistrationState {
 
@@ -51,7 +73,7 @@ export function createManualRegistrationController(
 
 	function adjustTranslation(axis: ManualTranslationAxis, direction: 1 | -1): ManualRegistrationState {
 
-		state.offset[ axis ] += TRANSLATION_STEP_METERS * direction;
+		state.offset[ axis ] += getCurrentStepConfig().translationMeters * direction;
 		emitState( `${axis.toUpperCase()} offset ${formatSignedMeters( state.offset[ axis ] )}` );
 		return getState();
 
@@ -59,7 +81,7 @@ export function createManualRegistrationController(
 
 	function adjustYaw(direction: 1 | -1): ManualRegistrationState {
 
-		state.yawDeg = normalizeDegrees( state.yawDeg + YAW_STEP_DEGREES * direction );
+		state.yawDeg = normalizeDegrees( state.yawDeg + getCurrentStepConfig().yawDegrees * direction );
 		emitState( `Yaw ${formatSignedDegrees( state.yawDeg )}` );
 		return getState();
 
@@ -67,10 +89,25 @@ export function createManualRegistrationController(
 
 	function adjustScale(direction: 1 | -1): ManualRegistrationState {
 
-		state.scaleMultiplier *= direction > 0 ? SCALE_STEP_FACTOR : 1 / SCALE_STEP_FACTOR;
+		const stepConfig = getCurrentStepConfig();
+		state.scaleMultiplier *= direction > 0 ? stepConfig.scaleFactor : 1 / stepConfig.scaleFactor;
 		state.scaleMultiplier = clamp( state.scaleMultiplier, 0.1, 10 );
 		emitState( `Scale ${state.scaleMultiplier.toFixed( 3 )}x` );
 		return getState();
+
+	}
+
+	function setAdjustmentPreset(preset: ManualAdjustmentPreset): void {
+
+		adjustmentPreset = preset;
+		onPresetChange?.( preset );
+		setStatus( `微调强度已切换为${getPresetLabel( preset )}。` );
+
+	}
+
+	function getAdjustmentPreset(): ManualAdjustmentPreset {
+
+		return adjustmentPreset;
 
 	}
 
@@ -192,6 +229,8 @@ export function createManualRegistrationController(
 		adjustTranslation,
 		adjustYaw,
 		adjustScale,
+		setAdjustmentPreset,
+		getAdjustmentPreset,
 		reset,
 		save,
 		load,
@@ -207,6 +246,12 @@ export function createManualRegistrationController(
 		if ( statusMessage ) {
 			setStatus( `Manual registration updated: ${statusMessage}` );
 		}
+
+	}
+
+	function getCurrentStepConfig(): typeof MANUAL_ADJUSTMENT_STEPS.fine {
+
+		return MANUAL_ADJUSTMENT_STEPS[ adjustmentPreset ];
 
 	}
 
@@ -275,3 +320,15 @@ function clamp(value: number, min: number, max: number): number {
 
 }
 
+function getPresetLabel(preset: ManualAdjustmentPreset): string {
+
+	switch ( preset ) {
+		case 'fine':
+			return '细调';
+		case 'medium':
+			return '中调';
+		case 'coarse':
+			return '粗调';
+	}
+
+}

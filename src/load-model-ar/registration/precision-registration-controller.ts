@@ -62,6 +62,7 @@ const tempDeltaScale = new THREE.Vector3();
 const tempParentInverse = new THREE.Matrix4();
 const tempNextWorldMatrix = new THREE.Matrix4();
 const tempNextLocalMatrix = new THREE.Matrix4();
+const INVALID_SOURCE_POINT_MESSAGE = '当前模型控制点缺少有效的本地坐标，请检查 controlPoints 配置。';
 
 export function createPrecisionRegistrationController(
 	options: CreatePrecisionRegistrationControllerOptions
@@ -234,6 +235,15 @@ export function createPrecisionRegistrationController(
 				return;
 			}
 
+			if ( isValidVector3( stagedSourcePoint.modelLocal ) === false ) {
+				const invalidMessage = `模型控制点 ${stagedSourcePoint.id} 缺少有效坐标，无法加入点对。`;
+				patchPrecisionState( {
+					workflowStatusText: invalidMessage
+				}, invalidMessage, 'error' );
+				setStatus( invalidMessage );
+				return;
+			}
+
 			pairs.push( {
 				sourcePointId: stagedSourcePoint.id,
 				sourceModelLocal: stagedSourcePoint.modelLocal.clone(),
@@ -324,6 +334,18 @@ export function createPrecisionRegistrationController(
 				}
 
 				placedModel.updateMatrixWorld( true );
+				const invalidPairIds = pairs
+					.filter( ( pair ) => isValidVector3( pair.sourceModelLocal ) === false )
+					.map( ( pair ) => pair.sourcePointId );
+				if ( invalidPairIds.length > 0 ) {
+					const invalidMessage = `控制点 ${invalidPairIds.join( '、' )} 缺少有效模型坐标，请检查 controlPoints 配置后重新采集。`;
+					patchPrecisionState( {
+						workflowStatusText: invalidMessage
+					}, invalidMessage, 'error' );
+					setStatus( invalidMessage );
+					return;
+				}
+
 				const sourcePoints = pairs.map( ( pair ) => (
 					placedModel.localToWorld( tempSourcePoint.copy( pair.sourceModelLocal ) ).clone()
 				) );
@@ -491,21 +513,47 @@ export function createPrecisionRegistrationController(
 		updateSourcePointOptions(sourcePoints) {
 
 			sourcePointsById.clear();
-			for ( const point of sourcePoints ) {
+			const validSourcePoints = sourcePoints.filter( ( point ) => isValidEngineeringControlPoint( point ) );
+			for ( const point of validSourcePoints ) {
 				sourcePointsById.set( point.id, point );
 			}
 
-			const sourcePointIds = sourcePoints.map( ( point ) => point.id );
+			const sourcePointIds = validSourcePoints.map( ( point ) => point.id );
 			const currentSelection = store.getState().precisionRegistration.selectedSourcePoint;
 			const nextSelection = sourcePointIds.includes( currentSelection )
 				? currentSelection
 				: sourcePointIds[ 0 ] ?? '';
+			const invalidSourcePointIds = sourcePoints
+				.filter( ( point ) => isValidEngineeringControlPoint( point ) === false )
+				.map( ( point ) => point.id );
+			const nextPrecisionState = {
+				...store.getState().precisionRegistration,
+				availableSourcePoints: sourcePointIds,
+				selectedSourcePoint: nextSelection
+			};
+
+			if ( invalidSourcePointIds.length > 0 ) {
+				const invalidMessage = `已跳过无效模型控制点：${invalidSourcePointIds.join( '、' )}。请检查 controlPoints 配置。`;
+				store.patch( {
+					precisionRegistration: {
+						...nextPrecisionState,
+						workflowStatusText: invalidMessage,
+						feedbackText: INVALID_SOURCE_POINT_MESSAGE,
+						feedbackTone: 'error',
+						feedbackUpdatedAt: new Date().toLocaleTimeString( 'zh-CN', {
+							hour12: false,
+							hour: '2-digit',
+							minute: '2-digit',
+							second: '2-digit'
+						} )
+					}
+				} );
+				return;
+			}
 
 			store.patch( {
 				precisionRegistration: {
-					...store.getState().precisionRegistration,
-					availableSourcePoints: sourcePointIds,
-					selectedSourcePoint: nextSelection
+					...nextPrecisionState
 				}
 			} );
 
@@ -656,5 +704,22 @@ function formatQualityLabel(quality: XRHitTestQuality | null): string {
 	}
 
 	return `${quality.sampleCount} 帧 / 抖动 ${formatMeters( quality.jitterMeters )}`;
+
+}
+function isValidEngineeringControlPoint(point: EngineeringControlPoint): boolean {
+
+	return typeof point.id === 'string'
+		&& point.id.length > 0
+		&& isValidVector3( point.modelLocal )
+		&& isValidVector3( point.worldEnu );
+
+}
+
+function isValidVector3(vector: THREE.Vector3 | null | undefined): vector is THREE.Vector3 {
+
+	return vector instanceof THREE.Vector3
+		&& Number.isFinite( vector.x )
+		&& Number.isFinite( vector.y )
+		&& Number.isFinite( vector.z );
 
 }

@@ -60,7 +60,10 @@ interface LocalDebugControlPointShape {
 interface LocalDebugModelConfig {
 	siteId: string;
 	origin: LocalDebugOriginShape;
-	controlPoints: LocalDebugControlPointShape[];
+	anchorModelLocal?: PointLike;
+	yawDeg?: number;
+	scale?: number;
+	controlPoints?: LocalDebugControlPointShape[];
 }
 
 interface LegacyDemoModelConfig extends Omit<DemoModelConfig, 'siteFrame' | 'registration' | 'controlPoints'> {
@@ -153,20 +156,7 @@ function normalizeDemoModelConfig(config: RawDemoModelConfig): DemoModelConfig {
 function normalizeLocalDebugModelConfig(config: LocalDebugModelConfig): DemoModelConfig {
 
 	const origin = normalizeLocalDebugOrigin( config.origin );
-	const normalizedControlPoints: Record<string, DemoModelControlPointCorrespondence> = {};
-
-	for ( const point of config.controlPoints ) {
-		const modelLocal = normalizePointLike( point.modelLocal, `${point.id}.modelLocal` );
-		const siteEnu = normalizePointLike( point.siteENU, `${point.id}.siteENU` );
-		// Local debug configs are authored as [east, height, north] so remap them
-		// into the runtime ENU basis [east, north, up].
-		const world = enuToGeodetic( new THREE.Vector3( siteEnu.x, siteEnu.z, siteEnu.y ), origin );
-
-		normalizedControlPoints[ point.id ] = {
-			modelLocal,
-			world
-		};
-	}
+	const normalizedControlPoints = normalizeLocalDebugControlPoints( config, origin );
 
 	return {
 		modelId: config.siteId,
@@ -175,16 +165,103 @@ function normalizeLocalDebugModelConfig(config: LocalDebugModelConfig): DemoMode
 			axes: 'enu'
 		},
 		anchor: origin,
-		yaw: 0,
-		scale: 1,
+		yaw: config.yawDeg ?? 0,
+		scale: config.scale ?? 1,
 		registration: {
-			// Local debug control points are usually hand-authored helper markers
-			// rather than surveyed correspondences on the full model geometry.
-			// Keep scale fixed so the model does not collapse to the helper span.
+			// Local debug configs usually represent a single surveyed anchor point.
+			// Keep scale fixed and only solve rigid placement around that anchor.
 			mode: 'rigid',
 			minControlPoints: 3
 		},
 		controlPoints: normalizedControlPoints
+	};
+
+}
+
+function normalizeLocalDebugControlPoints(
+	config: LocalDebugModelConfig,
+	origin: GeodeticCoordinate
+): Record<string, DemoModelControlPointCorrespondence> {
+
+	const controlPoints = Array.isArray( config.controlPoints )
+		? config.controlPoints
+		: [];
+
+	if ( controlPoints.length >= 3 ) {
+		const normalizedControlPoints: Record<string, DemoModelControlPointCorrespondence> = {};
+
+		for ( const point of controlPoints ) {
+			const modelLocal = normalizePointLike( point.modelLocal, `${point.id}.modelLocal` );
+			const siteEnu = normalizePointLike( point.siteENU, `${point.id}.siteENU` );
+			// Local debug configs are authored as [east, height, north] so remap them
+			// into the runtime ENU basis [east, north, up].
+			const world = enuToGeodetic( new THREE.Vector3( siteEnu.x, siteEnu.z, siteEnu.y ), origin );
+
+			normalizedControlPoints[ point.id ] = {
+				modelLocal,
+				world
+			};
+		}
+
+		return normalizedControlPoints;
+	}
+
+	const anchorModelLocal = normalizePointLike(
+		config.anchorModelLocal ?? [ 0, 0, 0 ],
+		'anchorModelLocal'
+	);
+	const yawDeg = typeof config.yawDeg === 'number' ? config.yawDeg : 0;
+	const scale = typeof config.scale === 'number' && Number.isFinite( config.scale ) && config.scale > 0
+		? config.scale
+		: 1;
+
+	return {
+		ANCHOR: {
+			modelLocal: anchorModelLocal,
+			world: origin
+		},
+		AXIS_EAST: {
+			modelLocal: {
+				x: anchorModelLocal.x + 1,
+				y: anchorModelLocal.y,
+				z: anchorModelLocal.z
+			},
+			world: synthesizeLocalDebugAnchorWorldPoint(
+				anchorModelLocal,
+				{ x: anchorModelLocal.x + 1, y: anchorModelLocal.y, z: anchorModelLocal.z },
+				origin,
+				yawDeg,
+				scale
+			)
+		},
+		AXIS_NORTH: {
+			modelLocal: {
+				x: anchorModelLocal.x,
+				y: anchorModelLocal.y,
+				z: anchorModelLocal.z - 1
+			},
+			world: synthesizeLocalDebugAnchorWorldPoint(
+				anchorModelLocal,
+				{ x: anchorModelLocal.x, y: anchorModelLocal.y, z: anchorModelLocal.z - 1 },
+				origin,
+				yawDeg,
+				scale
+			)
+		},
+		AXIS_UP: {
+			modelLocal: {
+				x: anchorModelLocal.x,
+				y: anchorModelLocal.y + 1,
+				z: anchorModelLocal.z
+			},
+			world: synthesizeLocalDebugAnchorWorldPoint(
+				anchorModelLocal,
+				{ x: anchorModelLocal.x, y: anchorModelLocal.y + 1, z: anchorModelLocal.z },
+				origin,
+				yawDeg,
+				scale
+			)
+		}
 	};
 
 }
@@ -243,9 +320,7 @@ function isLocalDebugModelConfig(config: RawDemoModelConfig): config is LocalDeb
 		&& typeof config.siteId === 'string'
 		&& 'origin' in config
 		&& typeof config.origin === 'object'
-		&& config.origin !== null
-		&& 'controlPoints' in config
-		&& Array.isArray( config.controlPoints );
+		&& config.origin !== null;
 
 }
 
@@ -322,5 +397,27 @@ function synthesizeWorldControlPoint(
 		lon: anchor.lon + eastMeters / metersPerLon,
 		alt: anchor.alt + scaledY
 	};
+
+}
+
+function synthesizeLocalDebugAnchorWorldPoint(
+	anchorModelLocal: DemoModelLocalPoint,
+	localPoint: DemoModelLocalPoint,
+	anchor: GeodeticCoordinate,
+	yawDeg: number,
+	scale: number
+): GeodeticCoordinate {
+
+	const localDeltaX = ( localPoint.x - anchorModelLocal.x ) * scale;
+	const localDeltaY = ( localPoint.y - anchorModelLocal.y ) * scale;
+	const localDeltaNorth = - ( localPoint.z - anchorModelLocal.z ) * scale;
+	const yawRad = yawDeg * Math.PI / 180;
+	const eastMeters = localDeltaX * Math.cos( yawRad ) - localDeltaNorth * Math.sin( yawRad );
+	const northMeters = localDeltaX * Math.sin( yawRad ) + localDeltaNorth * Math.cos( yawRad );
+
+	return enuToGeodetic(
+		new THREE.Vector3( eastMeters, northMeters, localDeltaY ),
+		anchor
+	);
 
 }

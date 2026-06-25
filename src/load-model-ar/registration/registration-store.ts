@@ -47,6 +47,8 @@ export interface PrecisionRegistrationState {
 	pairResidualSummaries: string[];
 	rmsText: string;
 	workflowStatusText: string;
+	isSourceLocked: boolean;
+	hasConfirmedTarget: boolean;
 }
 
 export interface RegistrationStoreState {
@@ -165,7 +167,9 @@ export function createDefaultPrecisionRegistrationState(): PrecisionRegistration
 		pairSummaries: [],
 		pairResidualSummaries: [],
 		rmsText: '--',
-		workflowStatusText: '完成粗配准后可继续采集控制点。'
+		workflowStatusText: '完成粗配准后可继续采集控制点。',
+		isSourceLocked: false,
+		hasConfirmedTarget: false
 	};
 
 }

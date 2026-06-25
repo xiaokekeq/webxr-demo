@@ -103,7 +103,9 @@ function createInitialState(): RegistrationStoreState {
 			pairSummaries: [],
 			pairResidualSummaries: [],
 			rmsText: '--',
-			workflowStatusText: '完成粗配准后可继续采集控制点。'
+			workflowStatusText: '完成粗配准后可继续采集控制点。',
+			isSourceLocked: false,
+			hasConfirmedTarget: false
 		},
 		registrationStatusDetail: '状态：等待识别平面',
 		runtimeStatus: '正在准备 AR 工作区。',
@@ -738,6 +740,12 @@ export class ThreeEngine {
 	confirmPrecisionTargetPoint(): void {
 
 		this.precisionRegistration.confirmTargetPoint();
+
+	}
+
+	cancelPrecisionCapture(): void {
+
+		this.precisionRegistration.cancelStagedPair();
 
 	}
 

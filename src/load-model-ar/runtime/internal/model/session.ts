@@ -1,4 +1,5 @@
 ﻿import type { PipeRecord } from '../../../../load-model/types.js';
+import * as THREE from 'three';
 import {
 	createDefaultPlacementSummaryState,
 	createDefaultPrecisionRegistrationState,
@@ -107,13 +108,28 @@ export function createModelSession(options: CreateModelSessionOptions): ModelSes
 			)
 		} );
 
+		const controlPointDiagnostics = analyzeControlPointDiagnostics(
+			bundle.modelTemplate,
+			bundle.registrationSolution.controlPoints
+		);
+
 		appendLog( `模型加载完成：${modelDefinition.name}` );
 		appendLog(
 			`工程配准求解完成，控制点数量：${bundle.registrationSolution.controlPoints.length}`
 		);
+		if ( controlPointDiagnostics.length > 0 ) {
+			appendLog( '检测到控制点数据与模型几何可能不匹配，请优先复核 controlPoints 配置。' );
+			for ( const diagnostic of controlPointDiagnostics ) {
+				appendLog( diagnostic );
+			}
+		}
 
 		onCreateCoarseRegistrationTarget( bundle.registrationSolution );
-		store.patch( { registrationStatusDetail: '状态：模型已就绪，等待识别平面' } );
+		store.patch( {
+			registrationStatusDetail: controlPointDiagnostics.length > 0
+				? '状态：模型已就绪，但控制点数据需要复核'
+				: '状态：模型已就绪，等待识别平面'
+		} );
 
 		if ( canShowPreviewAfterModelLoad() ) {
 			onAfterModelLoaded();
@@ -178,6 +194,53 @@ export function createModelSession(options: CreateModelSessionOptions): ModelSes
 
 		}
 	};
+
+}
+
+function analyzeControlPointDiagnostics(
+	modelTemplate: THREE.Group,
+	controlPoints: EngineeringControlPoint[]
+): string[] {
+
+	if ( controlPoints.length === 0 ) {
+		return [];
+	}
+
+	const diagnostics: string[] = [];
+	const bounds = new THREE.Box3().setFromObject( modelTemplate );
+	if ( bounds.isEmpty() ) {
+		return diagnostics;
+	}
+
+	const size = bounds.getSize( new THREE.Vector3() );
+	const diagonal = size.length();
+	const tolerance = Math.max( diagonal * 0.05, 0.15 );
+	const expandedBounds = bounds.clone().expandByScalar( tolerance );
+	const outsideIds = controlPoints
+		.filter( ( point ) => expandedBounds.containsPoint( point.modelLocal ) === false )
+		.map( ( point ) => point.id );
+
+	if ( outsideIds.length > 0 ) {
+		diagnostics.push( `以下控制点落在模型包围盒外：${outsideIds.join( '、' )}。` );
+	}
+
+	let maxControlSpan = 0;
+	for ( let i = 0; i < controlPoints.length; i += 1 ) {
+		for ( let j = i + 1; j < controlPoints.length; j += 1 ) {
+			maxControlSpan = Math.max(
+				maxControlSpan,
+				controlPoints[ i ].modelLocal.distanceTo( controlPoints[ j ].modelLocal )
+			);
+		}
+	}
+
+	if ( diagonal > 1e-6 && maxControlSpan > diagonal * 1.5 ) {
+		diagnostics.push(
+			`控制点最大跨度 ${maxControlSpan.toFixed( 2 )}m，明显大于模型包围盒对角线 ${diagonal.toFixed( 2 )}m。`
+		);
+	}
+
+	return diagnostics;
 
 }
 

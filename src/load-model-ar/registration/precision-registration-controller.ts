@@ -37,6 +37,7 @@ export interface PrecisionRegistrationController {
 	handleSourceSelection(sourcePoint: string): void;
 	armSourcePoint(): void;
 	confirmTargetPoint(): void;
+	cancelStagedPair(): void;
 	addPair(): void;
 	removePair(index: number): void;
 	solve(): void;
@@ -100,6 +101,9 @@ export function createPrecisionRegistrationController(
 			const precisionState = store.getState().precisionRegistration;
 			const sourcePoint = sourcePointsById.get( precisionState.selectedSourcePoint ) ?? null;
 			if ( sourcePoint === null ) {
+				patchPrecisionState( {
+					workflowStatusText: PRECISION_STATUS_MESSAGES.selectSourceFirst
+				} );
 				setStatus( PRECISION_STATUS_MESSAGES.selectSourceFirst );
 				return;
 			}
@@ -110,7 +114,9 @@ export function createPrecisionRegistrationController(
 				stagedSourcePoint: sourcePoint.id,
 				stagedTargetPoint: PRECISION_WORKFLOW_MESSAGES.notConfirmed,
 				targetQualityText: PRECISION_WORKFLOW_MESSAGES.notSampled,
-				workflowStatusText: PRECISION_WORKFLOW_MESSAGES.lockedSource( sourcePoint.id )
+				workflowStatusText: PRECISION_WORKFLOW_MESSAGES.lockedSource( sourcePoint.id ),
+				isSourceLocked: true,
+				hasConfirmedTarget: false
 			} );
 			setStatus( PRECISION_STATUS_MESSAGES.selectedSource( sourcePoint.id ) );
 
@@ -119,12 +125,20 @@ export function createPrecisionRegistrationController(
 		confirmTargetPoint() {
 
 			if ( stagedSourcePoint === null ) {
+				patchPrecisionState( {
+					workflowStatusText: PRECISION_STATUS_MESSAGES.lockSourceFirst,
+					hasConfirmedTarget: false
+				} );
 				setStatus( PRECISION_STATUS_MESSAGES.lockSourceFirst );
 				return;
 			}
 
 			const targetPoint = getTargetPoint( tempTargetPoint );
 			if ( targetPoint === null ) {
+				patchPrecisionState( {
+					workflowStatusText: PRECISION_WORKFLOW_MESSAGES.noTargetPoint,
+					hasConfirmedTarget: false
+				} );
 				setStatus( PRECISION_STATUS_MESSAGES.noTargetPoint );
 				return;
 			}
@@ -133,10 +147,17 @@ export function createPrecisionRegistrationController(
 			const qualityLabel = formatQualityLabel( targetQuality );
 			patchPrecisionState( {
 				targetQualityText: qualityLabel,
-				workflowStatusText: PRECISION_WORKFLOW_MESSAGES.targetSampling( qualityLabel )
+				workflowStatusText: PRECISION_WORKFLOW_MESSAGES.targetSampling( qualityLabel ),
+				hasConfirmedTarget: false
 			} );
 
 			if ( targetQuality !== null && targetQuality.sampleCount < MIN_TARGET_SAMPLE_COUNT ) {
+				patchPrecisionState( {
+					workflowStatusText: PRECISION_WORKFLOW_MESSAGES.targetSamplingShort(
+						targetQuality.sampleCount,
+						MIN_TARGET_SAMPLE_COUNT
+					)
+				} );
 				setStatus(
 					PRECISION_STATUS_MESSAGES.targetSamplingShort(
 						targetQuality.sampleCount,
@@ -147,12 +168,15 @@ export function createPrecisionRegistrationController(
 			}
 
 			if ( targetQuality !== null && targetQuality.jitterMeters > MAX_TARGET_JITTER_METERS ) {
-				setStatus(
-					PRECISION_STATUS_MESSAGES.targetTooUnstable(
-						formatMeters( targetQuality.jitterMeters ),
-						formatMeters( MAX_TARGET_JITTER_METERS )
+				const jitterText = formatMeters( targetQuality.jitterMeters );
+				const maxJitterText = formatMeters( MAX_TARGET_JITTER_METERS );
+				patchPrecisionState( {
+					workflowStatusText: PRECISION_WORKFLOW_MESSAGES.targetTooUnstable(
+						jitterText,
+						maxJitterText
 					)
-				);
+				} );
+				setStatus( PRECISION_STATUS_MESSAGES.targetTooUnstable( jitterText, maxJitterText ) );
 				return;
 			}
 
@@ -164,30 +188,55 @@ export function createPrecisionRegistrationController(
 				workflowStatusText: PRECISION_WORKFLOW_MESSAGES.confirmedTarget(
 					targetLabel,
 					qualityLabel
-				)
+				),
+				hasConfirmedTarget: true
 			} );
 			setStatus( PRECISION_STATUS_MESSAGES.confirmedTarget( targetLabel, qualityLabel ) );
+
+		},
+
+		cancelStagedPair() {
+
+			stagedSourcePoint = null;
+			stagedTargetPoint = null;
+			patchPrecisionState( {
+				stagedSourcePoint: PRECISION_WORKFLOW_MESSAGES.notSelected,
+				stagedTargetPoint: PRECISION_WORKFLOW_MESSAGES.notConfirmed,
+				targetQualityText: PRECISION_WORKFLOW_MESSAGES.notSampled,
+				workflowStatusText: pairs.length === 0
+					? PRECISION_WORKFLOW_MESSAGES.captureCanceled
+					: PRECISION_WORKFLOW_MESSAGES.collectedPairs( pairs.length, MIN_SOLVE_PAIR_COUNT ),
+				isSourceLocked: false,
+				hasConfirmedTarget: false
+			} );
+			setStatus( PRECISION_STATUS_MESSAGES.captureCanceled );
 
 		},
 
 		addPair() {
 
 			if ( stagedSourcePoint === null || stagedTargetPoint === null ) {
+				patchPrecisionState( {
+					workflowStatusText: PRECISION_STATUS_MESSAGES.addPairRequiresPoints
+				} );
 				setStatus( PRECISION_STATUS_MESSAGES.addPairRequiresPoints );
 				return;
 			}
 
 			if ( pairs.some( ( pair ) => pair.sourcePointId === stagedSourcePoint?.id ) ) {
-				setStatus( PRECISION_STATUS_MESSAGES.duplicateSourcePoint( stagedSourcePoint.id ) );
+				const duplicateMessage = PRECISION_STATUS_MESSAGES.duplicateSourcePoint( stagedSourcePoint.id );
+				patchPrecisionState( {
+					workflowStatusText: duplicateMessage
+				} );
+				setStatus( duplicateMessage );
 				return;
 			}
 
-			const nextPair: PrecisionPair = {
+			pairs.push( {
 				sourcePointId: stagedSourcePoint.id,
 				sourceModelLocal: stagedSourcePoint.modelLocal.clone(),
 				targetAr: stagedTargetPoint.clone()
-			};
-			pairs.push( nextPair );
+			} );
 			stagedSourcePoint = null;
 			stagedTargetPoint = null;
 			solvedResult = null;
@@ -201,7 +250,9 @@ export function createPrecisionRegistrationController(
 				rmsText: '--',
 				workflowStatusText: pairs.length >= MIN_SOLVE_PAIR_COUNT
 					? PRECISION_WORKFLOW_MESSAGES.enoughPairs
-					: PRECISION_WORKFLOW_MESSAGES.collectedPairs( pairs.length, MIN_SOLVE_PAIR_COUNT )
+					: PRECISION_WORKFLOW_MESSAGES.collectedPairs( pairs.length, MIN_SOLVE_PAIR_COUNT ),
+				isSourceLocked: false,
+				hasConfirmedTarget: false
 			} );
 			setStatus( PRECISION_STATUS_MESSAGES.addedPair( pairs.length ) );
 
@@ -210,6 +261,9 @@ export function createPrecisionRegistrationController(
 		removePair(index) {
 
 			if ( index < 0 || index >= pairs.length ) {
+				patchPrecisionState( {
+					workflowStatusText: PRECISION_STATUS_MESSAGES.removePairOutOfRange
+				} );
 				setStatus( PRECISION_STATUS_MESSAGES.removePairOutOfRange );
 				return;
 			}
@@ -222,7 +276,9 @@ export function createPrecisionRegistrationController(
 				rmsText: '--',
 				workflowStatusText: pairs.length === 0
 					? createDefaultPrecisionRegistrationState().workflowStatusText
-					: PRECISION_WORKFLOW_MESSAGES.collectedPairs( pairs.length, MIN_SOLVE_PAIR_COUNT )
+					: PRECISION_WORKFLOW_MESSAGES.collectedPairs( pairs.length, MIN_SOLVE_PAIR_COUNT ),
+				isSourceLocked: false,
+				hasConfirmedTarget: false
 			} );
 			setStatus( PRECISION_STATUS_MESSAGES.removedPair( pairs.length ) );
 
@@ -233,11 +289,20 @@ export function createPrecisionRegistrationController(
 			const placedModel = getPlacedModel();
 			const modelId = getCurrentModelId();
 			if ( placedModel === null || modelId === null ) {
+				patchPrecisionState( {
+					workflowStatusText: PRECISION_WORKFLOW_MESSAGES.solveBlockedByPlacement
+				} );
 				setStatus( PRECISION_STATUS_MESSAGES.placeModelBeforeSolve );
 				return;
 			}
 
 			if ( pairs.length < MIN_SOLVE_PAIR_COUNT ) {
+				patchPrecisionState( {
+					workflowStatusText: PRECISION_WORKFLOW_MESSAGES.solveBlockedByPairs(
+						pairs.length,
+						MIN_SOLVE_PAIR_COUNT
+					)
+				} );
 				setStatus( PRECISION_STATUS_MESSAGES.solveRequiresMinPairs( MIN_SOLVE_PAIR_COUNT ) );
 				return;
 			}
@@ -252,6 +317,9 @@ export function createPrecisionRegistrationController(
 				hasSufficientPointSpread( sourcePoints ) === false
 				|| hasSufficientPointSpread( targetPoints ) === false
 			) {
+				patchPrecisionState( {
+					workflowStatusText: PRECISION_WORKFLOW_MESSAGES.solveBlockedByGeometry
+				} );
 				setStatus( PRECISION_STATUS_MESSAGES.solveGeometryWeak );
 				return;
 			}
@@ -290,6 +358,9 @@ export function createPrecisionRegistrationController(
 		save() {
 
 			if ( solvedResult === null ) {
+				patchPrecisionState( {
+					workflowStatusText: PRECISION_WORKFLOW_MESSAGES.saveBlocked
+				} );
 				setStatus( PRECISION_STATUS_MESSAGES.saveBeforeSolve );
 				return;
 			}
@@ -329,7 +400,9 @@ export function createPrecisionRegistrationController(
 			patchPrecisionState( {
 				pairResidualSummaries: createPairResidualSummaries(),
 				rmsText: '--',
-				workflowStatusText: PRECISION_WORKFLOW_MESSAGES.clearedSaved
+				workflowStatusText: PRECISION_WORKFLOW_MESSAGES.clearedSaved,
+				isSourceLocked: false,
+				hasConfirmedTarget: false
 			} );
 			setStatus( PRECISION_STATUS_MESSAGES.clearedSaved );
 
@@ -345,7 +418,9 @@ export function createPrecisionRegistrationController(
 				patchPrecisionState( {
 					pairResidualSummaries: createPairResidualSummaries(),
 					rmsText: '--',
-					workflowStatusText: PRECISION_WORKFLOW_MESSAGES.noSaved
+					workflowStatusText: PRECISION_WORKFLOW_MESSAGES.noSaved,
+					isSourceLocked: false,
+					hasConfirmedTarget: false
 				} );
 				return;
 			}
@@ -353,7 +428,9 @@ export function createPrecisionRegistrationController(
 			patchPrecisionState( {
 				pairResidualSummaries: createPairResidualSummaries( savedResult.pairResidualMeters ),
 				rmsText: formatMeters( savedResult.rmsErrorMeters ),
-				workflowStatusText: PRECISION_WORKFLOW_MESSAGES.loadedSaved( savedResult.updatedAt )
+				workflowStatusText: PRECISION_WORKFLOW_MESSAGES.loadedSaved( savedResult.updatedAt ),
+				isSourceLocked: false,
+				hasConfirmedTarget: false
 			} );
 
 		},
@@ -372,7 +449,9 @@ export function createPrecisionRegistrationController(
 				rmsText: formatMeters( savedResult.rmsErrorMeters ),
 				workflowStatusText: PRECISION_WORKFLOW_MESSAGES.appliedSaved(
 					formatMeters( savedResult.rmsErrorMeters )
-				)
+				),
+				isSourceLocked: false,
+				hasConfirmedTarget: false
 			} );
 			setStatus( PRECISION_STATUS_MESSAGES.appliedSaved );
 			return true;
@@ -428,9 +507,11 @@ export function createPrecisionRegistrationController(
 
 		return pairs.map( ( _, index ) => {
 			const residualMeters = pairResidualMeters?.[ index ];
-			return residualMeters === undefined
-				? '待求解'
-				: `残差 ${formatMeters( residualMeters )}`;
+			if ( residualMeters === undefined ) {
+				return '待求解';
+			}
+
+			return `残差 ${formatMeters( residualMeters )}`;
 		} );
 
 	}

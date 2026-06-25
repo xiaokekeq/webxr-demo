@@ -126,6 +126,12 @@ export function RegistrationPanel(props: {
 						点对: {engine.precisionRegistration.pairSummaries.length} / 建议至少 4 组<br />
 						RMS: {engine.precisionRegistration.rmsText}
 					</p>
+					<p className="note-block">
+						流程提示: {engine.precisionRegistration.workflowStatusText}
+					</p>
+					<p className="note-block">
+						移动端提示: 选择模型点后会进入现场采点模式，大面板会暂时收起，只保留现场确认按钮。
+					</p>
 					<div className="button-row">
 						<ActionButton label="加入点对" onClick={actions.addPrecisionPair} kind="secondary" />
 						<ActionButton label="计算配准" onClick={actions.solvePrecisionRegistration} kind="primary" />

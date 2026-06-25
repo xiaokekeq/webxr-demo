@@ -16,6 +16,7 @@ export interface ControllerUiState {
 	drawerOpen: boolean;
 	browseDetailsExpanded: boolean;
 	registrationView: RegistrationView;
+	precisionCaptureActive: boolean;
 	inspectionFormExpanded: boolean;
 	inspectionDraft: InspectionDraft;
 }
@@ -56,6 +57,7 @@ export interface LoadModelArController {
 		selectPrecisionSourcePoint(sourcePoint: string): void;
 		armPrecisionSourcePoint(): void;
 		confirmPrecisionTargetPoint(): void;
+		cancelPrecisionCapture(): void;
 		addPrecisionPair(): void;
 		removePrecisionPair(index: number): void;
 		solvePrecisionRegistration(): void;
@@ -96,6 +98,7 @@ function createInitialUiState(): ControllerUiState {
 		drawerOpen: true,
 		browseDetailsExpanded: false,
 		registrationView: 'overview',
+		precisionCaptureActive: false,
 		inspectionFormExpanded: false,
 		inspectionDraft: { ...DEFAULT_INSPECTION_DRAFT }
 	};
@@ -110,6 +113,7 @@ export function createLoadModelArController(): LoadModelArController {
 		ui: createInitialUiState()
 	} ) );
 	let previousEngineState = engine.getState();
+	let isDesktopLayout = window.matchMedia( '(any-pointer: fine)' ).matches;
 
 	function patchUiState(patch: Partial<ControllerUiState>): void {
 
@@ -120,6 +124,26 @@ export function createLoadModelArController(): LoadModelArController {
 				...patch
 			}
 		} ) );
+
+	}
+
+	function canUsePrecisionCaptureUi(): boolean {
+
+		const currentEngineState = engine.getState();
+		return isDesktopLayout === false && currentEngineState.appMode === 'ar-session';
+
+	}
+
+	function stopPrecisionCapture(options?: {
+		drawerOpen?: boolean;
+		registrationView?: RegistrationView;
+	}): void {
+
+		patchUiState( {
+			precisionCaptureActive: false,
+			drawerOpen: options?.drawerOpen ?? stateStore.getState().ui.drawerOpen,
+			registrationView: options?.registrationView ?? stateStore.getState().ui.registrationView
+		} );
 
 	}
 
@@ -137,6 +161,7 @@ export function createLoadModelArController(): LoadModelArController {
 				...nextUi,
 				drawerOpen: false,
 				registrationView: 'overview',
+				precisionCaptureActive: false,
 				browseDetailsExpanded: false
 			};
 		}
@@ -145,11 +170,12 @@ export function createLoadModelArController(): LoadModelArController {
 			nextUi = {
 				...nextUi,
 				drawerOpen: false,
-				registrationView: 'overview'
+				registrationView: 'overview',
+				precisionCaptureActive: false
 			};
 		}
 
-		if ( newlySelectedComponent ) {
+		if ( newlySelectedComponent && nextUi.precisionCaptureActive === false ) {
 			nextUi = {
 				...nextUi,
 				drawerOpen: true,
@@ -183,9 +209,13 @@ export function createLoadModelArController(): LoadModelArController {
 
 		},
 
-		setLayoutMode(isDesktopLayout) {
+		setLayoutMode(nextIsDesktopLayout) {
 
-			engine.setLayoutMode( isDesktopLayout );
+			isDesktopLayout = nextIsDesktopLayout;
+			engine.setLayoutMode( nextIsDesktopLayout );
+			if ( nextIsDesktopLayout ) {
+				stopPrecisionCapture( { drawerOpen: true } );
+			}
 
 		},
 
@@ -240,19 +270,27 @@ export function createLoadModelArController(): LoadModelArController {
 
 				const { engine: currentEngineState, ui } = stateStore.getState();
 				if ( currentEngineState.workspaceMode === mode && ui.drawerOpen ) {
-					patchUiState( { drawerOpen: false } );
+					patchUiState( {
+						drawerOpen: false,
+						precisionCaptureActive: false
+					} );
 					return;
 				}
 
 				engine.setWorkspaceMode( mode );
 				patchUiState( {
 					drawerOpen: true,
-					registrationView: mode === 'registration' ? ui.registrationView : 'overview'
+					registrationView: mode === 'registration' ? ui.registrationView : 'overview',
+					precisionCaptureActive: false
 				} );
 
 			},
 
 			toggleDrawer() {
+
+				if ( stateStore.getState().ui.precisionCaptureActive ) {
+					return;
+				}
 
 				patchUiState( { drawerOpen: !stateStore.getState().ui.drawerOpen } );
 
@@ -297,6 +335,7 @@ export function createLoadModelArController(): LoadModelArController {
 			resetPlacement() {
 
 				engine.resetPlacement();
+				stopPrecisionCapture( { drawerOpen: false, registrationView: 'overview' } );
 
 			},
 
@@ -333,6 +372,7 @@ export function createLoadModelArController(): LoadModelArController {
 			clearSavedRegistration() {
 
 				engine.clearSavedRegistration();
+				stopPrecisionCapture();
 
 			},
 
@@ -345,6 +385,13 @@ export function createLoadModelArController(): LoadModelArController {
 			armPrecisionSourcePoint() {
 
 				engine.armPrecisionSourcePoint();
+				if ( canUsePrecisionCaptureUi() && engine.getState().precisionRegistration.isSourceLocked ) {
+					patchUiState( {
+						drawerOpen: false,
+						registrationView: 'control',
+						precisionCaptureActive: true
+					} );
+				}
 
 			},
 
@@ -354,15 +401,32 @@ export function createLoadModelArController(): LoadModelArController {
 
 			},
 
+			cancelPrecisionCapture() {
+
+				engine.cancelPrecisionCapture();
+				stopPrecisionCapture( {
+					drawerOpen: true,
+					registrationView: 'control'
+				} );
+
+			},
+
 			addPrecisionPair() {
 
 				engine.addPrecisionPair();
+				if ( engine.getState().precisionRegistration.isSourceLocked === false ) {
+					stopPrecisionCapture( {
+						drawerOpen: true,
+						registrationView: 'control'
+					} );
+				}
 
 			},
 
 			removePrecisionPair(index) {
 
 				engine.removePrecisionPair( index );
+				stopPrecisionCapture();
 
 			},
 
@@ -381,6 +445,10 @@ export function createLoadModelArController(): LoadModelArController {
 			clearPrecisionPairs() {
 
 				engine.clearPrecisionPairs();
+				stopPrecisionCapture( {
+					drawerOpen: true,
+					registrationView: 'control'
+				} );
 
 			},
 
@@ -399,6 +467,10 @@ export function createLoadModelArController(): LoadModelArController {
 			exitAr() {
 
 				engine.exitAr();
+				stopPrecisionCapture( {
+					drawerOpen: false,
+					registrationView: 'overview'
+				} );
 
 			},
 
@@ -412,7 +484,8 @@ export function createLoadModelArController(): LoadModelArController {
 
 				patchUiState( {
 					drawerOpen: true,
-					registrationView: view
+					registrationView: view,
+					precisionCaptureActive: false
 				} );
 
 			},
@@ -421,7 +494,8 @@ export function createLoadModelArController(): LoadModelArController {
 
 				patchUiState( {
 					drawerOpen: true,
-					inspectionFormExpanded: expanded
+					inspectionFormExpanded: expanded,
+					precisionCaptureActive: false
 				} );
 
 			},

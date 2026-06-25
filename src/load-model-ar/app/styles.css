@@ -501,6 +501,7 @@ textarea {
 .guidance-card,
 .quick-tools,
 .primary-bar,
+.precision-capture-bar,
 .drawer-anchor,
 .drawer-toggle,
 .bottom-nav {
@@ -633,6 +634,46 @@ textarea {
 	background: rgba(255, 255, 255, 0.96);
 	backdrop-filter: blur(16px);
 	box-shadow: var(--shadow);
+}
+
+.precision-capture-bar {
+	position: fixed;
+	left: 12px;
+	right: 12px;
+	bottom: max(12px, env(safe-area-inset-bottom, 0px));
+	padding: 14px;
+	border-radius: 24px;
+	background:
+		linear-gradient(180deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.08) 100%),
+		rgba(15, 23, 42, 0.78);
+	backdrop-filter: blur(18px);
+	box-shadow: 0 18px 40px rgba(15, 23, 42, 0.28);
+	color: #fff;
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.precision-capture-bar__content {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	font-size: 13px;
+	line-height: 1.6;
+}
+
+.precision-capture-bar__content strong {
+	font-size: 14px;
+}
+
+.precision-capture-bar__content span {
+	color: rgba(255, 255, 255, 0.88);
+}
+
+.precision-capture-bar__actions {
+	display: grid;
+	grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+	gap: 10px;
 }
 
 .mobile-ar-root--placement .primary-bar {

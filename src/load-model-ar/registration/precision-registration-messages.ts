@@ -19,22 +19,31 @@ export const PRECISION_STATUS_MESSAGES = {
 	appliedSaved: '已应用上次保存的精确配准结果。',
 	selectedSource: (sourcePointId: string) => `已选择模型控制点 ${sourcePointId}。`,
 	confirmedTarget: (targetLabel: string, qualityLabel: string) => `已确认现场点 ${targetLabel}，${qualityLabel}。`,
-	addedPair: (pairCount: number) => `已加入第 ${pairCount} 组控制点对。`
+	addedPair: (pairCount: number) => `已加入第 ${pairCount} 组控制点对。`,
+	captureCanceled: '已取消当前控制点采集。'
 } as const;
 
 export const PRECISION_WORKFLOW_MESSAGES = {
 	notConfirmed: '未确认',
 	notSelected: '未选择',
 	notSampled: '尚未采样',
-	lockedSource: (sourcePointId: string) => `已锁定模型点 ${sourcePointId}，请确认对应的现场点。`,
+	lockedSource: (sourcePointId: string) => `已锁定模型点 ${sourcePointId}，请移动到现场对应位置并确认现场点。`,
 	targetSampling: (qualityLabel: string) => `现场点采样结果：${qualityLabel}。`,
-	confirmedTarget: (targetLabel: string, qualityLabel: string) => `已确认现场点 ${targetLabel}，${qualityLabel}，可加入点对。`,
-	enoughPairs: '控制点对数量已足够，可以开始求解精确配准。',
-	collectedPairs: (pairCount: number, minPairCount: number) => `已收集 ${pairCount} 组控制点对，至少需要 ${minPairCount} 组。`,
+	targetSamplingShort: (sampleCount: number, minSampleCount: number) => `现场点采样不足，当前 ${sampleCount} 帧，至少需要 ${minSampleCount} 帧。`,
+	targetTooUnstable: (jitterText: string, maxJitterText: string) => `现场点抖动偏大（${jitterText}），请继续稳住设备，目标低于 ${maxJitterText}。`,
+	noTargetPoint: '当前未命中可确认的现场点，请重新对准可识别平面。',
+	confirmedTarget: (targetLabel: string, qualityLabel: string) => `已确认现场点 ${targetLabel}，${qualityLabel}，现在可以加入点对。`,
+	enoughPairs: '控制点对数量已满足求解条件，可以开始计算精确配准。',
+	collectedPairs: (pairCount: number, minPairCount: number) => `已采集 ${pairCount} 组控制点对，至少需要 ${minPairCount} 组。`,
 	solvedApplied: (pairCount: number, rmsText: string) => `已根据 ${pairCount} 组控制点对完成求解并应用结果，RMS ${rmsText}。`,
 	saved: '精确配准结果已保存，下次放置模型时会自动复用。',
 	clearedSaved: '已清除保存结果，如需修正请重新采集控制点。',
 	noSaved: '当前没有已保存的精确配准结果。',
 	loadedSaved: (updatedAt: string) => `已读取 ${updatedAt} 的保存结果，放置模型后会自动应用。`,
-	appliedSaved: (rmsText: string) => `已自动应用保存结果，RMS ${rmsText}。`
+	appliedSaved: (rmsText: string) => `已自动应用保存结果，RMS ${rmsText}。`,
+	solveBlockedByPlacement: '当前还没有已放置的模型，无法开始精确配准。',
+	solveBlockedByPairs: (pairCount: number, minPairCount: number) => `当前只有 ${pairCount} 组控制点对，至少需要 ${minPairCount} 组后才能求解。`,
+	solveBlockedByGeometry: '当前控制点分布过于集中，请改采更分散的点位后再试。',
+	saveBlocked: '当前还没有求解结果，请先完成精确配准。',
+	captureCanceled: '已取消当前控制点采集，可以重新选择模型点。'
 } as const;

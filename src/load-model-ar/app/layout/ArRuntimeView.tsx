@@ -9,7 +9,6 @@ import {
 } from '../store/selectors.js';
 import { ArCanvas } from './ArCanvas.js';
 import { ArStatusBar } from './ArStatusBar.js';
-import { QuickActions } from './QuickActions.js';
 import { BottomDrawer } from './BottomDrawer.js';
 import { ActionButton } from '../components/ActionButton.js';
 import { GuardedPressButton } from '../components/GuardedPressButton.js';
@@ -34,7 +33,6 @@ export function ArRuntimeView(props: {
 	const canInspect = engine.arSessionPhase === 'placed';
 	const canOpenBrowse = engine.arSessionPhase === 'placed' || showPlacementUi;
 	const canOpenTools = true;
-	const canUseDisplayModeQuickAction = engine.arSessionPhase === 'placed';
 	const placeActionLabel = engine.arSessionPhase === 'ready-to-place' ? '开始放置' : '继续扫描';
 	const drawerToggleLabel = state.ui.drawerOpen ? '收起面板' : `展开${getWorkspaceLabel( engine.workspaceMode )}`;
 	const displayModeLabel = getDisplayModeLabel( engine.displayMode );
@@ -42,10 +40,14 @@ export function ArRuntimeView(props: {
 	const showPrecisionCaptureOverlay = state.ui.precisionCaptureActive
 		&& state.ui.registrationView === 'control'
 		&& engine.workspaceMode === 'registration';
+	const showMeasurementCaptureOverlay = state.ui.measurementCaptureActive
+		&& engine.workspaceMode === 'tools';
 	const precisionCaptureActionLabel = engine.precisionRegistration.hasConfirmedTarget ? '加入点对' : '确认现场点';
 	const handlePrecisionCaptureAction = engine.precisionRegistration.hasConfirmedTarget
 		? actions.addPrecisionPair
 		: actions.confirmPrecisionTargetPoint;
+	const measurementCaptureActionLabel = `记录第 ${engine.measurement.capturedPointLabels.length + 1} 点`;
+	const showCaptureOverlay = showPrecisionCaptureOverlay || showMeasurementCaptureOverlay;
 
 	return (
 		<div className={ `mobile-ar-root${showPlacementUi ? ' mobile-ar-root--placement' : ''}` }>
@@ -58,7 +60,7 @@ export function ArRuntimeView(props: {
 				onPointerDownCapture={actions.handleArUiInteraction}
 				onPointerUpCapture={actions.handleArUiInteraction}
 			>
-				{showPrecisionCaptureOverlay ? null : (
+				{showCaptureOverlay ? null : (
 					<ArStatusBar
 						title={engine.projectName}
 						subtitle={subtitle}
@@ -68,24 +70,14 @@ export function ArRuntimeView(props: {
 					/>
 				)}
 
-				{showPrecisionCaptureOverlay ? null : showPlacementUi && showGuidance ? (
+				{showCaptureOverlay ? null : showPlacementUi && showGuidance ? (
 					<div className="guidance-card">
 						<h2>{guidance.title}</h2>
 						<p>{guidance.body}</p>
 					</div>
 				) : null}
 
-				{showPrecisionCaptureOverlay ? null : (
-					<QuickActions
-						onDisplay={actions.cycleDisplayMode}
-						onSnapshot={actions.takeSnapshot}
-						onDrawer={actions.toggleDrawer}
-						displayLabel={displayModeLabel}
-						displayDisabled={!canUseDisplayModeQuickAction}
-					/>
-				)}
-
-				{showPrecisionCaptureOverlay ? null : showPlacementUi ? (
+				{showCaptureOverlay ? null : showPlacementUi ? (
 					<div className="primary-bar">
 						<ActionButton label="退出 AR" onClick={actions.exitAr} kind="secondary" />
 						<ActionButton
@@ -97,7 +89,7 @@ export function ArRuntimeView(props: {
 					</div>
 				) : null}
 
-				{showPrecisionCaptureOverlay ? null : (
+				{showCaptureOverlay ? null : (
 					<BottomDrawer
 						open={state.ui.drawerOpen}
 						workspaceMode={engine.workspaceMode}
@@ -106,7 +98,7 @@ export function ArRuntimeView(props: {
 					>
 						{engine.workspaceMode === 'browse' ? <BrowsePanel state={state} actions={actions} canInspect={canInspect} /> : null}
 						{engine.workspaceMode === 'registration' ? <RegistrationPanel state={state} actions={actions} /> : null}
-						{engine.workspaceMode === 'tools' ? <ToolsPanel actions={actions} /> : null}
+						{engine.workspaceMode === 'tools' ? <ToolsPanel state={state} actions={actions} /> : null}
 						{engine.workspaceMode === 'inspection' ? <InspectionPanel state={state} actions={actions} /> : null}
 					</BottomDrawer>
 				)}
@@ -128,6 +120,27 @@ export function ArRuntimeView(props: {
 							<ActionButton
 								label={precisionCaptureActionLabel}
 								onClick={handlePrecisionCaptureAction}
+								kind="primary"
+							/>
+						</div>
+					</div>
+				) : showMeasurementCaptureOverlay ? (
+					<div className="precision-capture-bar">
+						<div className="precision-capture-bar__content">
+							<strong>当前模式：{engine.measurement.activeLabel}</strong>
+							<span>测点进度：{engine.measurement.capturedPointLabels.length} / {engine.measurement.requiredPointCount}</span>
+							<span>采样质量：{engine.measurement.targetQualityText}</span>
+							<span>{engine.measurement.feedbackText || engine.measurement.detailText}</span>
+						</div>
+						<div className="precision-capture-bar__actions">
+							<ActionButton
+								label="取消测量"
+								onClick={actions.cancelMeasurement}
+								kind="secondary"
+							/>
+							<ActionButton
+								label={measurementCaptureActionLabel}
+								onClick={actions.confirmMeasurementPoint}
 								kind="primary"
 							/>
 						</div>

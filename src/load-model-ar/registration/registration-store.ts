@@ -8,6 +8,7 @@ export type ArSupportState = 'checking' | 'supported' | 'unsupported';
 export type ArSessionPhase = 'scanning' | 'ready-to-place' | 'placing' | 'placed';
 export type DisplayMode = 'normal' | 'xray' | 'occlusion-outline';
 export type PrecisionFeedbackTone = 'neutral' | 'info' | 'success' | 'error';
+export type MeasurementMode = 'distance-3d' | 'distance-horizontal' | 'depth';
 
 export interface PropertyPanelState {
 	name: string;
@@ -58,6 +59,20 @@ export interface PrecisionRegistrationState {
 	hasConfirmedTarget: boolean;
 }
 
+export interface MeasurementState {
+	activeMode: MeasurementMode | null;
+	activeLabel: string;
+	isCapturing: boolean;
+	requiredPointCount: number;
+	capturedPointLabels: string[];
+	targetQualityText: string;
+	resultText: string;
+	detailText: string;
+	feedbackText: string;
+	feedbackTone: PrecisionFeedbackTone;
+	feedbackUpdatedAt: string;
+}
+
 export interface RegistrationStoreState {
 	projectName: string;
 	modelUrl: string;
@@ -78,6 +93,7 @@ export interface RegistrationStoreState {
 	registrationMetrics: RegistrationMetricsState;
 	placementSummary: PlacementSummaryState;
 	precisionRegistration: PrecisionRegistrationState;
+	measurement: MeasurementState;
 	registrationStatusDetail: string;
 	runtimeStatus: string;
 	desktopPreviewBadge: string;
@@ -183,6 +199,24 @@ export function createDefaultPrecisionRegistrationState(): PrecisionRegistration
 		feedbackUpdatedAt: '',
 		isSourceLocked: false,
 		hasConfirmedTarget: false
+	};
+
+}
+
+export function createDefaultMeasurementState(): MeasurementState {
+
+	return {
+		activeMode: null,
+		activeLabel: '未开始',
+		isCapturing: false,
+		requiredPointCount: 2,
+		capturedPointLabels: [],
+		targetQualityText: '尚未采样',
+		resultText: '--',
+		detailText: '请选择一种测量模式。',
+		feedbackText: '',
+		feedbackTone: 'neutral',
+		feedbackUpdatedAt: ''
 	};
 
 }

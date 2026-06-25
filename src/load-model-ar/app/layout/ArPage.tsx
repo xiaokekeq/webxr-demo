@@ -177,7 +177,7 @@ export function ArPage(): React.JSX.Element {
 							<div className="desktop-panel__body">
 								{engine.workspaceMode === 'browse' ? <BrowsePanel state={state} actions={actions} canInspect={true} /> : null}
 								{engine.workspaceMode === 'registration' ? <RegistrationPanel state={state} actions={actions} /> : null}
-								{engine.workspaceMode === 'tools' ? <ToolsPanel actions={actions} /> : null}
+								{engine.workspaceMode === 'tools' ? <ToolsPanel state={state} actions={actions} /> : null}
 								{engine.workspaceMode === 'inspection' ? <InspectionPanel state={state} actions={actions} /> : null}
 							</div>
 						</aside>

@@ -297,77 +297,91 @@ export function createPrecisionRegistrationController(
 		solve() {
 
 			patchPrecisionState( {}, '正在计算精确配准...', 'info' );
+			const startedAt = performance.now();
 
-			const placedModel = getPlacedModel();
-			const modelId = getCurrentModelId();
-			if ( placedModel === null || modelId === null ) {
-				const message = PRECISION_WORKFLOW_MESSAGES.solveBlockedByPlacement;
+			try {
+				const placedModel = getPlacedModel();
+				const modelId = getCurrentModelId();
+				if ( placedModel === null || modelId === null ) {
+					const message = PRECISION_WORKFLOW_MESSAGES.solveBlockedByPlacement;
+					patchPrecisionState( {
+						workflowStatusText: message
+					}, message, 'error' );
+					setStatus( PRECISION_STATUS_MESSAGES.placeModelBeforeSolve );
+					return;
+				}
+
+				if ( pairs.length < MIN_SOLVE_PAIR_COUNT ) {
+					const message = PRECISION_WORKFLOW_MESSAGES.solveBlockedByPairs(
+						pairs.length,
+						MIN_SOLVE_PAIR_COUNT
+					);
+					patchPrecisionState( {
+						workflowStatusText: message
+					}, message, 'error' );
+					setStatus( PRECISION_STATUS_MESSAGES.solveRequiresMinPairs( MIN_SOLVE_PAIR_COUNT ) );
+					return;
+				}
+
+				placedModel.updateMatrixWorld( true );
+				const sourcePoints = pairs.map( ( pair ) => (
+					placedModel.localToWorld( tempSourcePoint.copy( pair.sourceModelLocal ) ).clone()
+				) );
+				const targetPoints = pairs.map( ( pair ) => pair.targetAr.clone() );
+
+				if (
+					hasSufficientPointSpread( sourcePoints ) === false
+					|| hasSufficientPointSpread( targetPoints ) === false
+				) {
+					const message = PRECISION_WORKFLOW_MESSAGES.solveBlockedByGeometry;
+					patchPrecisionState( {
+						workflowStatusText: message
+					}, message, 'error' );
+					setStatus( PRECISION_STATUS_MESSAGES.solveGeometryWeak );
+					return;
+				}
+
+				const delta = solveSimilarityTransform( sourcePoints, targetPoints, 'similarity' );
+				const pairResidualMeters = computePairResidualMeters( sourcePoints, targetPoints, delta );
+				const rmsText = formatMeters( delta.rmsErrorMeters );
+				const maxResidualText = formatMeters( Math.max( ...pairResidualMeters ) );
+
+				solvedResult = {
+					modelId,
+					position: delta.translation.clone(),
+					quaternion: delta.rotation.clone(),
+					scale: delta.scale,
+					rmsErrorMeters: delta.rmsErrorMeters,
+					pairCount: pairs.length,
+					sourcePointIds: pairs.map( ( pair ) => pair.sourcePointId ),
+					pairResidualMeters,
+					updatedAt: new Date().toISOString()
+				};
+
+				applyDeltaToModel( placedModel, solvedResult );
+				appliedModels.add( placedModel );
+				onApplied?.( solvedResult );
+
+				const durationText = formatDurationMs( performance.now() - startedAt );
+				const message = `${PRECISION_WORKFLOW_MESSAGES.solvedApplied( pairs.length, rmsText )} 用时 ${durationText}。`;
+				patchPrecisionState( {
+					pairSummaries: createPairSummaries(),
+					pairResidualSummaries: createPairResidualSummaries( pairResidualMeters ),
+					rmsText,
+					workflowStatusText: message
+				}, message, 'success' );
+				setStatus( `${PRECISION_STATUS_MESSAGES.solved( rmsText, maxResidualText )} 用时 ${durationText}。` );
+			} catch ( error ) {
+				const durationText = formatDurationMs( performance.now() - startedAt );
+				const message = error instanceof Error
+					? `精确配准计算失败：${error.message}（用时 ${durationText}）。`
+					: `精确配准计算失败：未知错误（用时 ${durationText}）。`;
+				console.error( 'Precision registration solve failed:', error );
 				patchPrecisionState( {
 					workflowStatusText: message
 				}, message, 'error' );
-				setStatus( PRECISION_STATUS_MESSAGES.placeModelBeforeSolve );
-				return;
+				setStatus( message );
 			}
-
-			if ( pairs.length < MIN_SOLVE_PAIR_COUNT ) {
-				const message = PRECISION_WORKFLOW_MESSAGES.solveBlockedByPairs(
-					pairs.length,
-					MIN_SOLVE_PAIR_COUNT
-				);
-				patchPrecisionState( {
-					workflowStatusText: message
-				}, message, 'error' );
-				setStatus( PRECISION_STATUS_MESSAGES.solveRequiresMinPairs( MIN_SOLVE_PAIR_COUNT ) );
-				return;
-			}
-
-			placedModel.updateMatrixWorld( true );
-			const sourcePoints = pairs.map( ( pair ) => (
-				placedModel.localToWorld( tempSourcePoint.copy( pair.sourceModelLocal ) ).clone()
-			) );
-			const targetPoints = pairs.map( ( pair ) => pair.targetAr.clone() );
-
-			if (
-				hasSufficientPointSpread( sourcePoints ) === false
-				|| hasSufficientPointSpread( targetPoints ) === false
-			) {
-				const message = PRECISION_WORKFLOW_MESSAGES.solveBlockedByGeometry;
-				patchPrecisionState( {
-					workflowStatusText: message
-				}, message, 'error' );
-				setStatus( PRECISION_STATUS_MESSAGES.solveGeometryWeak );
-				return;
-			}
-
-			const delta = solveSimilarityTransform( sourcePoints, targetPoints, 'similarity' );
-			const pairResidualMeters = computePairResidualMeters( sourcePoints, targetPoints, delta );
-			const rmsText = formatMeters( delta.rmsErrorMeters );
-			const maxResidualText = formatMeters( Math.max( ...pairResidualMeters ) );
-
-			solvedResult = {
-				modelId,
-				position: delta.translation.clone(),
-				quaternion: delta.rotation.clone(),
-				scale: delta.scale,
-				rmsErrorMeters: delta.rmsErrorMeters,
-				pairCount: pairs.length,
-				sourcePointIds: pairs.map( ( pair ) => pair.sourcePointId ),
-				pairResidualMeters,
-				updatedAt: new Date().toISOString()
-			};
-
-			applyDeltaToModel( placedModel, solvedResult );
-			appliedModels.add( placedModel );
-			onApplied?.( solvedResult );
-
-			const message = PRECISION_WORKFLOW_MESSAGES.solvedApplied( pairs.length, rmsText );
-			patchPrecisionState( {
-				pairSummaries: createPairSummaries(),
-				pairResidualSummaries: createPairResidualSummaries( pairResidualMeters ),
-				rmsText,
-				workflowStatusText: message
-			}, message, 'success' );
-			setStatus( PRECISION_STATUS_MESSAGES.solved( rmsText, maxResidualText ) );
 
 		},
 
@@ -618,6 +632,20 @@ function formatVectorLabel(vector: THREE.Vector3): string {
 function formatMeters(value: number): string {
 
 	return `${value.toFixed( 3 )}m`;
+
+}
+
+function formatDurationMs(durationMs: number): string {
+
+	if ( Number.isFinite( durationMs ) === false ) {
+		return '--';
+	}
+
+	if ( durationMs < 1000 ) {
+		return `${Math.round( durationMs )}ms`;
+	}
+
+	return `${( durationMs / 1000 ).toFixed( 2 )}s`;
 
 }
 

@@ -13,10 +13,13 @@ import {
 import { createSceneHostRuntime, type SceneHostRuntimeHosts } from './internal/runtime/scene-host-runtime.js';
 import { createStatusRuntime } from './internal/runtime/status-runtime.js';
 import { createWorkspaceRuntime } from './internal/runtime/workspace-runtime.js';
+import { createMeasurementController } from './internal/tools/measurement-controller.js';
 import type { DemoModelConfig } from '../data/demo-model-config.js';
 import {
+	createDefaultMeasurementState,
 	createRegistrationStore,
 	type DisplayMode,
+	type MeasurementMode,
 	type RegistrationStore,
 	type RegistrationStoreState,
 	type WorkspaceMode
@@ -113,6 +116,7 @@ function createInitialState(): RegistrationStoreState {
 			isSourceLocked: false,
 			hasConfirmedTarget: false
 		},
+		measurement: createDefaultMeasurementState(),
 		registrationStatusDetail: '状态：等待识别平面',
 		runtimeStatus: '正在准备 AR 工作区。',
 		desktopPreviewBadge: DEFAULT_DESKTOP_PREVIEW_BADGE,
@@ -173,6 +177,7 @@ export class ThreeEngine {
 	private readonly manualReadoutSync;
 	private readonly manualRegistration;
 	private readonly precisionRegistration;
+	private readonly measurementController;
 	private readonly workspaceRuntime;
 	private readonly pointerSelection;
 	private readonly arSessionStateRuntime;
@@ -239,6 +244,17 @@ export class ThreeEngine {
 				this.syncArSessionPhase();
 				this.emit();
 			}
+		} );
+
+		this.measurementController = createMeasurementController( {
+			store: this.store,
+			scene: this.sceneBundle.scene,
+			setStatus: ( message ) => {
+				statusRuntime.setStatus( message );
+				this.emit();
+			},
+			getTargetPoint: ( target ) => this.xrRuntime.getHitTestController().getHitPosition( target ),
+			getTargetPointQuality: () => this.xrRuntime.getHitTestController().getHitTestQuality()
 		} );
 
 		this.propertySelection = createPropertySelectionController( {
@@ -508,6 +524,7 @@ export class ThreeEngine {
 		window.removeEventListener( 'resize', this.handleWindowResize );
 		this.sceneBundle.renderer.xr.removeEventListener( 'sessionstart', this.bindArSelectionSession );
 		this.sceneBundle.renderer.xr.removeEventListener( 'sessionend', this.unbindArSelectionSession );
+		this.measurementController.dispose();
 		this.sceneBundle.controls.dispose();
 		this.sceneBundle.renderer.dispose();
 
@@ -550,20 +567,6 @@ export class ThreeEngine {
 
 		this.store.patch( { displayMode: mode } );
 		this.setStatus( `显示模式已切换为：${getDisplayModeLabel( mode )}` );
-
-	}
-
-	cycleDisplayMode(): void {
-
-		if ( this.canMutatePlacedModelDisplayMode() === false ) {
-			this.setStatus( '请先完成模型放置，再切换显示模式。' );
-			return;
-		}
-
-		const modes: DisplayMode[] = [ 'normal', 'xray', 'occlusion-outline' ];
-		const currentIndex = modes.indexOf( this.store.getState().displayMode );
-		const nextMode = modes[ ( currentIndex + 1 + modes.length ) % modes.length ];
-		this.setDisplayMode( nextMode );
 
 	}
 
@@ -630,6 +633,7 @@ export class ThreeEngine {
 
 	resetPlacement(): void {
 
+		this.measurementController.reset();
 		this.arSessionStateRuntime.markPlacementCommitted( false );
 		this.placementSession.resetPlacement();
 		this.syncArSessionPhase();
@@ -779,6 +783,40 @@ export class ThreeEngine {
 
 	}
 
+	startMeasurementMode(mode: MeasurementMode): void {
+
+		if ( this.sceneBundle.renderer.xr.isPresenting === false ) {
+			this.setStatus( '请先进入 AR 会话，再开始现场测量。' );
+			return;
+		}
+
+		if ( this.placementSession.getPlacedModel() === null ) {
+			this.setStatus( '请先完成模型放置，再开始现场测量。' );
+			return;
+		}
+
+		this.measurementController.start( mode );
+
+	}
+
+	confirmMeasurementPoint(): void {
+
+		this.measurementController.confirmPoint();
+
+	}
+
+	cancelMeasurement(): void {
+
+		this.measurementController.cancel();
+
+	}
+
+	clearMeasurement(): void {
+
+		this.measurementController.clear();
+
+	}
+
 	removePrecisionPair(index: number): void {
 
 		this.precisionRegistration.removePair( index );
@@ -891,7 +929,22 @@ export class ThreeEngine {
 
 	runMeasurementTool(label: string): void {
 
-		this.setStatus( label + ' 暂作为工具入口占位。' );
+		switch ( label ) {
+			case '两点测距':
+				this.startMeasurementMode( 'distance-3d' );
+				return;
+			case '水平距离':
+				this.startMeasurementMode( 'distance-horizontal' );
+				return;
+			case '深入测量':
+				this.startMeasurementMode( 'depth' );
+				return;
+			case '清除测量':
+				this.clearMeasurement();
+				return;
+			default:
+				this.setStatus( `${label} 暂未接入。` );
+		}
 
 	}
 
@@ -1002,6 +1055,7 @@ export class ThreeEngine {
 
 	private handleXRSessionStart(): void {
 
+		this.measurementController.reset();
 		this.arSessionStateRuntime.handleSessionStart();
 		this.pointerSelection.suppressSelectionFor( 1200 );
 		this.placementSession.resetPlacement();
@@ -1013,6 +1067,7 @@ export class ThreeEngine {
 
 	private handleXRSessionEnd(): void {
 
+		this.measurementController.reset();
 		this.arSessionStateRuntime.handleSessionEnd();
 		this.placementSession.resetPlacement();
 		this.ensureDesktopPreviewPlacement();

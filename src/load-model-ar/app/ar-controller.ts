@@ -1,5 +1,9 @@
 import { createStore } from 'zustand/vanilla';
-import type { DisplayMode, WorkspaceMode } from '../registration/registration-store.js';
+import type {
+	DisplayMode,
+	MeasurementMode,
+	WorkspaceMode
+} from '../registration/registration-store.js';
 import type { ThreeEngineHosts, ThreeEngineSnapshot } from '../runtime/three-engine.js';
 import { ThreeEngine } from '../runtime/three-engine.js';
 
@@ -17,6 +21,7 @@ export interface ControllerUiState {
 	browseDetailsExpanded: boolean;
 	registrationView: RegistrationView;
 	precisionCaptureActive: boolean;
+	measurementCaptureActive: boolean;
 	inspectionFormExpanded: boolean;
 	inspectionDraft: InspectionDraft;
 }
@@ -38,7 +43,6 @@ export interface LoadModelArController {
 		closePropertyPanel(): void;
 		selectModel(modelId: string): void;
 		setDisplayMode(mode: DisplayMode): void;
-		cycleDisplayMode(): void;
 		activatePanel(mode: WorkspaceMode): void;
 		toggleDrawer(): void;
 		setTimelineStage(index: number): void;
@@ -63,6 +67,10 @@ export interface LoadModelArController {
 		solvePrecisionRegistration(): void;
 		savePrecisionRegistration(): void;
 		clearPrecisionPairs(): void;
+		startMeasurementMode(mode: MeasurementMode): void;
+		confirmMeasurementPoint(): void;
+		cancelMeasurement(): void;
+		clearMeasurement(): void;
 		enterAr(): void;
 		placeModel(): Promise<void>;
 		exitAr(): void;
@@ -99,6 +107,7 @@ function createInitialUiState(): ControllerUiState {
 		browseDetailsExpanded: false,
 		registrationView: 'overview',
 		precisionCaptureActive: false,
+		measurementCaptureActive: false,
 		inspectionFormExpanded: false,
 		inspectionDraft: { ...DEFAULT_INSPECTION_DRAFT }
 	};
@@ -134,6 +143,13 @@ export function createLoadModelArController(): LoadModelArController {
 
 	}
 
+	function canUseMeasurementCaptureUi(): boolean {
+
+		const currentEngineState = engine.getState();
+		return isDesktopLayout === false && currentEngineState.appMode === 'ar-session';
+
+	}
+
 	function stopPrecisionCapture(options?: {
 		drawerOpen?: boolean;
 		registrationView?: RegistrationView;
@@ -143,6 +159,17 @@ export function createLoadModelArController(): LoadModelArController {
 			precisionCaptureActive: false,
 			drawerOpen: options?.drawerOpen ?? stateStore.getState().ui.drawerOpen,
 			registrationView: options?.registrationView ?? stateStore.getState().ui.registrationView
+		} );
+
+	}
+
+	function stopMeasurementCapture(options?: {
+		drawerOpen?: boolean;
+	}): void {
+
+		patchUiState( {
+			measurementCaptureActive: false,
+			drawerOpen: options?.drawerOpen ?? stateStore.getState().ui.drawerOpen
 		} );
 
 	}
@@ -162,6 +189,7 @@ export function createLoadModelArController(): LoadModelArController {
 				drawerOpen: false,
 				registrationView: 'overview',
 				precisionCaptureActive: false,
+				measurementCaptureActive: false,
 				browseDetailsExpanded: false
 			};
 		}
@@ -171,15 +199,28 @@ export function createLoadModelArController(): LoadModelArController {
 				...nextUi,
 				drawerOpen: false,
 				registrationView: 'overview',
-				precisionCaptureActive: false
+				precisionCaptureActive: false,
+				measurementCaptureActive: false
 			};
 		}
 
-		if ( newlySelectedComponent && nextUi.precisionCaptureActive === false ) {
+		if (
+			newlySelectedComponent
+			&& nextUi.precisionCaptureActive === false
+			&& nextUi.measurementCaptureActive === false
+		) {
 			nextUi = {
 				...nextUi,
 				drawerOpen: true,
 				browseDetailsExpanded: true
+			};
+		}
+
+		if ( nextState.measurement.isCapturing === false && currentUi.measurementCaptureActive ) {
+			nextUi = {
+				...nextUi,
+				measurementCaptureActive: false,
+				drawerOpen: true
 			};
 		}
 
@@ -215,6 +256,7 @@ export function createLoadModelArController(): LoadModelArController {
 			engine.setLayoutMode( nextIsDesktopLayout );
 			if ( nextIsDesktopLayout ) {
 				stopPrecisionCapture( { drawerOpen: true } );
+				stopMeasurementCapture( { drawerOpen: true } );
 			}
 
 		},
@@ -260,19 +302,14 @@ export function createLoadModelArController(): LoadModelArController {
 
 			},
 
-			cycleDisplayMode() {
-
-				engine.cycleDisplayMode();
-
-			},
-
 			activatePanel(mode) {
 
 				const { engine: currentEngineState, ui } = stateStore.getState();
 				if ( currentEngineState.workspaceMode === mode && ui.drawerOpen ) {
 					patchUiState( {
 						drawerOpen: false,
-						precisionCaptureActive: false
+						precisionCaptureActive: false,
+						measurementCaptureActive: false
 					} );
 					return;
 				}
@@ -281,18 +318,20 @@ export function createLoadModelArController(): LoadModelArController {
 				patchUiState( {
 					drawerOpen: true,
 					registrationView: mode === 'registration' ? ui.registrationView : 'overview',
-					precisionCaptureActive: false
+					precisionCaptureActive: false,
+					measurementCaptureActive: false
 				} );
 
 			},
 
 			toggleDrawer() {
 
-				if ( stateStore.getState().ui.precisionCaptureActive ) {
+				const ui = stateStore.getState().ui;
+				if ( ui.precisionCaptureActive || ui.measurementCaptureActive ) {
 					return;
 				}
 
-				patchUiState( { drawerOpen: !stateStore.getState().ui.drawerOpen } );
+				patchUiState( { drawerOpen: !ui.drawerOpen } );
 
 			},
 
@@ -336,6 +375,7 @@ export function createLoadModelArController(): LoadModelArController {
 
 				engine.resetPlacement();
 				stopPrecisionCapture( { drawerOpen: false, registrationView: 'overview' } );
+				stopMeasurementCapture( { drawerOpen: false } );
 
 			},
 
@@ -389,7 +429,8 @@ export function createLoadModelArController(): LoadModelArController {
 					patchUiState( {
 						drawerOpen: false,
 						registrationView: 'control',
-						precisionCaptureActive: true
+						precisionCaptureActive: true,
+						measurementCaptureActive: false
 					} );
 				}
 
@@ -452,6 +493,50 @@ export function createLoadModelArController(): LoadModelArController {
 
 			},
 
+			startMeasurementMode(mode) {
+
+				engine.setWorkspaceMode( 'tools' );
+				engine.startMeasurementMode( mode );
+				const measurementState = engine.getState().measurement;
+				if ( canUseMeasurementCaptureUi() && measurementState.isCapturing ) {
+					patchUiState( {
+						drawerOpen: false,
+						precisionCaptureActive: false,
+						measurementCaptureActive: true
+					} );
+					return;
+				}
+
+				patchUiState( {
+					drawerOpen: true,
+					measurementCaptureActive: false
+				} );
+
+			},
+
+			confirmMeasurementPoint() {
+
+				engine.confirmMeasurementPoint();
+				if ( engine.getState().measurement.isCapturing === false ) {
+					stopMeasurementCapture( { drawerOpen: true } );
+				}
+
+			},
+
+			cancelMeasurement() {
+
+				engine.cancelMeasurement();
+				stopMeasurementCapture( { drawerOpen: true } );
+
+			},
+
+			clearMeasurement() {
+
+				engine.clearMeasurement();
+				stopMeasurementCapture( { drawerOpen: true } );
+
+			},
+
 			enterAr() {
 
 				engine.enterAr();
@@ -471,6 +556,7 @@ export function createLoadModelArController(): LoadModelArController {
 					drawerOpen: false,
 					registrationView: 'overview'
 				} );
+				stopMeasurementCapture( { drawerOpen: false } );
 
 			},
 
@@ -485,7 +571,8 @@ export function createLoadModelArController(): LoadModelArController {
 				patchUiState( {
 					drawerOpen: true,
 					registrationView: view,
-					precisionCaptureActive: false
+					precisionCaptureActive: false,
+					measurementCaptureActive: false
 				} );
 
 			},
@@ -495,7 +582,8 @@ export function createLoadModelArController(): LoadModelArController {
 				patchUiState( {
 					drawerOpen: true,
 					inspectionFormExpanded: expanded,
-					precisionCaptureActive: false
+					precisionCaptureActive: false,
+					measurementCaptureActive: false
 				} );
 
 			},

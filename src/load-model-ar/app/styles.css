@@ -535,7 +535,6 @@ textarea {
 
 .topbar,
 .guidance-card,
-.quick-tools,
 .primary-bar,
 .precision-capture-bar,
 .drawer-anchor,
@@ -568,45 +567,6 @@ textarea {
 	font-size: 13px;
 	line-height: 1.7;
 	color: rgba(255, 255, 255, 0.84);
-}
-
-.quick-tools {
-	position: fixed;
-	top: calc(max(14px, env(safe-area-inset-top, 0px)) + 114px);
-	right: 14px;
-	display: flex;
-	flex-direction: column;
-	gap: 12px;
-	width: 76px;
-	align-items: center;
-}
-
-.tool-button {
-	width: 76px;
-	height: 76px;
-	padding: 0;
-	border-radius: 50%;
-	background: rgba(255, 255, 255, 0.96);
-	box-shadow: var(--shadow);
-	color: #334155;
-	cursor: pointer;
-	font-size: 12px;
-	font-weight: 700;
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	text-align: center;
-	line-height: 1.25;
-}
-
-.tool-button--stacked {
-	flex-direction: column;
-	gap: 4px;
-}
-
-.tool-button--stacked strong {
-	font-size: 11px;
-	line-height: 1;
 }
 
 .primary-bar {

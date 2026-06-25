@@ -1,11 +1,16 @@
-﻿import * as THREE from 'three';
+import * as THREE from 'three';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { clone } from 'three/addons/utils/SkeletonUtils.js';
-import { MODEL_SCALE_CALIBRATION } from './model-scale-config.js';
+import {
+	attachModelSourceMetadata,
+	extractModelSourceMetadata
+} from '../data/model-source-metadata.js';
 import type { ModelAssetTransform } from '../data/model-catalog.js';
 import type { SetStatus } from '../shared/types.js';
+import { MODEL_SCALE_CALIBRATION } from './model-scale-config.js';
 
 const templateBounds = new THREE.Box3();
 const templateSize = new THREE.Vector3();
@@ -26,6 +31,10 @@ export async function loadModelTemplate(
 		return await loadObjModelTemplate( url, setStatus, perModelScaleFactor, materialUrl, assetTransform );
 	}
 
+	if ( isFbxModelUrl( url ) ) {
+		return await loadFbxModelTemplate( url, setStatus, perModelScaleFactor, assetTransform );
+	}
+
 	return await loadGltfModelTemplate( url, setStatus, perModelScaleFactor, assetTransform );
 
 }
@@ -44,6 +53,7 @@ async function loadGltfModelTemplate(
 			url,
 			( gltf ) => {
 				const { template, report } = createPlaceableTemplate( gltf.scene, perModelScaleFactor, assetTransform );
+				attachModelSourceMetadata( template, extractModelSourceMetadata( gltf.scene, 'gltf' ) );
 
 				console.info(
 					'[Model Scale]',
@@ -80,6 +90,57 @@ async function loadGltfModelTemplate(
 
 }
 
+async function loadFbxModelTemplate(
+	url: string,
+	setStatus: SetStatus,
+	perModelScaleFactor: number,
+	assetTransform?: ModelAssetTransform
+): Promise<THREE.Group> {
+
+	const loader = new FBXLoader();
+
+	return await new Promise<THREE.Group>( ( resolve, reject ) => {
+		loader.load(
+			url,
+			( object ) => {
+				const { template, report } = createPlaceableTemplate( object, perModelScaleFactor, assetTransform );
+				attachModelSourceMetadata( template, extractModelSourceMetadata( object, 'fbx' ) );
+
+				console.info(
+					'[Model Scale]',
+					{
+						originalSizeMeters: report.originalSize,
+						originalLongestEdgeMeters: report.originalLongestEdgeMeters,
+						appliedScaleFactor: report.appliedScaleFactor,
+						perModelScaleFactor: report.perModelScaleFactor,
+						scaledSizeMeters: report.scaledSize,
+						calibrationMode: report.calibrationMode,
+						note: MODEL_SCALE_CALIBRATION.note
+					}
+				);
+
+				setStatus(
+					`FBX 模型加载成功，原始包围盒 ${formatSize( report.originalSize )}，缩放 ${report.appliedScaleFactor.toFixed( 3 )}x`
+				);
+
+				resolve( template );
+			},
+			( event ) => {
+				if ( event.total > 0 ) {
+					const progress = Math.round( event.loaded / event.total * 100 );
+					setStatus( `正在加载 FBX 模型... ${progress}%` );
+				}
+			},
+			( error ) => {
+				console.error( 'AR FBX model load failed:', error );
+				setStatus( 'FBX 模型加载失败，请检查 fbx 文件和贴图路径。' );
+				reject( error );
+			}
+		);
+	} );
+
+}
+
 async function loadObjModelTemplate(
 	url: string,
 	setStatus: SetStatus,
@@ -106,6 +167,7 @@ async function loadObjModelTemplate(
 				fileName,
 				( object ) => {
 					const { template, report } = createPlaceableTemplate( object, perModelScaleFactor, assetTransform );
+					attachModelSourceMetadata( template, extractModelSourceMetadata( object, 'obj' ) );
 
 					console.info(
 						'[Model Scale]',
@@ -171,6 +233,12 @@ async function loadObjMaterials(materialUrl: string) {
 function isObjModelUrl(url: string): boolean {
 
 	return url.split( '?' )[ 0 ].toLowerCase().endsWith( '.obj' );
+
+}
+
+function isFbxModelUrl(url: string): boolean {
+
+	return url.split( '?' )[ 0 ].toLowerCase().endsWith( '.fbx' );
 
 }
 
@@ -349,4 +417,3 @@ function formatSize(size: THREE.Vector3): string {
 	return `${size.x.toFixed( 2 )} x ${size.y.toFixed( 2 )} x ${size.z.toFixed( 2 )}m`;
 
 }
-

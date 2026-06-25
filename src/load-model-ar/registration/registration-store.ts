@@ -92,6 +92,7 @@ export interface RegistrationStoreState {
 	propertyPanel: PropertyPanelState;
 	manualReadout: ManualReadoutState;
 	manualAdjustmentPreset: ManualAdjustmentPreset;
+	autoPreviewPlacementEnabled: boolean;
 	registrationMetrics: RegistrationMetricsState;
 	placementSummary: PlacementSummaryState;
 	precisionRegistration: PrecisionRegistrationState;

@@ -50,6 +50,16 @@ export function RegistrationPanel(props: {
 					</div>
 				</div>
 
+				<SelectField
+					label="近距离预览放置"
+					value={engine.autoPreviewPlacementEnabled ? 'enabled' : 'disabled'}
+					onChange={ ( value ) => actions.setAutoPreviewPlacementEnabled( value === 'enabled' ) }
+					options={[
+						{ value: 'disabled', label: '关闭: 始终按真实目标位置放置' },
+						{ value: 'enabled', label: '开启: 超距或低精度时改为贴近预览' }
+					]}
+				/>
+
 				<div className="button-row">
 					<ActionButton label="重新放置" onClick={actions.resetPlacement} kind="primary" />
 					<ActionButton label="重新粗配准" onClick={ () => void actions.enableCoarseRegistration() } />

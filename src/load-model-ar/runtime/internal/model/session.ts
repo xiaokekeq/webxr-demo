@@ -114,6 +114,7 @@ export function createModelSession(options: CreateModelSessionOptions): ModelSes
 		);
 
 		appendLog( `模型加载完成：${modelDefinition.name}` );
+		appendModelSourceMetadataLog( bundle, appendLog );
 		appendLog(
 			`工程配准求解完成，控制点数量：${bundle.registrationSolution.controlPoints.length}`
 		);
@@ -194,6 +195,36 @@ export function createModelSession(options: CreateModelSessionOptions): ModelSes
 
 		}
 	};
+
+}
+
+function appendModelSourceMetadataLog(
+	bundle: LoadedModelRuntimeBundle,
+	appendLog: (message: string) => void
+): void {
+
+	const metadata = bundle.modelSourceMetadata;
+	if ( metadata === null ) {
+		return;
+	}
+
+	const sourceName = metadata.originalName ?? bundle.modelDefinition.modelUrl;
+	const unitText = metadata.unitScaleFactor === null
+		? '未提供'
+		: metadata.unitScaleFactor.toFixed( 3 );
+
+	appendLog( `模型源信息：${metadata.format.toUpperCase()} / ${sourceName} / UnitScaleFactor=${unitText}` );
+
+	if ( metadata.embeddedGeoOrigin !== null ) {
+		appendLog(
+			`检测到模型内嵌坐标候选：${metadata.embeddedGeoOrigin.lon.toFixed( 6 )}, ${metadata.embeddedGeoOrigin.lat.toFixed( 6 )}，来源 ${metadata.embeddedGeoOrigin.sourcePath}。当前仍以 configUrl 为准。`
+		);
+		return;
+	}
+
+	if ( metadata.format === 'fbx' ) {
+		appendLog( '当前 FBX 未检测到可直接用于工程配准的经纬度元数据，仍需外部 config 提供站点坐标。' );
+	}
 
 }
 

@@ -54,6 +54,7 @@ export interface LoadModelArController {
 		refreshGeoLocation(): Promise<void>;
 		resetPlacement(): void;
 		setManualAdjustmentPreset(preset: ManualAdjustmentPreset): void;
+		setAutoPreviewPlacementEnabled(enabled: boolean): void;
 		adjustTranslation(axis: 'x' | 'y' | 'z', direction: 1 | -1): void;
 		adjustYaw(direction: 1 | -1): void;
 		adjustScale(direction: 1 | -1): void;
@@ -384,6 +385,12 @@ export function createLoadModelArController(): LoadModelArController {
 			setManualAdjustmentPreset(preset) {
 
 				engine.setManualAdjustmentPreset( preset );
+
+			},
+
+			setAutoPreviewPlacementEnabled(enabled) {
+
+				engine.setAutoPreviewPlacementEnabled( enabled );
 
 			},
 

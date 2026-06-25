@@ -15,6 +15,9 @@ import type { PropertySelectionController } from '../interaction/property-select
 
 interface CreatePlacementSessionOptions {
 	store: {
+		getState(): {
+			autoPreviewPlacementEnabled: boolean;
+		};
 		patch(partialState: {
 			placementSummary?: ReturnType<typeof createPlacementSummaryState>;
 			desktopPreviewBadge?: string;
@@ -174,13 +177,15 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 				return;
 			}
 
-			const usePreviewPlacement = (
+			const shouldUsePreviewPlacementFallback = (
 				estimate.distanceMeters > maxVisibleAutoPlacementDistanceMeters
 				|| (
 					estimate.accuracyMeters !== null
 					&& estimate.accuracyMeters > maxReliableGpsAccuracyMeters
 				)
 			);
+			const usePreviewPlacement = shouldUsePreviewPlacementFallback
+				&& store.getState().autoPreviewPlacementEnabled;
 
 			lastPlacementBase = createAutoPlacementBase( {
 				camera: sceneBundle.camera,
@@ -217,6 +222,13 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 			if ( usePreviewPlacement ) {
 				setStatus(
 					`目标距离约 ${Math.round( estimate.distanceMeters )}m，${accuracyText}。已切换到近距离预览放置。`
+				);
+				return;
+			}
+
+			if ( shouldUsePreviewPlacementFallback ) {
+				setStatus(
+					`目标距离约 ${Math.round( estimate.distanceMeters )}m，${accuracyText}。当前已关闭近距离预览放置，继续按真实目标位置放置。`
 				);
 				return;
 			}

@@ -1,0 +1,35 @@
+{
+  "siteId": "tongma_74_76_fbx",
+  "origin": {
+    "lng": 118.741163,
+    "lat": 31.938175,
+    "height": 20,
+    "coordType": "GCJ-02"
+  },
+  "controlPoints": [
+    {
+      "id": "CP_01",
+      "name": "调试点 A",
+      "modelLocal": [0, 0, 0],
+      "siteENU": [0, 0, 0]
+    },
+    {
+      "id": "CP_02",
+      "name": "调试点 B",
+      "modelLocal": [2, 0, 0],
+      "siteENU": [2, 0, 0]
+    },
+    {
+      "id": "CP_03",
+      "name": "调试点 C",
+      "modelLocal": [2, 0, -2],
+      "siteENU": [2, 0, 2]
+    },
+    {
+      "id": "CP_04",
+      "name": "调试点 D",
+      "modelLocal": [0, 0, -2],
+      "siteENU": [0, 0, 2]
+    }
+  ]
+}

@@ -91,6 +91,7 @@ function createInitialState(): RegistrationStoreState {
 			scaleText: '1.000x'
 		},
 		manualAdjustmentPreset: 'fine',
+		autoPreviewPlacementEnabled: false,
 		registrationMetrics: {
 			gpsText: '-',
 			enuText: '-',
@@ -746,6 +747,18 @@ export class ThreeEngine {
 	setManualAdjustmentPreset(preset: ManualAdjustmentPreset): void {
 
 		this.manualRegistration.setAdjustmentPreset( preset );
+
+	}
+
+	setAutoPreviewPlacementEnabled(enabled: boolean): void {
+
+		this.store.patch( { autoPreviewPlacementEnabled: enabled } );
+		this.setStatus(
+			enabled
+				? '已开启近距离预览放置。'
+				: '已关闭近距离预览放置，将优先按真实目标位置放置。'
+		);
+		this.emit();
 
 	}
 

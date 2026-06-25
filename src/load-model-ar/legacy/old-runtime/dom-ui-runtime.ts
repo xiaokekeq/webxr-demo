@@ -74,6 +74,7 @@ const store = createRegistrationStore( {
 	propertyPanel: createDefaultPropertyPanelState(),
 	manualReadout: createDefaultManualReadoutState(),
 	manualAdjustmentPreset: 'fine',
+	autoPreviewPlacementEnabled: false,
 	registrationMetrics: createDefaultRegistrationMetricsState(),
 	placementSummary: createDefaultPlacementSummaryState(),
 	precisionRegistration: createDefaultPrecisionRegistrationState(),

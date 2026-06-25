@@ -19,6 +19,17 @@
     "pipesUrl": "/pipe-viewer/pipes.json"
   },
   {
+    "id": "tongma-74-76-fbx",
+    "name": "同马大堤 74-76 FBX",
+    "modelUrl": "/pipe-viewer/tongma-74-76/model.fbx",
+    "assetTransform": {
+      "upAxis": "y",
+      "scaleFactor": 1.0
+    },
+    "configUrl": "/pipe-viewer/tongma-74-76/model.config.json",
+    "pipesUrl": "/pipe-viewer/tongma-74-76/model.pipes.json"
+  },
+  {
     "id": "dz1207",
     "name": "dz1207 地质模型",
     "modelUrl": "/pipe-viewer/dz1207/dizhi1207.obj",

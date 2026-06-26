@@ -13,7 +13,7 @@ interface CreateXRSessionRuntimeOptions {
 	onSessionEnd(): void;
 	canReportStatus(): boolean;
 	onAttemptCoarsePlacement(): void;
-	onFrameUpdate(): void;
+	onFrameUpdate(frame: XRFrame): void;
 }
 
 export interface XRSessionRuntime {
@@ -71,7 +71,7 @@ export function createXRSessionRuntime(options: CreateXRSessionRuntimeOptions): 
 			if ( sceneBundle.renderer.xr.isPresenting && frame ) {
 				xrHitTest.update( frame );
 				onAttemptCoarsePlacement();
-				onFrameUpdate();
+				onFrameUpdate( frame );
 			}
 
 			if ( sceneBundle.controls.enabled && sceneBundle.renderer.xr.isPresenting === false ) {

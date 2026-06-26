@@ -25,7 +25,7 @@ const DISPLAY_MODE_TAGS = {
 
 export interface DisplayModeController {
 	sync(mode: DisplayMode): void;
-	updateDepthState(): void;
+	updateDepthState(frame?: XRFrame): void;
 	getDepthDebugState(): DepthDebugState;
 	reset(): void;
 	dispose(): void;
@@ -71,10 +71,10 @@ export function createDisplayModeController(
 
 	}
 
-	function updateDepthState(): void {
+	function updateDepthState(frame?: XRFrame): void {
 
 		const wasActive = depthAwareOverlay.isActive();
-		const isActive = depthAwareOverlay.update();
+		const isActive = depthAwareOverlay.update( frame );
 		if ( wasActive === isActive ) {
 			return;
 		}

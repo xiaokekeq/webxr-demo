@@ -12,6 +12,23 @@ interface OverlaySnapshot {
 	depthTexture: THREE.Texture | null;
 	viewportWidth: number;
 	viewportHeight: number;
+	cpuDepthAvailable: boolean;
+	cpuDepthMeters: number | null;
+	depthUsage: 'cpu-optimized' | 'gpu-optimized' | 'unknown';
+	featureGranted: boolean;
+}
+
+interface XRSessionWithDepthMetadata extends XRSession {
+	enabledFeatures?: string[];
+	depthUsage?: 'cpu-optimized' | 'gpu-optimized';
+}
+
+interface XRCPUDepthInformationLike {
+	getDepthInMeters(x: number, y: number): number;
+}
+
+interface XRFrameWithDepthInformation extends XRFrame {
+	getDepthInformation?(view: XRView): XRCPUDepthInformationLike | null;
 }
 
 const XRAY_COLOR = new THREE.Color( 0x6ce7ff );
@@ -78,7 +95,7 @@ void main() {
 `;
 
 export interface DepthAwareOverlayRuntime {
-	update(): boolean;
+	update(frame?: XRFrame): boolean;
 	isActive(): boolean;
 	getDebugState(): DepthDebugState;
 	getMaterial(kind: DepthAwareOverlayKind): THREE.ShaderMaterial;
@@ -95,14 +112,22 @@ export function createDepthAwareOverlayRuntime(
 		active: false,
 		depthTexture: null,
 		viewportWidth: 1,
-		viewportHeight: 1
+		viewportHeight: 1,
+		cpuDepthAvailable: false,
+		cpuDepthMeters: null,
+		depthUsage: 'unknown',
+		featureGranted: false
 	};
 
-	function update(): boolean {
+	function update(frame?: XRFrame): boolean {
 
+		const session = renderer.xr.getSession() as XRSessionWithDepthMetadata | null;
 		const depthTexture = renderer.xr.getDepthTexture();
 		const cameraXR = renderer.xr.getCamera();
 		const viewport = cameraXR.cameras[ 0 ]?.viewport;
+		const featureGranted = session?.enabledFeatures?.includes( 'depth-sensing' ) ?? false;
+		const depthUsage = session?.depthUsage ?? 'unknown';
+		const cpuDepthInfo = readCpuDepthInformation( renderer, frame );
 		const active = renderer.xr.isPresenting
 			&& renderer.capabilities.isWebGL2
 			&& renderer.xr.hasDepthSensing()
@@ -113,7 +138,11 @@ export function createDepthAwareOverlayRuntime(
 			active,
 			depthTexture,
 			viewportWidth: viewport?.z ?? 1,
-			viewportHeight: viewport?.w ?? 1
+			viewportHeight: viewport?.w ?? 1,
+			cpuDepthAvailable: cpuDepthInfo !== null,
+			cpuDepthMeters: cpuDepthInfo,
+			depthUsage,
+			featureGranted
 		};
 
 		for ( const material of materials.values() ) {
@@ -153,9 +182,7 @@ export function createDepthAwareOverlayRuntime(
 			};
 		}
 
-		const session = renderer.xr.getSession() as ( XRSession & { enabledFeatures?: string[] } ) | null;
-		const depthFeatureGranted = session?.enabledFeatures?.includes( 'depth-sensing' ) ?? false;
-		if ( depthFeatureGranted === false ) {
+		if ( snapshot.featureGranted === false ) {
 			return {
 				label: 'Depth 未授权',
 				detail: '当前浏览器或设备没有返回 depth-sensing，X-Ray 会退回整模显示。',
@@ -167,15 +194,24 @@ export function createDepthAwareOverlayRuntime(
 		if ( snapshot.active ) {
 			return {
 				label: 'Depth 已启用',
-				detail: '真实遮挡判断正在生效，被墙或设备挡住的部分才会显示穿透辅助。',
+				detail: `真实遮挡判断正在生效。usage=${snapshot.depthUsage}${formatCpuDepthSuffix( snapshot.cpuDepthMeters )}`,
 				tone: 'supported',
 				active: true
 			};
 		}
 
+		if ( snapshot.cpuDepthAvailable ) {
+			return {
+				label: 'Depth CPU 可用',
+				detail: `已拿到 CPU depth 帧，但 GPU depth 纹理未生效。usage=${snapshot.depthUsage}${formatCpuDepthSuffix( snapshot.cpuDepthMeters )}`,
+				tone: 'checking',
+				active: false
+			};
+		}
+
 		return {
 			label: 'Depth 等待中',
-			detail: '会话已申请 depth-sensing，但当前还没有拿到有效深度帧。',
+			detail: `会话已申请 depth-sensing，但当前还没有拿到有效深度帧。usage=${snapshot.depthUsage}`,
 			tone: 'checking',
 			active: false
 		};
@@ -237,5 +273,54 @@ export function createDepthAwareOverlayRuntime(
 		getMaterial,
 		dispose
 	};
+
+}
+
+function readCpuDepthInformation(
+	renderer: THREE.WebGLRenderer,
+	frame?: XRFrame
+): number | null {
+
+	if ( frame === undefined ) {
+		return null;
+	}
+
+	const depthFrame = frame as XRFrameWithDepthInformation;
+	if ( typeof depthFrame.getDepthInformation !== 'function' ) {
+		return null;
+	}
+
+	const referenceSpace = renderer.xr.getReferenceSpace();
+	if ( referenceSpace === null ) {
+		return null;
+	}
+
+	const pose = frame.getViewerPose( referenceSpace );
+	const firstView = pose?.views[ 0 ];
+	if ( firstView === undefined ) {
+		return null;
+	}
+
+	try {
+		const depthInfo = depthFrame.getDepthInformation( firstView );
+		if ( depthInfo === null || typeof depthInfo.getDepthInMeters !== 'function' ) {
+			return null;
+		}
+
+		const depthMeters = depthInfo.getDepthInMeters( 0.5, 0.5 );
+		return Number.isFinite( depthMeters ) ? depthMeters : null;
+	} catch {
+		return null;
+	}
+
+}
+
+function formatCpuDepthSuffix(depthMeters: number | null): string {
+
+	if ( depthMeters === null || Number.isFinite( depthMeters ) === false ) {
+		return '';
+	}
+
+	return ` / cpu(0.5,0.5)=${depthMeters.toFixed( 2 )}m`;
 
 }

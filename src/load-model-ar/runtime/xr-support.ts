@@ -94,7 +94,7 @@ export function createXRHitTestController(
 			optionalFeatures: [ 'dom-overlay', 'depth-sensing' ],
 			domOverlay: { root: document.body },
 			depthSensing: {
-				usagePreference: [ 'gpu-optimized' ],
+				usagePreference: [ 'gpu-optimized', 'cpu-optimized' ],
 				dataFormatPreference: [ 'luminance-alpha', 'float32' ]
 			}
 		};

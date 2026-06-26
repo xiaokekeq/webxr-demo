@@ -390,8 +390,8 @@ export class ThreeEngine {
 			onAttemptCoarsePlacement: () => {
 				this.onAttemptCoarsePlacement();
 			},
-			onFrameUpdate: () => {
-				this.displayModeController.updateDepthState();
+			onFrameUpdate: ( frame ) => {
+				this.displayModeController.updateDepthState( frame );
 				this.syncDepthDebugState();
 				this.updateTargetGuidance();
 			}

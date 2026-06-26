@@ -101,6 +101,7 @@ export interface RegistrationStoreState {
 	manualReadout: ManualReadoutState;
 	manualAdjustmentPreset: ManualAdjustmentPreset;
 	autoPreviewPlacementEnabled: boolean;
+	cpuDepthFallbackEnabled: boolean;
 	registrationMetrics: RegistrationMetricsState;
 	placementSummary: PlacementSummaryState;
 	targetGuidance: TargetGuidanceState;

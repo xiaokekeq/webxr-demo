@@ -26,6 +26,7 @@ const DISPLAY_MODE_TAGS = {
 export interface DisplayModeController {
 	sync(mode: DisplayMode): void;
 	updateDepthState(frame?: XRFrame): void;
+	setCpuDepthFallbackEnabled(enabled: boolean): void;
 	reset(): void;
 	dispose(): void;
 }
@@ -74,6 +75,24 @@ export function createDisplayModeController(
 
 		const wasActive = depthAwareOverlay.isActive();
 		const isActive = depthAwareOverlay.update( frame );
+		if ( wasActive === isActive ) {
+			return;
+		}
+
+		if ( currentRoot === null || currentMode === null || currentMode === 'normal' ) {
+			return;
+		}
+
+		restoreModel( currentRoot );
+		applyMode( currentRoot, currentMode );
+
+	}
+
+	function setCpuDepthFallbackEnabled(enabled: boolean): void {
+
+		const wasActive = depthAwareOverlay.isActive();
+		depthAwareOverlay.setCpuDepthFallbackEnabled( enabled );
+		const isActive = depthAwareOverlay.update();
 		if ( wasActive === isActive ) {
 			return;
 		}
@@ -275,6 +294,7 @@ export function createDisplayModeController(
 	return {
 		sync,
 		updateDepthState,
+		setCpuDepthFallbackEnabled,
 		reset,
 		dispose
 	};

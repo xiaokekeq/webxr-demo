@@ -6,6 +6,7 @@ import { LayerSelector } from '../components/LayerSelector.js';
 import { ModelSelector } from '../components/ModelSelector.js';
 import { StageSelector } from '../components/StageSelector.js';
 import { PanelSection } from '../components/PanelCard.js';
+import { SelectField } from '../components/SelectField.js';
 import { getDisplayModeLabel } from '../store/selectors.js';
 
 export function BrowsePanel(props: {
@@ -23,6 +24,18 @@ export function BrowsePanel(props: {
 		<div className="panel-stack">
 			<PanelSection title="显示模式" subtitle="在普通叠加、透视核查和遮挡辅助之间切换。">
 				<DisplayModeSelector value={engine.displayMode} onChange={actions.setDisplayMode} label="模式" />
+				<SelectField
+					label="CPU Depth 回退"
+					value={engine.cpuDepthFallbackEnabled ? 'enabled' : 'disabled'}
+					onChange={ ( value ) => actions.setCpuDepthFallbackEnabled( value === 'enabled' ) }
+					options={[
+						{ value: 'enabled', label: '开启：GPU 不可用时继续走 CPU depth 测试' },
+						{ value: 'disabled', label: '关闭：仅保留 GPU depth，排查定位与性能波动' }
+					]}
+				/>
+				<p className="note-block">
+					这个开关只影响 X-Ray / 遮挡辅助的 CPU depth 回退路径，不会改动 GPS、ENU、工程配准和模型放置解算。
+				</p>
 			</PanelSection>
 
 			<PanelSection title="模型与阶段">

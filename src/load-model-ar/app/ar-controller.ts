@@ -54,6 +54,7 @@ export interface LoadModelArController {
 		resetPlacement(): void;
 		setManualAdjustmentPreset(preset: ManualAdjustmentPreset): void;
 		setAutoPreviewPlacementEnabled(enabled: boolean): void;
+		setCpuDepthFallbackEnabled(enabled: boolean): void;
 		adjustTranslation(axis: 'x' | 'y' | 'z', direction: 1 | -1): void;
 		adjustYaw(direction: 1 | -1): void;
 		adjustScale(direction: 1 | -1): void;
@@ -369,6 +370,12 @@ export function createLoadModelArController(): LoadModelArController {
 			setAutoPreviewPlacementEnabled(enabled) {
 
 				engine.setAutoPreviewPlacementEnabled( enabled );
+
+			},
+
+			setCpuDepthFallbackEnabled(enabled) {
+
+				engine.setCpuDepthFallbackEnabled( enabled );
 
 			},
 

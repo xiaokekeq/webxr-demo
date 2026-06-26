@@ -97,6 +97,7 @@ function createInitialState(): RegistrationStoreState {
 		},
 		manualAdjustmentPreset: 'fine',
 		autoPreviewPlacementEnabled: false,
+		cpuDepthFallbackEnabled: false,
 		registrationMetrics: {
 			gpsText: '-',
 			enuText: '-',
@@ -743,6 +744,23 @@ export class ThreeEngine {
 			enabled
 				? '已开启近距离预览放置，放置时会优先显示到手机前方。'
 				: '已关闭近距离预览放置，将按真实目标位置放置。'
+		);
+		this.emit();
+
+	}
+
+	setCpuDepthFallbackEnabled(enabled: boolean): void {
+
+		if ( this.store.getState().cpuDepthFallbackEnabled === enabled ) {
+			return;
+		}
+
+		this.store.patch( { cpuDepthFallbackEnabled: enabled } );
+		this.displayModeController.setCpuDepthFallbackEnabled( enabled );
+		this.setStatus(
+			enabled
+				? '已开启 CPU depth 回退，可在 GPU depth 不可用时继续测试遮挡判定。'
+				: '已关闭 CPU depth 回退，当前只保留 GPU depth 路径用于排查稳定性。'
 		);
 		this.emit();
 

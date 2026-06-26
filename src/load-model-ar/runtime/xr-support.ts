@@ -43,7 +43,7 @@ export async function detectImmersiveArSupport(): Promise<ImmersiveArSupportInfo
 	if ( 'xr' in navigator === false || navigator.xr === undefined ) {
 		return {
 			supported: false,
-			message: '当前设备不支持 AR。可以查看模型与数据，但无法进入现场 AR 核查。'
+			message: '当前设备不支持 AR。可以继续查看模型与数据，但无法进入现场 AR 核查。'
 		};
 	}
 
@@ -56,7 +56,7 @@ export async function detectImmersiveArSupport(): Promise<ImmersiveArSupportInfo
 			}
 			: {
 				supported: false,
-				message: '当前设备不支持 AR。可以查看模型与数据，但无法进入现场 AR 核查。'
+				message: '当前设备不支持 AR。可以继续查看模型与数据，但无法进入现场 AR 核查。'
 			};
 	} catch {
 		return {
@@ -121,7 +121,6 @@ export function createXRHitTestController(
 		lastSuccessfulHitTime = 0;
 		lastStableHitPosition = null;
 		recentHitSamples = [];
-		refreshLaunchElement();
 		setStatus( '已进入 AR，请缓慢移动手机，让系统持续识别地面或墙面。' );
 
 		const session = renderer.xr.getSession();
@@ -157,6 +156,7 @@ export function createXRHitTestController(
 		lastSuccessfulHitTime = 0;
 		lastStableHitPosition = null;
 		recentHitSamples = [];
+		refreshLaunchElement();
 		onSessionEnd?.();
 		setStatus( 'AR 会话已结束，可再次点击进入 AR 重新开始。' );
 

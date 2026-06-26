@@ -8,6 +8,19 @@ const JOYSTICK_DEADZONE_PX = 10;
 
 type JoystickDirection = 'up' | 'right' | 'down' | 'left';
 type ManualPreset = 'fine' | 'medium' | 'coarse';
+type ManualControlMode = 'translate' | 'pose' | 'scale';
+
+const PRESET_LABELS: Record<ManualPreset, string> = {
+	fine: '细调',
+	medium: '中调',
+	coarse: '粗调'
+};
+
+const MODE_LABELS: Record<ManualControlMode, string> = {
+	translate: '平移',
+	pose: '姿态',
+	scale: '缩放'
+};
 
 function FloatingAction(props: {
 	label: string;
@@ -62,19 +75,17 @@ function clampOffset(x: number, y: number): {
 }
 
 function JoystickPad(props: {
-	title: string;
-	subtitle: string;
 	disabled?: boolean;
 	actions: Record<JoystickDirection, () => void>;
 }): React.JSX.Element {
 
-	const { title, subtitle, disabled = false, actions } = props;
+	const { disabled = false, actions } = props;
 	const surfaceRef = useRef<HTMLDivElement | null>( null );
 	const pointerIdRef = useRef<number | null>( null );
 	const repeatIdRef = useRef<number | null>( null );
 	const currentDirectionRef = useRef<JoystickDirection | null>( null );
 	const [ knobOffset, setKnobOffset ] = useState( { x: 0, y: 0 } );
-	const [ activeDirection, setActiveDirection ] = useState<JoystickDirection | null>( null );
+	const [ active, setActive ] = useState( false );
 
 	function stopRepeating(): void {
 
@@ -84,7 +95,7 @@ function JoystickPad(props: {
 		}
 
 		currentDirectionRef.current = null;
-		setActiveDirection( null );
+		setActive( false );
 		setKnobOffset( { x: 0, y: 0 } );
 		pointerIdRef.current = null;
 
@@ -98,8 +109,6 @@ function JoystickPad(props: {
 		}
 
 		currentDirectionRef.current = direction;
-		setActiveDirection( direction );
-
 		if ( direction === null ) {
 			return;
 		}
@@ -137,7 +146,7 @@ function JoystickPad(props: {
 		<div className="joystick-pad">
 			<div
 				ref={surfaceRef}
-				className={ `joystick-pad__surface${activeDirection !== null ? ' is-active' : ''}` }
+				className={ `joystick-pad__surface${active ? ' is-active' : ''}` }
 				onPointerDown={ ( event ) => {
 					event.stopPropagation();
 					event.preventDefault();
@@ -146,6 +155,7 @@ function JoystickPad(props: {
 					}
 
 					stopRepeating();
+					setActive( true );
 					pointerIdRef.current = event.pointerId;
 					event.currentTarget.setPointerCapture( event.pointerId );
 					updateFromClientPoint( event.clientX, event.clientY );
@@ -180,10 +190,6 @@ function JoystickPad(props: {
 					event.preventDefault();
 				} }
 			>
-				<div className={ `joystick-pad__hint joystick-pad__hint--up${activeDirection === 'up' ? ' is-active' : ''}` }>↑</div>
-				<div className={ `joystick-pad__hint joystick-pad__hint--right${activeDirection === 'right' ? ' is-active' : ''}` }>→</div>
-				<div className={ `joystick-pad__hint joystick-pad__hint--down${activeDirection === 'down' ? ' is-active' : ''}` }>↓</div>
-				<div className={ `joystick-pad__hint joystick-pad__hint--left${activeDirection === 'left' ? ' is-active' : ''}` }>←</div>
 				<div className="joystick-pad__center">
 					<div
 						className="joystick-pad__knob"
@@ -191,22 +197,12 @@ function JoystickPad(props: {
 							transform: `translate(${knobOffset.x}px, ${knobOffset.y}px)`
 						}}
 					/>
-					<div className="joystick-pad__meta">
-						<strong>{title}</strong>
-						<span>{subtitle}</span>
-					</div>
 				</div>
 			</div>
 		</div>
 	);
 
 }
-
-const PRESET_LABELS: Record<ManualPreset, string> = {
-	fine: '细调',
-	medium: '中调',
-	coarse: '粗调'
-};
 
 export function ManualAdjustmentOverlay(props: {
 	state: AppState;
@@ -217,12 +213,43 @@ export function ManualAdjustmentOverlay(props: {
 	const engine = state.engine;
 	const canManualAdjust = engine.arSessionPhase === 'placed' || engine.appMode === 'pre-ar';
 	const [ presetMenuOpen, setPresetMenuOpen ] = useState( false );
+	const [ controlMode, setControlMode ] = useState<ManualControlMode>( 'translate' );
 	const currentPresetLabel = PRESET_LABELS[ engine.manualAdjustmentPreset ];
+	const currentModeLabel = MODE_LABELS[ controlMode ];
 
 	function handlePresetSelect(preset: ManualPreset): void {
 
 		actions.setManualAdjustmentPreset( preset );
 		setPresetMenuOpen( false );
+
+	}
+
+	function createJoystickActions(): Record<JoystickDirection, () => void> {
+
+		switch ( controlMode ) {
+			case 'pose':
+				return {
+					up: () => actions.adjustTranslation( 'y', 1 ),
+					right: () => actions.adjustYaw( 1 ),
+					down: () => actions.adjustTranslation( 'y', -1 ),
+					left: () => actions.adjustYaw( -1 )
+				};
+			case 'scale':
+				return {
+					up: () => actions.adjustScale( 1 ),
+					right: () => actions.adjustScale( 1 ),
+					down: () => actions.adjustScale( -1 ),
+					left: () => actions.adjustScale( -1 )
+				};
+			case 'translate':
+			default:
+				return {
+					up: () => actions.adjustTranslation( 'z', -1 ),
+					right: () => actions.adjustTranslation( 'x', 1 ),
+					down: () => actions.adjustTranslation( 'z', 1 ),
+					left: () => actions.adjustTranslation( 'x', -1 )
+				};
+		}
 
 	}
 
@@ -260,27 +287,35 @@ export function ManualAdjustmentOverlay(props: {
 					) : null}
 				</div>
 
-				<JoystickPad
-					title="平移"
-					subtitle="前后左右"
-					disabled={!canManualAdjust}
-					actions={{
-						up: () => actions.adjustTranslation( 'z', -1 ),
-						right: () => actions.adjustTranslation( 'x', 1 ),
-						down: () => actions.adjustTranslation( 'z', 1 ),
-						left: () => actions.adjustTranslation( 'x', -1 )
-					}}
-				/>
+				<div className="manual-overlay__mode-panel">
+					<div className="manual-overlay__mode-label">模式 · {currentModeLabel}</div>
+					<div className="manual-overlay__mode-options">
+						<GuardedPressButton
+							className={ `manual-overlay__mode-option${controlMode === 'translate' ? ' is-active' : ''}` }
+							onPress={ () => setControlMode( 'translate' ) }
+						>
+							平移
+						</GuardedPressButton>
+						<GuardedPressButton
+							className={ `manual-overlay__mode-option${controlMode === 'pose' ? ' is-active' : ''}` }
+							onPress={ () => setControlMode( 'pose' ) }
+						>
+							姿态
+						</GuardedPressButton>
+						<GuardedPressButton
+							className={ `manual-overlay__mode-option${controlMode === 'scale' ? ' is-active' : ''}` }
+							onPress={ () => setControlMode( 'scale' ) }
+						>
+							缩放
+						</GuardedPressButton>
+					</div>
+				</div>
 			</div>
 
 			<div className="manual-overlay__center-stack">
-				<div className="manual-overlay__scale-row">
-					<FloatingAction label="缩小" onPress={ () => actions.adjustScale( -1 ) } disabled={!canManualAdjust} />
-					<FloatingAction label="放大" onPress={ () => actions.adjustScale( 1 ) } disabled={!canManualAdjust} />
-				</div>
 				<div className="manual-overlay__readout">
 					<div>{engine.manualReadout.positionText}</div>
-					<div>{engine.manualReadout.yawText} / {engine.manualReadout.scaleText}</div>
+					<div>{engine.manualReadout.yawText} / {engine.manualReadout.scaleText} / 当前 {currentModeLabel}</div>
 				</div>
 			</div>
 
@@ -292,15 +327,8 @@ export function ManualAdjustmentOverlay(props: {
 				</div>
 
 				<JoystickPad
-					title="姿态"
-					subtitle="升降 / 旋转"
 					disabled={!canManualAdjust}
-					actions={{
-						up: () => actions.adjustTranslation( 'y', 1 ),
-						right: () => actions.adjustYaw( 1 ),
-						down: () => actions.adjustTranslation( 'y', -1 ),
-						left: () => actions.adjustYaw( -1 )
-					}}
+					actions={createJoystickActions()}
 				/>
 			</div>
 		</div>

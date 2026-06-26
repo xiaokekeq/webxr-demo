@@ -666,11 +666,11 @@ textarea {
 }
 
 .manual-overlay__left-rail {
-	left: 16px;
+	left: 8px;
 }
 
 .manual-overlay__right-rail {
-	right: 16px;
+	right: 8px;
 }
 
 .manual-overlay__center-stack {
@@ -689,6 +689,7 @@ textarea {
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
+	align-items: stretch;
 }
 
 .manual-overlay__preset-options {
@@ -697,8 +698,31 @@ textarea {
 	gap: 8px;
 }
 
+.manual-overlay__mode-panel,
+.manual-overlay__mode-options {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.manual-overlay__mode-label {
+	min-height: 34px;
+	padding: 0 14px;
+	border-radius: 999px;
+	background: rgba(15, 23, 42, 0.24);
+	backdrop-filter: blur(14px);
+	color: rgba(255, 255, 255, 0.78);
+	box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 12px;
+	font-weight: 700;
+}
+
 .manual-overlay__preset-trigger,
 .manual-overlay__preset-option,
+.manual-overlay__mode-option,
 .manual-overlay__floating-action {
 	min-height: 34px;
 	padding: 0 14px;
@@ -713,6 +737,7 @@ textarea {
 }
 
 .manual-overlay__preset-option.is-active,
+.manual-overlay__mode-option.is-active,
 .manual-overlay__floating-action--primary {
 	background: rgba(47, 109, 246, 0.78);
 	color: #fff;
@@ -722,11 +747,6 @@ textarea {
 .manual-overlay__floating-action:disabled {
 	opacity: 0.42;
 	cursor: not-allowed;
-}
-
-.manual-overlay__scale-row {
-	display: flex;
-	gap: 10px;
 }
 
 .manual-overlay__readout {
@@ -753,18 +773,8 @@ textarea {
 	aspect-ratio: 1;
 	border-radius: 50%;
 	background:
-		radial-gradient(circle at center, rgba(255, 255, 255, 0.12) 0 14%, transparent 14% 21%, rgba(15, 23, 42, 0.46) 21% 43%, transparent 43%),
-		conic-gradient(
-			from -45deg,
-			rgba(15, 23, 42, 0.54) 0deg 82deg,
-			rgba(255, 255, 255, 0.08) 82deg 90deg,
-			rgba(15, 23, 42, 0.54) 90deg 172deg,
-			rgba(255, 255, 255, 0.08) 172deg 180deg,
-			rgba(15, 23, 42, 0.54) 180deg 262deg,
-			rgba(255, 255, 255, 0.08) 262deg 270deg,
-			rgba(15, 23, 42, 0.54) 270deg 352deg,
-			rgba(255, 255, 255, 0.08) 352deg 360deg
-		);
+		radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.14), transparent 46%),
+		radial-gradient(circle at center, rgba(255, 255, 255, 0.06) 0 36%, rgba(15, 23, 42, 0.34) 36% 70%, rgba(15, 23, 42, 0.18) 70% 100%);
 	box-shadow:
 		inset 0 0 0 1px rgba(255, 255, 255, 0.08),
 		0 14px 28px rgba(15, 23, 42, 0.18);
@@ -777,55 +787,9 @@ textarea {
 		0 16px 32px rgba(15, 23, 42, 0.24);
 }
 
-.joystick-pad__hint {
-	position: absolute;
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	width: 36px;
-	height: 36px;
-	border-radius: 50%;
-	color: rgba(255, 255, 255, 0.8);
-	font-size: 22px;
-	font-weight: 700;
-	line-height: 1;
-	background: rgba(255, 255, 255, 0.04);
-	transition: transform 120ms ease, background-color 120ms ease, color 120ms ease;
-}
-
-.joystick-pad__hint.is-active {
-	background: rgba(96, 165, 250, 0.24);
-	color: #dbeafe;
-	transform: scale(1.06);
-}
-
-.joystick-pad__hint--up {
-	top: 10%;
-	left: 50%;
-	transform: translateX(-50%);
-}
-
-.joystick-pad__hint--right {
-	top: 50%;
-	right: 10%;
-	transform: translateY(-50%);
-}
-
-.joystick-pad__hint--down {
-	left: 50%;
-	bottom: 10%;
-	transform: translateX(-50%);
-}
-
-.joystick-pad__hint--left {
-	top: 50%;
-	left: 10%;
-	transform: translateY(-50%);
-}
-
 .joystick-pad__center {
 	position: absolute;
-	inset: 28%;
+	inset: 0;
 	border-radius: 50%;
 	display: flex;
 	align-items: center;
@@ -848,27 +812,6 @@ textarea {
 		inset 0 0 0 1px rgba(255, 255, 255, 0.28),
 		0 10px 18px rgba(15, 23, 42, 0.22);
 	transition: transform 40ms linear;
-}
-
-.joystick-pad__meta {
-	position: relative;
-	z-index: 1;
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	gap: 2px;
-	text-align: center;
-	color: rgba(255, 255, 255, 0.88);
-}
-
-.joystick-pad__meta strong {
-	font-size: 13px;
-	font-weight: 800;
-}
-
-.joystick-pad__meta span {
-	font-size: 10px;
-	color: rgba(255, 255, 255, 0.66);
 }
 
 .primary-bar {
@@ -1226,11 +1169,11 @@ textarea {
 	}
 
 	.manual-overlay__left-rail {
-		left: 12px;
+		left: 4px;
 	}
 
 	.manual-overlay__right-rail {
-		right: 12px;
+		right: 4px;
 	}
 
 	.manual-overlay__center-stack {

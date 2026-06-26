@@ -17,6 +17,7 @@ import { createMeasurementController } from './internal/tools/measurement-contro
 import type { DemoModelConfig } from '../data/demo-model-config.js';
 import {
 	createDefaultMeasurementState,
+	createDefaultPrecisionRegistrationState,
 	createDefaultTargetGuidanceState,
 	createRegistrationStore,
 	type DisplayMode,
@@ -35,12 +36,12 @@ import {
 	createManualRegistrationController,
 	type ManualAdjustmentPreset
 } from '../registration/manual-registration.js';
-import { createPrecisionRegistrationController } from '../registration/precision-registration-controller.js';
 import { createDisplayModeController, preserveRootTransform } from './display-mode.js';
 import { computeTargetGuidanceState } from './internal/placement/target-guidance.js';
 import { createARScene, resizeARScene } from './scene.js';
 import { createXRSessionRuntime } from './xr.js';
 import { formatGeodetic } from '../shared/formatters.js';
+import { clearPrecisionRegistrationResult } from '../registration/precision-registration-storage.js';
 
 const MAX_VISIBLE_AUTO_PLACEMENT_DISTANCE_METERS = 8;
 const MAX_RELIABLE_GPS_ACCURACY_METERS = 15;
@@ -186,7 +187,6 @@ export class ThreeEngine {
 	private readonly xrRuntime;
 	private readonly manualReadoutSync;
 	private readonly manualRegistration;
-	private readonly precisionRegistration;
 	private readonly measurementController;
 	private readonly workspaceRuntime;
 	private readonly pointerSelection;
@@ -236,27 +236,6 @@ export class ThreeEngine {
 			},
 			onPresetChange: ( preset ) => {
 				this.store.patch( { manualAdjustmentPreset: preset } );
-				this.emit();
-			}
-		} );
-
-		this.precisionRegistration = createPrecisionRegistrationController( {
-			store: this.store,
-			setStatus: ( message ) => {
-				statusRuntime.setStatus( message );
-				this.emit();
-			},
-			getPlacedModel: () => this.placementSession.getPlacedModel(),
-			getCurrentModelId: () => this.demoModelConfig?.modelId ?? null,
-			getTargetPoint: ( target ) => this.xrRuntime.getHitTestController().getHitPosition( target ),
-			getTargetPointQuality: () => this.xrRuntime.getHitTestController().getHitTestQuality(),
-			onApplied: ( result ) => {
-				this.placementSession.applyPrecisionRegistrationResult( result );
-				if ( this.manualRegistration.hasAdjustments() ) {
-					this.reapplyManualPlacement();
-					return;
-				}
-				this.syncArSessionPhase();
 				this.emit();
 			}
 		} );
@@ -390,12 +369,6 @@ export class ThreeEngine {
 			},
 			onLoadManualRegistration: ( modelId ) => {
 				this.manualRegistration.load( modelId );
-			},
-			onLoadPrecisionRegistration: ( modelId ) => {
-				this.precisionRegistration.loadSavedResult( modelId );
-			},
-			onUpdatePrecisionSourcePointOptions: ( sourcePoints ) => {
-				this.precisionRegistration.updateSourcePointOptions( sourcePoints );
 			},
 			canRequestAutoPlacement: () => this.sceneBundle.renderer.xr.isPresenting && this.coarseRegistration.canEstimate(),
 			requestAutoPlacement: () => {
@@ -753,7 +726,10 @@ export class ThreeEngine {
 		}
 
 		this.manualRegistration.clearSaved( this.demoModelConfig.modelId );
-		this.precisionRegistration.clearSaved( this.demoModelConfig.modelId );
+		clearPrecisionRegistrationResult( this.demoModelConfig.modelId );
+		this.store.patch( {
+			precisionRegistration: createDefaultPrecisionRegistrationState()
+		} );
 		this.manualRegistration.reset();
 		this.reapplyManualPlacement();
 		this.setStatus( '已清除保存的配准结果。' );
@@ -776,54 +752,6 @@ export class ThreeEngine {
 				: '已关闭近距离预览放置，将按真实目标位置放置。'
 		);
 		this.emit();
-
-	}
-
-	selectPrecisionSourcePoint(sourcePoint: string): void {
-
-		this.precisionRegistration.handleSourceSelection( sourcePoint );
-
-	}
-
-	armPrecisionSourcePoint(): void {
-
-		this.precisionRegistration.armSourcePoint();
-
-	}
-
-	confirmPrecisionTargetPoint(): void {
-
-		this.precisionRegistration.confirmTargetPoint();
-
-	}
-
-	cancelPrecisionCapture(): void {
-
-		this.precisionRegistration.cancelStagedPair();
-
-	}
-
-	addPrecisionPair(): void {
-
-		this.precisionRegistration.addPair();
-
-	}
-
-	solvePrecisionRegistration(): void {
-
-		this.precisionRegistration.solve();
-
-	}
-
-	savePrecisionRegistration(): void {
-
-		this.precisionRegistration.save();
-
-	}
-
-	clearPrecisionPairs(): void {
-
-		this.precisionRegistration.clear();
 
 	}
 
@@ -858,12 +786,6 @@ export class ThreeEngine {
 	clearMeasurement(): void {
 
 		this.measurementController.clear();
-
-	}
-
-	removePrecisionPair(index: number): void {
-
-		this.precisionRegistration.removePair( index );
 
 	}
 
@@ -1099,7 +1021,6 @@ export class ThreeEngine {
 
 		const placedModel = this.placementSession.getPlacedModel();
 		if ( hadPlacedModel === false && placedModel !== null ) {
-			this.precisionRegistration.applySavedResult( placedModel );
 			this.handlePlacementCompleted();
 		}
 

@@ -15,6 +15,7 @@ export function RegistrationPanel(props: {
 	const placed = engine.arSessionPhase === 'placed' || engine.appMode === 'pre-ar';
 	const canManualAdjust = placed;
 	const showExportSnapshotAction = engine.appMode === 'pre-ar';
+	const showInlineManualPanel = ui.registrationView === 'manual' && engine.appMode !== 'ar-session';
 
 	function handleClearSavedRegistration(): void {
 
@@ -88,7 +89,7 @@ export function RegistrationPanel(props: {
 				</div>
 			</PanelSection>
 
-			{ui.registrationView === 'manual' ? (
+			{showInlineManualPanel ? (
 				<PanelSection title="手动微调" subtitle="模型放置完成后，就可以直接微调位置、角度和尺度。">
 					<SelectField
 						label="微调强度"

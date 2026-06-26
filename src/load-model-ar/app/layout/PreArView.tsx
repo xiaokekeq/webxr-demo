@@ -65,6 +65,7 @@ export function PreArView(props: {
 					onClick={actions.enterAr}
 					kind="primary"
 					disabled={engine.arSupportState !== 'supported'}
+					activationBehavior="native-click"
 				/>
 			</div>
 		</div>

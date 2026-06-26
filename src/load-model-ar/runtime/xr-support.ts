@@ -93,6 +93,7 @@ export function createXRHitTestController(
 	let lastStableHitPosition: THREE.Vector3 | null = null;
 	let recentHitSamples: Array<{ position: THREE.Vector3; time: number }> = [];
 	let depthSensingMode = initialDepthSensingMode;
+	let sessionRequestPending = false;
 
 	function setup(): void {
 
@@ -143,6 +144,7 @@ export function createXRHitTestController(
 
 	function handleSessionEnd(): void {
 
+		sessionRequestPending = false;
 		renderer.xr.getSession()?.removeEventListener( 'select', handleSelect );
 		reticle.visible = false;
 		hitTestSource = null;
@@ -292,7 +294,7 @@ export function createXRHitTestController(
 		getHitTestQuality,
 		async requestSession() {
 
-			if ( renderer.xr.isPresenting ) {
+			if ( renderer.xr.isPresenting || sessionRequestPending ) {
 				return;
 			}
 
@@ -300,6 +302,9 @@ export function createXRHitTestController(
 				setStatus( '当前设备未提供 WebXR 接口。' );
 				return;
 			}
+
+			sessionRequestPending = true;
+			setStatus( '正在请求 AR 会话...' );
 
 			try {
 				const session = await navigator.xr.requestSession(
@@ -309,6 +314,7 @@ export function createXRHitTestController(
 				renderer.xr.setReferenceSpaceType( 'local' );
 				await renderer.xr.setSession( session );
 			} catch ( error ) {
+				sessionRequestPending = false;
 				console.error( 'XR session request failed:', error );
 				setStatus(
 					error instanceof Error

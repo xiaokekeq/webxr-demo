@@ -70,6 +70,13 @@ export interface PlacementSession {
 	}): void;
 	ensureDesktopPreviewPlacement(args: {
 		modelTemplate: THREE.Group | null;
+		manualApplyToPlacement(
+			base: ManualPlacementBase,
+			targetPosition: THREE.Vector3,
+			targetOrientation: THREE.Quaternion
+		): { position: THREE.Vector3; orientation: THREE.Quaternion; scale: number };
+		manualPositionTarget: THREE.Vector3;
+		manualOrientationTarget: THREE.Quaternion;
 		registrationSolution: EngineeringRegistrationSolution | null;
 	}): void;
 	fitDesktopPreviewToCamera(): void;
@@ -269,6 +276,9 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 				if ( canUsePreviewLayout() ) {
 					this.ensureDesktopPreviewPlacement( {
 						modelTemplate,
+						manualApplyToPlacement,
+						manualPositionTarget,
+						manualOrientationTarget,
 						registrationSolution
 					} );
 				}
@@ -296,6 +306,9 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 
 			const {
 				modelTemplate,
+				manualApplyToPlacement,
+				manualPositionTarget,
+				manualOrientationTarget,
 				registrationSolution
 			} = args;
 
@@ -304,16 +317,17 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 			}
 
 			lastPlacementBase = createDesktopPreviewBase( modelTemplate, registrationSolution );
+			const adjustedPlacement = manualApplyToPlacement(
+				lastPlacementBase,
+				manualPositionTarget,
+				manualOrientationTarget
+			);
 
 			placedModel = placeAdjustedModel( {
 				modelTemplate,
 				placedModel,
 				modelAnchor: sceneBundle.modelAnchor,
-				adjustedPlacement: {
-					position: lastPlacementBase.position,
-					orientation: lastPlacementBase.orientation,
-					scale: lastPlacementBase.scale
-				}
+				adjustedPlacement
 			} );
 
 			store.patch( { desktopPreviewBadge: desktopPreviewBadge } );

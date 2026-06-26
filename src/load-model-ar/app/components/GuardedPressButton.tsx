@@ -5,10 +5,18 @@ export function GuardedPressButton(props: {
 	type?: 'button' | 'submit' | 'reset';
 	onPress(): void;
 	disabled?: boolean;
+	activationBehavior?: 'guarded' | 'native-click';
 	children: React.ReactNode;
 }): React.JSX.Element {
 
-	const { className, type = 'button', onPress, disabled = false, children } = props;
+	const {
+		className,
+		type = 'button',
+		onPress,
+		disabled = false,
+		activationBehavior = 'guarded',
+		children
+	} = props;
 	const activePointerIdRef = useRef<number | null>( null );
 
 	const handlePointerDown = useCallback( ( event: React.PointerEvent<HTMLButtonElement> ) => {
@@ -27,6 +35,11 @@ export function GuardedPressButton(props: {
 
 	const handlePointerUp = useCallback( ( event: React.PointerEvent<HTMLButtonElement> ) => {
 		event.stopPropagation();
+		if ( activationBehavior !== 'guarded' ) {
+			resetPointerState();
+			return;
+		}
+
 		event.preventDefault();
 		if ( disabled || activePointerIdRef.current !== event.pointerId ) {
 			resetPointerState();
@@ -35,7 +48,7 @@ export function GuardedPressButton(props: {
 
 		resetPointerState();
 		onPress();
-	}, [ disabled, onPress, resetPointerState ] );
+	}, [ activationBehavior, disabled, onPress, resetPointerState ] );
 
 	const handlePointerCancel = useCallback( ( event: React.PointerEvent<HTMLButtonElement> ) => {
 		event.stopPropagation();
@@ -44,10 +57,27 @@ export function GuardedPressButton(props: {
 
 	const handleClick = useCallback( ( event: React.MouseEvent<HTMLButtonElement> ) => {
 		event.stopPropagation();
-		event.preventDefault();
-	}, [] );
+		if ( disabled ) {
+			event.preventDefault();
+			resetPointerState();
+			return;
+		}
+
+		if ( activationBehavior !== 'native-click' ) {
+			event.preventDefault();
+			return;
+		}
+
+		resetPointerState();
+		onPress();
+	}, [ activationBehavior, disabled, onPress, resetPointerState ] );
 
 	const handleKeyDown = useCallback( ( event: React.KeyboardEvent<HTMLButtonElement> ) => {
+		if ( activationBehavior !== 'guarded' ) {
+			event.stopPropagation();
+			return;
+		}
+
 		if ( disabled ) {
 			return;
 		}
@@ -59,7 +89,7 @@ export function GuardedPressButton(props: {
 		event.preventDefault();
 		event.stopPropagation();
 		onPress();
-	}, [ disabled, onPress ] );
+	}, [ activationBehavior, disabled, onPress ] );
 
 	return (
 		<button

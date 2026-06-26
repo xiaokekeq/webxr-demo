@@ -811,7 +811,6 @@ export class ThreeEngine {
 		}
 
 		this.pointerSelection.suppressSelectionFor( 1200 );
-		void this.warmupCoarseRegistration();
 		this.xrRuntime.requestSession();
 
 	}
@@ -1070,6 +1069,11 @@ export class ThreeEngine {
 		this.placementSession.resetPlacement();
 		this.syncArSessionPhase();
 		this.syncSceneHost();
+		void this.warmupCoarseRegistration().catch( ( error ) => {
+			console.error( 'Coarse registration warmup after session start failed:', error );
+			this.appendLog( 'AR 启动后粗配准预热失败。' );
+			this.updateCoarseLocationDebugText();
+		} );
 		this.emit();
 
 	}
@@ -1123,6 +1127,9 @@ export class ThreeEngine {
 
 		this.placementSession.ensureDesktopPreviewPlacement( {
 			modelTemplate: this.modelTemplate,
+			manualApplyToPlacement: this.manualRegistration.applyToPlacement,
+			manualPositionTarget: this.manualPosition,
+			manualOrientationTarget: this.manualOrientation,
 			registrationSolution: this.registrationSolution
 		} );
 

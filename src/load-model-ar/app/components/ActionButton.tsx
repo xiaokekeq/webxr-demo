@@ -6,6 +6,7 @@ export function ActionButton(props: {
 	onClick(): void;
 	kind?: 'primary' | 'secondary';
 	disabled?: boolean;
+	activationBehavior?: 'guarded' | 'native-click';
 }): React.JSX.Element {
 
 	return (
@@ -13,6 +14,7 @@ export function ActionButton(props: {
 			className={ `action-button${props.kind === 'primary' ? ' action-button--primary' : ''}${props.kind === 'secondary' ? ' action-button--secondary' : ''}` }
 			onPress={props.onClick}
 			disabled={props.disabled}
+			activationBehavior={props.activationBehavior}
 		>
 			{props.label}
 		</GuardedPressButton>

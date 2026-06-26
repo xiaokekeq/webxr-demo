@@ -188,7 +188,7 @@ export function ArPage(): React.JSX.Element {
 	}
 
 	return (
-		<>
+		<div className="mobile-page-root">
 			<div ref={xrButtonRef} className="xr-button-wrap" />
 			<ArCanvas canvasRef={desktopCanvasRef} className="scene-host scene-host--hidden" />
 			<div
@@ -211,7 +211,7 @@ export function ArPage(): React.JSX.Element {
 					canvasRef={arCanvasRef}
 				/>
 			</div>
-		</>
+		</div>
 	);
 
 }

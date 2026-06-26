@@ -655,33 +655,44 @@ textarea {
 	pointer-events: auto;
 }
 
+.manual-overlay__control-row {
+	position: fixed;
+	left: 8px;
+	right: 8px;
+	bottom: calc(max(12px, env(safe-area-inset-bottom, 0px)) + 318px);
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 16px;
+}
+
 .manual-overlay__left-rail,
 .manual-overlay__right-rail {
-	position: fixed;
-	bottom: calc(max(12px, env(safe-area-inset-bottom, 0px)) + 120px);
 	display: flex;
 	flex-direction: column;
 	align-items: center;
 	gap: 14px;
 }
 
-.manual-overlay__left-rail {
-	left: 8px;
-}
-
-.manual-overlay__right-rail {
-	right: 8px;
-}
-
 .manual-overlay__center-stack {
 	position: fixed;
 	left: 50%;
 	transform: translateX(-50%);
-	bottom: calc(max(12px, env(safe-area-inset-bottom, 0px)) + 204px);
+	bottom: calc(max(12px, env(safe-area-inset-bottom, 0px)) + 246px);
 	display: flex;
 	flex-direction: column;
 	align-items: center;
 	gap: 10px;
+}
+
+.manual-overlay__joystick-row {
+	position: fixed;
+	left: 50%;
+	transform: translateX(-50%);
+	bottom: calc(max(12px, env(safe-area-inset-bottom, 0px)) + 84px);
+	display: flex;
+	justify-content: center;
+	width: min(52vw, 240px);
 }
 
 .manual-overlay__preset-drawer,
@@ -694,33 +705,24 @@ textarea {
 
 .manual-overlay__preset-options {
 	display: flex;
-	flex-direction: column;
+	flex-direction: row;
 	gap: 8px;
 }
 
-.manual-overlay__mode-panel,
+.manual-overlay__drawer-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
 .manual-overlay__mode-options {
 	display: flex;
-	flex-direction: column;
+	flex-direction: row;
 	gap: 8px;
-}
-
-.manual-overlay__mode-label {
-	min-height: 34px;
-	padding: 0 14px;
-	border-radius: 999px;
-	background: rgba(15, 23, 42, 0.24);
-	backdrop-filter: blur(14px);
-	color: rgba(255, 255, 255, 0.78);
-	box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	font-size: 12px;
-	font-weight: 700;
 }
 
 .manual-overlay__preset-trigger,
+.manual-overlay__mode-trigger,
 .manual-overlay__preset-option,
 .manual-overlay__mode-option,
 .manual-overlay__floating-action {
@@ -734,6 +736,11 @@ textarea {
 	cursor: pointer;
 	font-size: 12px;
 	font-weight: 800;
+}
+
+.manual-overlay__preset-trigger,
+.manual-overlay__mode-trigger {
+	white-space: nowrap;
 }
 
 .manual-overlay__preset-option.is-active,
@@ -1163,21 +1170,27 @@ textarea {
 		inset: 0;
 	}
 
-	.manual-overlay__left-rail,
-	.manual-overlay__right-rail {
-		bottom: calc(max(12px, env(safe-area-inset-bottom, 0px)) + 114px);
-	}
-
-	.manual-overlay__left-rail {
+	.manual-overlay__control-row {
 		left: 4px;
-	}
-
-	.manual-overlay__right-rail {
 		right: 4px;
+		bottom: calc(max(12px, env(safe-area-inset-bottom, 0px)) + 300px);
+		gap: 12px;
 	}
 
 	.manual-overlay__center-stack {
-		bottom: calc(max(12px, env(safe-area-inset-bottom, 0px)) + 196px);
+		bottom: calc(max(12px, env(safe-area-inset-bottom, 0px)) + 232px);
+	}
+
+	.manual-overlay__joystick-row {
+		bottom: calc(max(12px, env(safe-area-inset-bottom, 0px)) + 84px);
+		width: min(56vw, 248px);
+	}
+
+	.manual-overlay__drawer-row,
+	.manual-overlay__preset-options,
+	.manual-overlay__mode-options {
+		flex-direction: column;
+		align-items: flex-start;
 	}
 
 	.joystick-pad__surface {

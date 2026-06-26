@@ -76,7 +76,7 @@ function clampOffset(x: number, y: number): {
 
 function JoystickPad(props: {
 	disabled?: boolean;
-	actions: Record<JoystickDirection, () => void>;
+	actions: Record<JoystickDirection, ( () => void ) | null>;
 }): React.JSX.Element {
 
 	const { disabled = false, actions } = props;
@@ -113,9 +113,14 @@ function JoystickPad(props: {
 			return;
 		}
 
-		actions[ direction ]();
+		const action = actions[ direction ];
+		if ( action === null ) {
+			return;
+		}
+
+		action();
 		repeatIdRef.current = window.setInterval( () => {
-			actions[ direction ]();
+			action();
 		}, HOLD_REPEAT_INTERVAL_MS );
 
 	}
@@ -213,6 +218,7 @@ export function ManualAdjustmentOverlay(props: {
 	const engine = state.engine;
 	const canManualAdjust = engine.arSessionPhase === 'placed' || engine.appMode === 'pre-ar';
 	const [ presetMenuOpen, setPresetMenuOpen ] = useState( false );
+	const [ modeMenuOpen, setModeMenuOpen ] = useState( false );
 	const [ controlMode, setControlMode ] = useState<ManualControlMode>( 'translate' );
 	const currentPresetLabel = PRESET_LABELS[ engine.manualAdjustmentPreset ];
 	const currentModeLabel = MODE_LABELS[ controlMode ];
@@ -224,7 +230,14 @@ export function ManualAdjustmentOverlay(props: {
 
 	}
 
-	function createJoystickActions(): Record<JoystickDirection, () => void> {
+	function handleModeSelect(mode: ManualControlMode): void {
+
+		setControlMode( mode );
+		setModeMenuOpen( false );
+
+	}
+
+	function createJoystickActions(): Record<JoystickDirection, ( () => void ) | null> {
 
 		switch ( controlMode ) {
 			case 'pose':
@@ -237,9 +250,9 @@ export function ManualAdjustmentOverlay(props: {
 			case 'scale':
 				return {
 					up: () => actions.adjustScale( 1 ),
-					right: () => actions.adjustScale( 1 ),
+					right: null,
 					down: () => actions.adjustScale( -1 ),
-					left: () => actions.adjustScale( -1 )
+					left: null
 				};
 			case 'translate':
 			default:
@@ -255,8 +268,9 @@ export function ManualAdjustmentOverlay(props: {
 
 	return (
 		<div className="manual-overlay-shell">
-			<div className="manual-overlay__left-rail">
-				<div className={ `manual-overlay__preset-drawer${presetMenuOpen ? ' is-open' : ''}` }>
+			<div className="manual-overlay__control-row">
+				<div className="manual-overlay__left-rail">
+				<div className={ `manual-overlay__drawer-row${presetMenuOpen ? ' is-open' : ''}` }>
 					<GuardedPressButton
 						className="manual-overlay__preset-trigger"
 						onPress={ () => setPresetMenuOpen( ( current ) => !current ) }
@@ -287,27 +301,44 @@ export function ManualAdjustmentOverlay(props: {
 					) : null}
 				</div>
 
-				<div className="manual-overlay__mode-panel">
-					<div className="manual-overlay__mode-label">模式 · {currentModeLabel}</div>
-					<div className="manual-overlay__mode-options">
-						<GuardedPressButton
-							className={ `manual-overlay__mode-option${controlMode === 'translate' ? ' is-active' : ''}` }
-							onPress={ () => setControlMode( 'translate' ) }
-						>
-							平移
-						</GuardedPressButton>
-						<GuardedPressButton
-							className={ `manual-overlay__mode-option${controlMode === 'pose' ? ' is-active' : ''}` }
-							onPress={ () => setControlMode( 'pose' ) }
-						>
-							姿态
-						</GuardedPressButton>
-						<GuardedPressButton
-							className={ `manual-overlay__mode-option${controlMode === 'scale' ? ' is-active' : ''}` }
-							onPress={ () => setControlMode( 'scale' ) }
-						>
-							缩放
-						</GuardedPressButton>
+				<div className={ `manual-overlay__drawer-row${modeMenuOpen ? ' is-open' : ''}` }>
+					<GuardedPressButton
+						className="manual-overlay__mode-trigger"
+						onPress={ () => setModeMenuOpen( ( current ) => !current ) }
+					>
+						模式 · {currentModeLabel}
+					</GuardedPressButton>
+					{modeMenuOpen ? (
+						<div className="manual-overlay__mode-options">
+							<GuardedPressButton
+								className={ `manual-overlay__mode-option${controlMode === 'translate' ? ' is-active' : ''}` }
+								onPress={ () => handleModeSelect( 'translate' ) }
+							>
+								平移
+							</GuardedPressButton>
+							<GuardedPressButton
+								className={ `manual-overlay__mode-option${controlMode === 'pose' ? ' is-active' : ''}` }
+								onPress={ () => handleModeSelect( 'pose' ) }
+							>
+								姿态
+							</GuardedPressButton>
+							<GuardedPressButton
+								className={ `manual-overlay__mode-option${controlMode === 'scale' ? ' is-active' : ''}` }
+								onPress={ () => handleModeSelect( 'scale' ) }
+							>
+								缩放
+							</GuardedPressButton>
+						</div>
+					) : null}
+				</div>
+
+				</div>
+
+				<div className="manual-overlay__right-rail">
+					<div className="manual-overlay__action-stack">
+						<FloatingAction label="退出" onPress={ () => actions.setRegistrationView( 'overview' ) } />
+						<FloatingAction label="保存" kind="primary" onPress={actions.saveManualRegistration} disabled={!canManualAdjust} />
+						<FloatingAction label="重置" onPress={actions.resetManualRegistration} disabled={!canManualAdjust} />
 					</div>
 				</div>
 			</div>
@@ -319,13 +350,7 @@ export function ManualAdjustmentOverlay(props: {
 				</div>
 			</div>
 
-			<div className="manual-overlay__right-rail">
-				<div className="manual-overlay__action-stack">
-					<FloatingAction label="退出" onPress={ () => actions.setRegistrationView( 'overview' ) } />
-					<FloatingAction label="保存" kind="primary" onPress={actions.saveManualRegistration} disabled={!canManualAdjust} />
-					<FloatingAction label="重置" onPress={actions.resetManualRegistration} disabled={!canManualAdjust} />
-				</div>
-
+			<div className="manual-overlay__joystick-row">
 				<JoystickPad
 					disabled={!canManualAdjust}
 					actions={createJoystickActions()}

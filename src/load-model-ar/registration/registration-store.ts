@@ -10,6 +10,7 @@ export type ArSessionPhase = 'scanning' | 'ready-to-place' | 'placing' | 'placed
 export type DisplayMode = 'normal' | 'xray' | 'occlusion-outline';
 export type PrecisionFeedbackTone = 'neutral' | 'info' | 'success' | 'error';
 export type MeasurementMode = 'distance-3d' | 'distance-horizontal' | 'depth';
+export type DepthDebugTone = 'checking' | 'supported' | 'unsupported';
 
 export interface PropertyPanelState {
 	name: string;
@@ -46,6 +47,13 @@ export interface TargetGuidanceState {
 	distanceText: string;
 	detailText: string;
 	alignment: 'left' | 'center' | 'right';
+}
+
+export interface DepthDebugState {
+	label: string;
+	detail: string;
+	tone: DepthDebugTone;
+	active: boolean;
 }
 
 export interface PrecisionRegistrationState {
@@ -104,6 +112,7 @@ export interface RegistrationStoreState {
 	registrationMetrics: RegistrationMetricsState;
 	placementSummary: PlacementSummaryState;
 	targetGuidance: TargetGuidanceState;
+	depthDebug: DepthDebugState;
 	precisionRegistration: PrecisionRegistrationState;
 	measurement: MeasurementState;
 	registrationStatusDetail: string;
@@ -200,6 +209,17 @@ export function createDefaultTargetGuidanceState(): TargetGuidanceState {
 		distanceText: '',
 		detailText: '',
 		alignment: 'center'
+	};
+
+}
+
+export function createDefaultDepthDebugState(): DepthDebugState {
+
+	return {
+		label: 'Depth 未启动',
+		detail: '进入 AR 会话后会检测 depth-sensing 状态。',
+		tone: 'checking',
+		active: false
 	};
 
 }

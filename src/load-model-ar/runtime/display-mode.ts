@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { DisplayMode } from '../registration/registration-store.js';
+import type { DepthDebugState, DisplayMode } from '../registration/registration-store.js';
 import {
 	createDepthAwareOverlayRuntime,
 	type DepthAwareOverlayKind
@@ -26,6 +26,7 @@ const DISPLAY_MODE_TAGS = {
 export interface DisplayModeController {
 	sync(mode: DisplayMode): void;
 	updateDepthState(): void;
+	getDepthDebugState(): DepthDebugState;
 	reset(): void;
 	dispose(): void;
 }
@@ -275,6 +276,11 @@ export function createDisplayModeController(
 	return {
 		sync,
 		updateDepthState,
+		getDepthDebugState() {
+
+			return depthAwareOverlay.getDebugState();
+
+		},
 		reset,
 		dispose
 	};

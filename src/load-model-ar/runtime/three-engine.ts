@@ -16,6 +16,7 @@ import { createWorkspaceRuntime } from './internal/runtime/workspace-runtime.js'
 import { createMeasurementController } from './internal/tools/measurement-controller.js';
 import type { DemoModelConfig } from '../data/demo-model-config.js';
 import {
+	createDefaultDepthDebugState,
 	createDefaultMeasurementState,
 	createDefaultPrecisionRegistrationState,
 	createDefaultTargetGuidanceState,
@@ -108,6 +109,7 @@ function createInitialState(): RegistrationStoreState {
 			scaleText: '-'
 		},
 		targetGuidance: createDefaultTargetGuidanceState(),
+		depthDebug: createDefaultDepthDebugState(),
 		precisionRegistration: {
 			availableSourcePoints: [],
 			selectedSourcePoint: '',
@@ -187,6 +189,7 @@ export class ThreeEngine {
 	private isDesktopLayout = window.matchMedia( '(any-pointer: fine)' ).matches;
 	private currentStatus = '正在准备 AR 工作区。';
 	private targetGuidanceSignature = 'hidden';
+	private depthDebugSignature = '';
 	private modelTemplate: THREE.Group | null = null;
 	private demoModelConfig: DemoModelConfig | null = null;
 	private registrationSolution: EngineeringRegistrationSolution | null = null;
@@ -389,6 +392,7 @@ export class ThreeEngine {
 			},
 			onFrameUpdate: () => {
 				this.displayModeController.updateDepthState();
+				this.syncDepthDebugState();
 				this.updateTargetGuidance();
 			}
 		} );
@@ -408,6 +412,7 @@ export class ThreeEngine {
 		} );
 
 		this.syncDisplayModeState();
+		this.syncDepthDebugState();
 
 	}
 
@@ -1047,6 +1052,7 @@ export class ThreeEngine {
 		this.arSessionStateRuntime.handleSessionStart();
 		this.pointerSelection.suppressSelectionFor( 1200 );
 		this.placementSession.resetPlacement();
+		this.syncDepthDebugState();
 		this.syncArSessionPhase();
 		this.syncSceneHost();
 		this.emit();
@@ -1058,6 +1064,7 @@ export class ThreeEngine {
 		this.measurementController.reset();
 		this.arSessionStateRuntime.handleSessionEnd();
 		this.placementSession.resetPlacement();
+		this.syncDepthDebugState();
 		this.ensureDesktopPreviewPlacement();
 		this.syncSceneHost();
 		this.placementSession.fitDesktopPreviewToCamera();
@@ -1150,6 +1157,24 @@ export class ThreeEngine {
 		preserveRootTransform( placedModel, () => {
 			this.displayModeController.sync( currentMode );
 		} );
+
+	}
+
+	private syncDepthDebugState(): void {
+
+		const nextDepthDebug = this.displayModeController.getDepthDebugState();
+		const nextSignature = [
+			nextDepthDebug.label,
+			nextDepthDebug.detail,
+			nextDepthDebug.tone,
+			nextDepthDebug.active ? '1' : '0'
+		].join( '|' );
+		if ( nextSignature === this.depthDebugSignature ) {
+			return;
+		}
+
+		this.depthDebugSignature = nextSignature;
+		this.store.patch( { depthDebug: nextDepthDebug } );
 
 	}
 

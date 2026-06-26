@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { DepthDebugState } from '../registration/registration-store.js';
 
 export type DepthAwareOverlayKind = 'xray' | 'wireframe';
 
@@ -79,6 +80,7 @@ void main() {
 export interface DepthAwareOverlayRuntime {
 	update(): boolean;
 	isActive(): boolean;
+	getDebugState(): DepthDebugState;
 	getMaterial(kind: DepthAwareOverlayKind): THREE.ShaderMaterial;
 	dispose(): void;
 }
@@ -128,6 +130,55 @@ export function createDepthAwareOverlayRuntime(
 	function isActive(): boolean {
 
 		return snapshot.active;
+
+	}
+
+	function getDebugState(): DepthDebugState {
+
+		if ( renderer.xr.isPresenting === false ) {
+			return {
+				label: 'Depth 未启动',
+				detail: '进入 AR 会话后会检测 depth-sensing 状态。',
+				tone: 'checking',
+				active: false
+			};
+		}
+
+		if ( renderer.capabilities.isWebGL2 === false ) {
+			return {
+				label: 'Depth 不可用',
+				detail: '当前 WebGL 环境不支持 depth 调试遮挡，已回退普通显示。',
+				tone: 'unsupported',
+				active: false
+			};
+		}
+
+		const session = renderer.xr.getSession() as ( XRSession & { enabledFeatures?: string[] } ) | null;
+		const depthFeatureGranted = session?.enabledFeatures?.includes( 'depth-sensing' ) ?? false;
+		if ( depthFeatureGranted === false ) {
+			return {
+				label: 'Depth 未授权',
+				detail: '当前浏览器或设备没有返回 depth-sensing，X-Ray 会退回整模显示。',
+				tone: 'unsupported',
+				active: false
+			};
+		}
+
+		if ( snapshot.active ) {
+			return {
+				label: 'Depth 已启用',
+				detail: '真实遮挡判断正在生效，被墙或设备挡住的部分才会显示穿透辅助。',
+				tone: 'supported',
+				active: true
+			};
+		}
+
+		return {
+			label: 'Depth 等待中',
+			detail: '会话已申请 depth-sensing，但当前还没有拿到有效深度帧。',
+			tone: 'checking',
+			active: false
+		};
 
 	}
 
@@ -182,6 +233,7 @@ export function createDepthAwareOverlayRuntime(
 	return {
 		update,
 		isActive,
+		getDebugState,
 		getMaterial,
 		dispose
 	};

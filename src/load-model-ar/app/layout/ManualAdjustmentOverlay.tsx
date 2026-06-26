@@ -1,7 +1,11 @@
-import type React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { AppActions, AppState } from '../store/ar-state.js';
 import { ActionButton } from '../components/ActionButton.js';
 import { GuardedPressButton } from '../components/GuardedPressButton.js';
+
+const HOLD_REPEAT_INTERVAL_MS = 96;
+
+type JoystickDirection = 'up' | 'right' | 'down' | 'left';
 
 function PresetChip(props: {
 	label: string;
@@ -20,23 +24,153 @@ function PresetChip(props: {
 
 }
 
-function DirectionButton(props: {
-	label: string;
-	axis: string;
-	onPress(): void;
+function HoldRepeatButton(props: {
+	className: string;
 	disabled?: boolean;
-	accent?: 'vertical';
+	onStep(): void;
+	children: React.ReactNode;
+}): React.JSX.Element {
+
+	const { className, disabled = false, onStep, children } = props;
+	const pointerIdRef = useRef<number | null>( null );
+	const intervalIdRef = useRef<number | null>( null );
+	const [ active, setActive ] = useState( false );
+
+	function stopRepeating(): void {
+
+		pointerIdRef.current = null;
+		setActive( false );
+		if ( intervalIdRef.current !== null ) {
+			window.clearInterval( intervalIdRef.current );
+			intervalIdRef.current = null;
+		}
+
+	}
+
+	useEffect( () => stopRepeating, [] );
+
+	return (
+		<button
+			className={ `${className}${active ? ' is-active' : ''}` }
+			type="button"
+			disabled={disabled}
+			onPointerDown={ ( event ) => {
+				event.stopPropagation();
+				event.preventDefault();
+				if ( disabled ) {
+					return;
+				}
+
+				stopRepeating();
+				pointerIdRef.current = event.pointerId;
+				setActive( true );
+				event.currentTarget.setPointerCapture( event.pointerId );
+				onStep();
+				intervalIdRef.current = window.setInterval( () => {
+					onStep();
+				}, HOLD_REPEAT_INTERVAL_MS );
+			} }
+			onPointerUp={ ( event ) => {
+				event.stopPropagation();
+				event.preventDefault();
+				if ( pointerIdRef.current !== event.pointerId ) {
+					return;
+				}
+
+				stopRepeating();
+			} }
+			onPointerCancel={ ( event ) => {
+				event.stopPropagation();
+				if ( pointerIdRef.current !== event.pointerId ) {
+					return;
+				}
+
+				stopRepeating();
+			} }
+			onPointerLeave={ () => {
+				if ( pointerIdRef.current === null ) {
+					return;
+				}
+
+				stopRepeating();
+			} }
+			onContextMenu={ ( event ) => {
+				event.preventDefault();
+			} }
+			onClick={ ( event ) => {
+				event.preventDefault();
+				event.stopPropagation();
+			} }
+			onKeyDown={ ( event ) => {
+				if ( disabled ) {
+					return;
+				}
+
+				if ( event.key !== 'Enter' && event.key !== ' ' ) {
+					return;
+				}
+
+				event.preventDefault();
+				event.stopPropagation();
+				onStep();
+			} }
+		>
+			{children}
+		</button>
+	);
+
+}
+
+function JoystickSegment(props: {
+	direction: JoystickDirection;
+	icon: string;
+	label: string;
+	onStep(): void;
+	disabled?: boolean;
 }): React.JSX.Element {
 
 	return (
-		<GuardedPressButton
-			className={ `manual-overlay__direction${props.accent === 'vertical' ? ' manual-overlay__direction--vertical' : ''}` }
-			onPress={props.onPress}
+		<HoldRepeatButton
+			className={ `joystick-pad__segment joystick-pad__segment--${props.direction}` }
+			onStep={props.onStep}
 			disabled={props.disabled}
 		>
-			<span className="manual-overlay__direction-label">{props.label}</span>
-			<span className="manual-overlay__direction-axis">{props.axis}</span>
-		</GuardedPressButton>
+			<span className="joystick-pad__icon">{props.icon}</span>
+			<span className="joystick-pad__label">{props.label}</span>
+		</HoldRepeatButton>
+	);
+
+}
+
+function JoystickPad(props: {
+	title: string;
+	subtitle: string;
+	segments: Record<JoystickDirection, {
+		icon: string;
+		label: string;
+		onStep(): void;
+		disabled?: boolean;
+	}>;
+}): React.JSX.Element {
+
+	const { title, subtitle, segments } = props;
+
+	return (
+		<div className="joystick-pad">
+			<div className="joystick-pad__surface">
+				<JoystickSegment direction="up" { ...segments.up } />
+				<JoystickSegment direction="right" { ...segments.right } />
+				<JoystickSegment direction="down" { ...segments.down } />
+				<JoystickSegment direction="left" { ...segments.left } />
+				<div className="joystick-pad__center">
+					<div className="joystick-pad__knob" />
+					<div className="joystick-pad__meta">
+						<strong>{title}</strong>
+						<span>{subtitle}</span>
+					</div>
+				</div>
+			</div>
+		</div>
 	);
 
 }
@@ -56,7 +190,7 @@ export function ManualAdjustmentOverlay(props: {
 				<div className="manual-overlay__header">
 					<div>
 						<strong>手动微调</strong>
-						<p>直接在 AR 画面里做六向微调，不再让底部面板挡住视野。</p>
+						<p>按住摇杆持续微调，尽量让 AR 画面保持开阔，不再用密集按钮挡视野。</p>
 					</div>
 					<ActionButton label="返回面板" onClick={ () => actions.setRegistrationView( 'overview' ) } kind="secondary" />
 				</div>
@@ -79,63 +213,71 @@ export function ManualAdjustmentOverlay(props: {
 					/>
 				</div>
 
-				<div className="manual-overlay__control-grid">
-					<div className="manual-overlay__pad">
-						<div className="manual-overlay__pad-spacer" />
-						<DirectionButton
-							label="前移"
-							axis="Z-"
-							onPress={ () => actions.adjustTranslation( 'z', -1 ) }
-							disabled={!canManualAdjust}
-						/>
-						<div className="manual-overlay__pad-spacer" />
-						<DirectionButton
-							label="左移"
-							axis="X-"
-							onPress={ () => actions.adjustTranslation( 'x', -1 ) }
-							disabled={!canManualAdjust}
-						/>
-						<div className="manual-overlay__pad-center">
-							<span>平移</span>
-							<small>X / Z</small>
-						</div>
-						<DirectionButton
-							label="右移"
-							axis="X+"
-							onPress={ () => actions.adjustTranslation( 'x', 1 ) }
-							disabled={!canManualAdjust}
-						/>
-						<div className="manual-overlay__pad-spacer" />
-						<DirectionButton
-							label="后移"
-							axis="Z+"
-							onPress={ () => actions.adjustTranslation( 'z', 1 ) }
-							disabled={!canManualAdjust}
-						/>
-						<div className="manual-overlay__pad-spacer" />
-					</div>
+				<div className="manual-overlay__pads">
+					<JoystickPad
+						title="平移"
+						subtitle="前后左右"
+						segments={{
+							up: {
+								icon: '↑',
+								label: '前移',
+								onStep: () => actions.adjustTranslation( 'z', -1 ),
+								disabled: !canManualAdjust
+							},
+							right: {
+								icon: '→',
+								label: '右移',
+								onStep: () => actions.adjustTranslation( 'x', 1 ),
+								disabled: !canManualAdjust
+							},
+							down: {
+								icon: '↓',
+								label: '后移',
+								onStep: () => actions.adjustTranslation( 'z', 1 ),
+								disabled: !canManualAdjust
+							},
+							left: {
+								icon: '←',
+								label: '左移',
+								onStep: () => actions.adjustTranslation( 'x', -1 ),
+								disabled: !canManualAdjust
+							}
+						}}
+					/>
 
-					<div className="manual-overlay__vertical">
-						<DirectionButton
-							label="上移"
-							axis="Y+"
-							accent="vertical"
-							onPress={ () => actions.adjustTranslation( 'y', 1 ) }
-							disabled={!canManualAdjust}
-						/>
-						<DirectionButton
-							label="下移"
-							axis="Y-"
-							accent="vertical"
-							onPress={ () => actions.adjustTranslation( 'y', -1 ) }
-							disabled={!canManualAdjust}
-						/>
-					</div>
+					<JoystickPad
+						title="姿态"
+						subtitle="升降 / 旋转"
+						segments={{
+							up: {
+								icon: '↑',
+								label: '上移',
+								onStep: () => actions.adjustTranslation( 'y', 1 ),
+								disabled: !canManualAdjust
+							},
+							right: {
+								icon: '↻',
+								label: '右旋',
+								onStep: () => actions.adjustYaw( 1 ),
+								disabled: !canManualAdjust
+							},
+							down: {
+								icon: '↓',
+								label: '下移',
+								onStep: () => actions.adjustTranslation( 'y', -1 ),
+								disabled: !canManualAdjust
+							},
+							left: {
+								icon: '↺',
+								label: '左旋',
+								onStep: () => actions.adjustYaw( -1 ),
+								disabled: !canManualAdjust
+							}
+						}}
+					/>
 				</div>
 
-				<div className="manual-overlay__adjustments">
-					<ActionButton label="左旋" onClick={ () => actions.adjustYaw( -1 ) } disabled={!canManualAdjust} />
-					<ActionButton label="右旋" onClick={ () => actions.adjustYaw( 1 ) } disabled={!canManualAdjust} />
+				<div className="manual-overlay__scale-row">
 					<ActionButton label="缩小" onClick={ () => actions.adjustScale( -1 ) } disabled={!canManualAdjust} />
 					<ActionButton label="放大" onClick={ () => actions.adjustScale( 1 ) } disabled={!canManualAdjust} />
 				</div>

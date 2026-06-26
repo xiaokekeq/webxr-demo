@@ -169,8 +169,39 @@ export function createDepthAwareOverlayRuntime(
 
 	function update(frame?: XRFrame): boolean {
 
+		if ( depthSensingMode === 'disabled' ) {
+			snapshot = {
+				active: false,
+				gpuDepthActive: false,
+				cpuDepthActive: false,
+				depthTexture: null,
+				cpuDepthTexture: null,
+				viewportWidth: 1,
+				viewportHeight: 1,
+				cpuDepthMeters: null,
+				depthUsage: 'unknown',
+				featureGranted: false
+			};
+
+			for ( const material of materials.values() ) {
+				material.uniforms.uUseGpuDepth.value = false;
+				material.uniforms.uUseCpuDepth.value = false;
+				material.uniforms.uGpuDepthTexture.value = null;
+				material.uniforms.uCpuDepthTexture.value = null;
+				material.uniforms.uDepthWidth.value = 1;
+				material.uniforms.uDepthHeight.value = 1;
+			}
+
+			return false;
+		}
+
 		const session = renderer.xr.getSession() as XRSessionWithDepthMetadata | null;
-		const depthTexture = renderer.xr.getDepthTexture();
+		let depthTexture: THREE.Texture | null = null;
+		try {
+			depthTexture = renderer.xr.getDepthTexture();
+		} catch {
+			depthTexture = null;
+		}
 		const cameraXR = renderer.xr.getCamera();
 		const viewport = cameraXR.cameras[ 0 ]?.viewport;
 		const featureGranted = session?.enabledFeatures?.includes( 'depth-sensing' ) ?? false;
@@ -182,9 +213,16 @@ export function createDepthAwareOverlayRuntime(
 				centerMeters: null,
 				active: false
 			};
+		let hasDepthSensing = false;
+		try {
+			hasDepthSensing = renderer.xr.hasDepthSensing();
+		} catch {
+			hasDepthSensing = false;
+		}
+
 		const gpuDepthSupported = renderer.xr.isPresenting
 			&& renderer.capabilities.isWebGL2
-			&& renderer.xr.hasDepthSensing()
+			&& hasDepthSensing
 			&& depthTexture !== null
 			&& viewport !== undefined;
 		const gpuDepthActive = shouldUseGpuDepthMode( depthSensingMode )

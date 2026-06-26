@@ -1,5 +1,6 @@
-﻿import * as THREE from 'three';
+import * as THREE from 'three';
 import { ARButton } from 'three/addons/webxr/ARButton.js';
+import type { ARButtonSessionInit } from 'three/addons/webxr/ARButton.js';
 import type { SetStatus, XRHitTestController, XRHitTestQuality } from '../shared/types.js';
 
 interface CreateXRHitTestControllerOptions {
@@ -12,6 +13,15 @@ interface CreateXRHitTestControllerOptions {
 	onSelect?: () => void;
 	canReportStatus?: () => boolean;
 }
+
+interface XRDepthSensingSessionInit {
+	depthSensing?: {
+		usagePreference: Array<'cpu-optimized' | 'gpu-optimized'>;
+		dataFormatPreference: Array<'luminance-alpha' | 'float32' | 'unsigned-short'>;
+	};
+}
+
+type DepthAwareArButtonSessionInit = Partial<ARButtonSessionInit> & XRDepthSensingSessionInit;
 
 const reticlePosition = new THREE.Vector3();
 const qualityCentroid = new THREE.Vector3();
@@ -79,11 +89,17 @@ export function createXRHitTestController(
 
 	function setup(): void {
 
-		launchElement = ARButton.createButton( renderer, {
+		const sessionInit: DepthAwareArButtonSessionInit = {
 			requiredFeatures: [ 'hit-test' ],
-			optionalFeatures: [ 'dom-overlay' ],
-			domOverlay: { root: document.body }
-		} );
+			optionalFeatures: [ 'dom-overlay', 'depth-sensing' ],
+			domOverlay: { root: document.body },
+			depthSensing: {
+				usagePreference: [ 'gpu-optimized' ],
+				dataFormatPreference: [ 'luminance-alpha', 'float32' ]
+			}
+		};
+
+		launchElement = ARButton.createButton( renderer, sessionInit );
 
 		xrButtonWrap.appendChild( launchElement );
 		renderer.xr.addEventListener( 'sessionstart', handleSessionStart );

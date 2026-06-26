@@ -1,8 +1,13 @@
-﻿import * as THREE from 'three';
+import * as THREE from 'three';
 import type { DisplayMode } from '../registration/registration-store.js';
+import {
+	createDepthAwareOverlayRuntime,
+	type DepthAwareOverlayKind
+} from './depth-aware-overlay.js';
 
 interface DisplayModeControllerOptions {
 	getPlacedModel(): THREE.Group | null;
+	renderer: THREE.WebGLRenderer;
 }
 
 interface MaterialSnapshot {
@@ -12,31 +17,41 @@ interface MaterialSnapshot {
 	depthTest: boolean;
 }
 
+const DISPLAY_MODE_TAGS = {
+	helper: '__displayModeHelper',
+	outline: '__displayModeOutline',
+	depthOverlay: '__displayModeDepthOverlay'
+} as const;
+
 export interface DisplayModeController {
 	sync(mode: DisplayMode): void;
+	updateDepthState(): void;
 	reset(): void;
+	dispose(): void;
 }
 
 const XRAY_OPACITY = 0.45;
 const OUTLINE_COLOR = 0x55d7ff;
 const OUTLINE_OPACITY = 0.92;
 const OUTLINE_RENDER_ORDER = 50;
+const DEPTH_OVERLAY_RENDER_ORDER = 60;
 
 export function createDisplayModeController(
 	options: DisplayModeControllerOptions
 ): DisplayModeController {
 
 	const materialSnapshots = new WeakMap<THREE.Material, MaterialSnapshot>();
+	const depthAwareOverlay = createDepthAwareOverlayRuntime( {
+		renderer: options.renderer
+	} );
 	let currentRoot: THREE.Group | null = null;
 	let currentMode: DisplayMode | null = null;
 
 	function sync(mode: DisplayMode): void {
 
+		depthAwareOverlay.update();
 		const placedModel = options.getPlacedModel();
 		if ( placedModel === currentRoot && mode === currentMode ) {
-			if ( placedModel !== null && mode === 'xray' ) {
-				applyMode( placedModel, mode );
-			}
 			return;
 		}
 
@@ -55,6 +70,23 @@ export function createDisplayModeController(
 
 	}
 
+	function updateDepthState(): void {
+
+		const wasActive = depthAwareOverlay.isActive();
+		const isActive = depthAwareOverlay.update();
+		if ( wasActive === isActive ) {
+			return;
+		}
+
+		if ( currentRoot === null || currentMode === null || currentMode === 'normal' ) {
+			return;
+		}
+
+		restoreModel( currentRoot );
+		applyMode( currentRoot, currentMode );
+
+	}
+
 	function reset(): void {
 
 		if ( currentRoot !== null ) {
@@ -66,6 +98,13 @@ export function createDisplayModeController(
 
 	}
 
+	function dispose(): void {
+
+		reset();
+		depthAwareOverlay.dispose();
+
+	}
+
 	function applyMode(root: THREE.Group, mode: DisplayMode): void {
 
 		if ( mode === 'normal' ) {
@@ -73,13 +112,25 @@ export function createDisplayModeController(
 		}
 
 		root.traverse( ( child ) => {
+			if ( child.userData[ DISPLAY_MODE_TAGS.helper ] === true ) {
+				return;
+			}
+
 			if ( child instanceof THREE.Mesh ) {
 				if ( mode === 'xray' ) {
-					applyXrayMaterial( child.material );
+					if ( depthAwareOverlay.isActive() ) {
+						ensureDepthOverlay( child, 'xray' );
+					} else {
+						applyXrayMaterial( child.material );
+					}
 				}
 
 				if ( mode === 'occlusion-outline' ) {
-					ensureOutline( child );
+					if ( depthAwareOverlay.isActive() ) {
+						ensureDepthOverlay( child, 'wireframe' );
+					} else {
+						ensureOutline( child );
+					}
 				}
 			}
 		} );
@@ -89,24 +140,36 @@ export function createDisplayModeController(
 	function restoreModel(root: THREE.Group): void {
 
 		const outlines: THREE.LineSegments[] = [];
+		const overlays: THREE.Mesh[] = [];
 
 		root.traverse( ( child ) => {
 			if ( child instanceof THREE.Mesh ) {
 				restoreMaterial( child.material );
 			}
 
-			if ( child instanceof THREE.LineSegments && child.userData.__displayModeOutline === true ) {
+			if ( child instanceof THREE.LineSegments && child.userData[ DISPLAY_MODE_TAGS.outline ] === true ) {
 				outlines.push( child );
+			}
+
+			if ( child instanceof THREE.Mesh && child.userData[ DISPLAY_MODE_TAGS.depthOverlay ] === true ) {
+				overlays.push( child );
 			}
 		} );
 
 		for ( const outline of outlines ) {
 			if ( outline.parent !== null ) {
-				delete outline.parent.userData.__displayModeOutline;
+				delete outline.parent.userData[ DISPLAY_MODE_TAGS.outline ];
 			}
 			outline.removeFromParent();
 			outline.geometry.dispose();
 			disposeMaterial( outline.material );
+		}
+
+		for ( const overlay of overlays ) {
+			if ( overlay.parent !== null ) {
+				delete overlay.parent.userData[ DISPLAY_MODE_TAGS.depthOverlay ];
+			}
+			overlay.removeFromParent();
 		}
 
 	}
@@ -158,7 +221,7 @@ export function createDisplayModeController(
 
 	function ensureOutline(mesh: THREE.Mesh): void {
 
-		if ( mesh.userData.__displayModeOutline instanceof THREE.LineSegments ) {
+		if ( mesh.userData[ DISPLAY_MODE_TAGS.outline ] instanceof THREE.LineSegments ) {
 			return;
 		}
 
@@ -177,15 +240,43 @@ export function createDisplayModeController(
 		outline.renderOrder = OUTLINE_RENDER_ORDER;
 		outline.frustumCulled = false;
 		outline.raycast = () => {};
-		outline.userData.__displayModeOutline = true;
-		mesh.userData.__displayModeOutline = outline;
+		outline.userData[ DISPLAY_MODE_TAGS.outline ] = true;
+		mesh.userData[ DISPLAY_MODE_TAGS.outline ] = outline;
 		mesh.add( outline );
+
+	}
+
+	function ensureDepthOverlay(mesh: THREE.Mesh, kind: DepthAwareOverlayKind): void {
+
+		if ( mesh.userData[ DISPLAY_MODE_TAGS.depthOverlay ] instanceof THREE.Mesh ) {
+			return;
+		}
+
+		const overlay = new THREE.Mesh(
+			mesh.geometry,
+			depthAwareOverlay.getMaterial( kind )
+		);
+
+		overlay.name = kind === 'xray'
+			? '__display-mode-depth-xray'
+			: '__display-mode-depth-wireframe';
+		overlay.matrixAutoUpdate = false;
+		overlay.updateMatrix();
+		overlay.frustumCulled = false;
+		overlay.renderOrder = DEPTH_OVERLAY_RENDER_ORDER;
+		overlay.raycast = () => {};
+		overlay.userData[ DISPLAY_MODE_TAGS.helper ] = true;
+		overlay.userData[ DISPLAY_MODE_TAGS.depthOverlay ] = true;
+		mesh.userData[ DISPLAY_MODE_TAGS.depthOverlay ] = overlay;
+		mesh.add( overlay );
 
 	}
 
 	return {
 		sync,
-		reset
+		updateDepthState,
+		reset,
+		dispose
 	};
 
 }
@@ -232,4 +323,3 @@ function disposeMaterial(material: THREE.Material | THREE.Material[]): void {
 	material.dispose();
 
 }
-

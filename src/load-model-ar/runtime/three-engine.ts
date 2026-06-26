@@ -40,6 +40,7 @@ import { createDisplayModeController, preserveRootTransform } from './display-mo
 import { computeTargetGuidanceState } from './internal/placement/target-guidance.js';
 import { createARScene, resizeARScene } from './scene.js';
 import { createXRSessionRuntime } from './xr.js';
+import { getDisplayModeLabel } from '../shared/display-modes.js';
 import { formatGeodetic } from '../shared/formatters.js';
 import { clearPrecisionRegistrationResult } from '../registration/precision-registration-storage.js';
 
@@ -149,19 +150,6 @@ function hasSelectedPipe(state: RegistrationStoreState): boolean {
 
 }
 
-function getDisplayModeLabel(mode: DisplayMode): string {
-
-	switch ( mode ) {
-		case 'normal':
-			return '普通叠加';
-		case 'xray':
-			return '透视核查';
-		case 'occlusion-outline':
-			return '遮挡辅助';
-	}
-
-}
-
 function getArSupportMessage(supported: boolean): string {
 
 	return supported
@@ -202,6 +190,8 @@ export class ThreeEngine {
 	private modelTemplate: THREE.Group | null = null;
 	private demoModelConfig: DemoModelConfig | null = null;
 	private registrationSolution: EngineeringRegistrationSolution | null = null;
+	private lastSyncedDisplayMode: DisplayMode | null = null;
+	private lastSyncedDisplayModeRoot: THREE.Group | null = null;
 	private pipesByName = new Map<string, PipeRecord>();
 	private coarseWarmupPromise: Promise<void> | null = null;
 	private coarseRegistration = createCoarseRegistrationController( {
@@ -277,7 +267,8 @@ export class ThreeEngine {
 		} );
 
 		this.displayModeController = createDisplayModeController( {
-			getPlacedModel: () => this.placementSession.getPlacedModel()
+			getPlacedModel: () => this.placementSession.getPlacedModel(),
+			renderer: this.sceneBundle.renderer
 		} );
 
 		this.workspaceRuntime = createWorkspaceRuntime( {
@@ -397,6 +388,7 @@ export class ThreeEngine {
 				this.onAttemptCoarsePlacement();
 			},
 			onFrameUpdate: () => {
+				this.displayModeController.updateDepthState();
 				this.updateTargetGuidance();
 			}
 		} );
@@ -521,6 +513,7 @@ export class ThreeEngine {
 		window.removeEventListener( 'resize', this.handleWindowResize );
 		this.sceneBundle.renderer.xr.removeEventListener( 'sessionstart', this.bindArSelectionSession );
 		this.sceneBundle.renderer.xr.removeEventListener( 'sessionend', this.unbindArSelectionSession );
+		this.displayModeController.dispose();
 		this.measurementController.dispose();
 		this.sceneBundle.controls.dispose();
 		this.sceneBundle.renderer.dispose();
@@ -1141,14 +1134,21 @@ export class ThreeEngine {
 
 	private syncDisplayModeState(): void {
 
+		const currentMode = this.store.getState().displayMode;
 		const placedModel = this.placementSession.getPlacedModel();
+		if ( this.lastSyncedDisplayMode === currentMode && this.lastSyncedDisplayModeRoot === placedModel ) {
+			return;
+		}
+
+		this.lastSyncedDisplayMode = currentMode;
+		this.lastSyncedDisplayModeRoot = placedModel;
 		if ( placedModel === null ) {
-			this.displayModeController.sync( this.store.getState().displayMode );
+			this.displayModeController.sync( currentMode );
 			return;
 		}
 
 		preserveRootTransform( placedModel, () => {
-			this.displayModeController.sync( this.store.getState().displayMode );
+			this.displayModeController.sync( currentMode );
 		} );
 
 	}

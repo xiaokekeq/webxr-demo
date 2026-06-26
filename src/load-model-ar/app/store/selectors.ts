@@ -1,11 +1,11 @@
-﻿import type { ArState } from './ar-state.js';
-import type { DisplayMode, WorkspaceMode } from '../../registration/registration-store.js';
+import type { ArState } from './ar-state.js';
+import type { WorkspaceMode } from '../../registration/registration-store.js';
+import {
+	DISPLAY_MODE_OPTIONS,
+	getDisplayModeLabel
+} from '../../shared/display-modes.js';
 
-export const DISPLAY_MODE_OPTIONS: Array<{ value: DisplayMode; label: string }> = [
-	{ value: 'normal', label: '普通叠加' },
-	{ value: 'xray', label: '透视核查' },
-	{ value: 'occlusion-outline', label: '遮挡辅助' }
-];
+export { DISPLAY_MODE_OPTIONS, getDisplayModeLabel };
 
 export const PANEL_OPTIONS: Array<{ value: WorkspaceMode; label: string; short: string }> = [
 	{ value: 'browse', label: '浏览', short: '览' },
@@ -13,12 +13,6 @@ export const PANEL_OPTIONS: Array<{ value: WorkspaceMode; label: string; short: 
 	{ value: 'tools', label: '工具', short: '工' },
 	{ value: 'inspection', label: '核查', short: '查' }
 ];
-
-export function getDisplayModeLabel(mode: DisplayMode): string {
-
-	return DISPLAY_MODE_OPTIONS.find( ( item ) => item.value === mode )?.label ?? '普通叠加';
-
-}
 
 export function getWorkspaceLabel(mode: WorkspaceMode): string {
 

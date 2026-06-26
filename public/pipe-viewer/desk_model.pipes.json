@@ -1,0 +1,40 @@
+{
+  "pipes": [
+    {
+      "name": "cabinet-body",
+      "type": "cabinet-body",
+      "diameter": "42×50×58cm",
+      "material": "wood",
+      "depth": "58cm（顶面）",
+      "status": "normal",
+      "remark": "三层抽屉柜主体框架"
+    },
+    {
+      "name": "drawer-1",
+      "type": "drawer",
+      "diameter": "把手高度 53cm",
+      "material": "wood",
+      "depth": "顶层",
+      "status": "normal",
+      "remark": "最上层抽屉，把手位于前面板正中"
+    },
+    {
+      "name": "drawer-2",
+      "type": "drawer",
+      "diameter": "把手高度 39cm",
+      "material": "wood",
+      "depth": "中层",
+      "status": "normal",
+      "remark": "中间层抽屉，把手位于前面板正中"
+    },
+    {
+      "name": "drawer-3",
+      "type": "drawer",
+      "diameter": "把手高度 18cm",
+      "material": "wood",
+      "depth": "底层",
+      "status": "normal",
+      "remark": "最下层抽屉，把手位于前面板正中"
+    }
+  ]
+}

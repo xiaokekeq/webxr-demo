@@ -40,5 +40,15 @@
     },
     "configUrl": "/pipe-viewer/dz1207.config.json",
     "pipesUrl": "/pipe-viewer/dz1207.pipes.json"
+  },
+  {
+    "id": "desk_model",
+    "name": "三层抽屉柜（手工标定）",
+    "modelUrl": "/pipe-viewer/desk_model.glb",
+    "assetTransform": {
+      "disableAutoScale": true
+    },
+    "configUrl": "/pipe-viewer/desk_model.config.json",
+    "pipesUrl": "/pipe-viewer/desk_model.pipes.json"
   }
 ]

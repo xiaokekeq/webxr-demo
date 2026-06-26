@@ -350,7 +350,8 @@ function createPlaceableTemplate(
 	wrapper.add( content );
 
 	const originalLongestEdgeMeters = Math.max( templateSize.x, templateSize.y, templateSize.z );
-	const appliedScaleFactor = getAppliedScaleFactor( originalLongestEdgeMeters )
+	const calibrationScaleFactor = getCalibrationScaleFactor( originalLongestEdgeMeters, assetTransform );
+	const appliedScaleFactor = calibrationScaleFactor
 		* perModelScaleFactor
 		* getAssetScaleFactor( assetTransform );
 	wrapper.scale.setScalar( appliedScaleFactor );
@@ -366,7 +367,9 @@ function createPlaceableTemplate(
 			appliedScaleFactor,
 			perModelScaleFactor,
 			scaledSize: scaledSize.clone(),
-			calibrationMode: MODEL_SCALE_CALIBRATION.mode
+			calibrationMode: assetTransform?.disableAutoScale === true
+				? 'disabled-per-model'
+				: MODEL_SCALE_CALIBRATION.mode
 		}
 	};
 
@@ -398,7 +401,14 @@ function getAssetScaleFactor(assetTransform?: ModelAssetTransform): number {
 
 }
 
-function getAppliedScaleFactor(originalLongestEdgeMeters: number): number {
+function getCalibrationScaleFactor(
+	originalLongestEdgeMeters: number,
+	assetTransform?: ModelAssetTransform
+): number {
+
+	if ( assetTransform?.disableAutoScale === true ) {
+		return 1;
+	}
 
 	if ( originalLongestEdgeMeters <= 0 ) {
 		return 1;

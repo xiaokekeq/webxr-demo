@@ -1,6 +1,7 @@
 export interface ModelAssetTransform {
 	upAxis?: 'y' | 'z';
 	scaleFactor?: number;
+	disableAutoScale?: boolean;
 }
 
 export interface ModelCatalogItem {
@@ -80,11 +81,12 @@ function normalizeAssetTransform(value: unknown): ModelAssetTransform | undefine
 	const scaleFactor = typeof candidate.scaleFactor === 'number' && Number.isFinite( candidate.scaleFactor )
 		? candidate.scaleFactor
 		: undefined;
+	const disableAutoScale = candidate.disableAutoScale === true;
 
-	if ( upAxis === undefined && scaleFactor === undefined ) {
+	if ( upAxis === undefined && scaleFactor === undefined && disableAutoScale === false ) {
 		return undefined;
 	}
 
-	return { upAxis, scaleFactor };
+	return { upAxis, scaleFactor, disableAutoScale };
 
 }

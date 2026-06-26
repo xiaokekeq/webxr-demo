@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import type { DepthDebugState } from '../registration/registration-store.js';
 
 export type DepthAwareOverlayKind = 'xray' | 'wireframe';
 
@@ -9,10 +8,12 @@ interface DepthAwareOverlayRuntimeOptions {
 
 interface OverlaySnapshot {
 	active: boolean;
+	gpuDepthActive: boolean;
+	cpuDepthActive: boolean;
 	depthTexture: THREE.Texture | null;
+	cpuDepthTexture: THREE.DataTexture | null;
 	viewportWidth: number;
 	viewportHeight: number;
-	cpuDepthAvailable: boolean;
 	cpuDepthMeters: number | null;
 	depthUsage: 'cpu-optimized' | 'gpu-optimized' | 'unknown';
 	featureGranted: boolean;
@@ -24,6 +25,8 @@ interface XRSessionWithDepthMetadata extends XRSession {
 }
 
 interface XRCPUDepthInformationLike {
+	width: number;
+	height: number;
 	getDepthInMeters(x: number, y: number): number;
 }
 
@@ -31,11 +34,19 @@ interface XRFrameWithDepthInformation extends XRFrame {
 	getDepthInformation?(view: XRView): XRCPUDepthInformationLike | null;
 }
 
+interface CpuDepthTextureState {
+	texture: THREE.DataTexture | null;
+	centerMeters: number | null;
+	active: boolean;
+}
+
 const XRAY_COLOR = new THREE.Color( 0x6ce7ff );
 const XRAY_OPACITY = 0.34;
 const WIREFRAME_COLOR = new THREE.Color( 0x8be9ff );
 const WIREFRAME_OPACITY = 0.96;
-const DEPTH_COMPARE_BIAS = 0.00035;
+const GPU_DEPTH_COMPARE_BIAS = 0.00035;
+const CPU_DEPTH_COMPARE_BIAS_METERS = 0.08;
+const MAX_CPU_DEPTH_TEXTURE_WIDTH = 128;
 
 const OVERLAY_VERTEX_SHADER = `
 in vec3 position;
@@ -43,50 +54,81 @@ in vec3 position;
 uniform mat4 modelViewMatrix;
 uniform mat4 projectionMatrix;
 
+out float vViewDepthMeters;
+
 void main() {
 
-	gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+	vec4 modelViewPosition = modelViewMatrix * vec4( position, 1.0 );
+	vViewDepthMeters = -modelViewPosition.z;
+	gl_Position = projectionMatrix * modelViewPosition;
 
 }
 `;
 
 const OVERLAY_FRAGMENT_SHADER = `
 precision highp float;
+precision highp sampler2D;
 precision highp sampler2DArray;
 
-uniform sampler2DArray uDepthTexture;
-uniform bool uHasDepthSensing;
+uniform sampler2DArray uGpuDepthTexture;
+uniform sampler2D uCpuDepthTexture;
+uniform bool uUseGpuDepth;
+uniform bool uUseCpuDepth;
 uniform float uDepthWidth;
 uniform float uDepthHeight;
 uniform vec3 uTintColor;
 uniform float uTintOpacity;
-uniform float uDepthBias;
+uniform float uGpuDepthBias;
+uniform float uCpuDepthBiasMeters;
+
+in float vViewDepthMeters;
 
 out vec4 outColor;
 
-float sampleRealDepth() {
+vec2 getViewUv() {
 
-	vec2 coord = vec2(
+	return vec2(
 		gl_FragCoord.x / max( uDepthWidth, 1.0 ),
 		gl_FragCoord.y / max( uDepthHeight, 1.0 )
 	);
 
-	if ( coord.x >= 1.0 ) {
-		return texture( uDepthTexture, vec3( coord.x - 1.0, coord.y, 1.0 ) ).r;
+}
+
+float sampleGpuDepth(vec2 viewUv) {
+
+	if ( viewUv.x >= 1.0 ) {
+		return texture( uGpuDepthTexture, vec3( viewUv.x - 1.0, viewUv.y, 1.0 ) ).r;
 	}
 
-	return texture( uDepthTexture, vec3( coord.x, coord.y, 0.0 ) ).r;
+	return texture( uGpuDepthTexture, vec3( viewUv.x, viewUv.y, 0.0 ) ).r;
+
+}
+
+float sampleCpuDepthMeters(vec2 viewUv) {
+
+	return texture( uCpuDepthTexture, viewUv ).r;
 
 }
 
 void main() {
 
-	if ( uHasDepthSensing ) {
-		float realDepth = sampleRealDepth();
-		bool occludedByReality = gl_FragCoord.z > realDepth + uDepthBias;
+	vec2 viewUv = getViewUv();
+
+	if ( uUseGpuDepth ) {
+		float realDepth = sampleGpuDepth( viewUv );
+		bool occludedByReality = gl_FragCoord.z > realDepth + uGpuDepthBias;
 		if ( occludedByReality == false ) {
 			discard;
 		}
+	} else if ( uUseCpuDepth ) {
+		float realDepthMeters = sampleCpuDepthMeters( viewUv );
+		bool hasRealDepth = realDepthMeters > 0.0;
+		bool occludedByReality = hasRealDepth && ( vViewDepthMeters > realDepthMeters + uCpuDepthBiasMeters );
+		if ( occludedByReality == false ) {
+			discard;
+		}
+	} else {
+		discard;
 	}
 
 	outColor = vec4( uTintColor, uTintOpacity );
@@ -97,7 +139,6 @@ void main() {
 export interface DepthAwareOverlayRuntime {
 	update(frame?: XRFrame): boolean;
 	isActive(): boolean;
-	getDebugState(): DepthDebugState;
 	getMaterial(kind: DepthAwareOverlayKind): THREE.ShaderMaterial;
 	dispose(): void;
 }
@@ -108,12 +149,16 @@ export function createDepthAwareOverlayRuntime(
 
 	const { renderer } = options;
 	const materials = new Map<DepthAwareOverlayKind, THREE.ShaderMaterial>();
+	let cpuDepthTextureData: Float32Array | null = null;
+	let cpuDepthTexture: THREE.DataTexture | null = null;
 	let snapshot: OverlaySnapshot = {
 		active: false,
+		gpuDepthActive: false,
+		cpuDepthActive: false,
 		depthTexture: null,
+		cpuDepthTexture: null,
 		viewportWidth: 1,
 		viewportHeight: 1,
-		cpuDepthAvailable: false,
 		cpuDepthMeters: null,
 		depthUsage: 'unknown',
 		featureGranted: false
@@ -127,94 +172,45 @@ export function createDepthAwareOverlayRuntime(
 		const viewport = cameraXR.cameras[ 0 ]?.viewport;
 		const featureGranted = session?.enabledFeatures?.includes( 'depth-sensing' ) ?? false;
 		const depthUsage = session?.depthUsage ?? 'unknown';
-		const cpuDepthInfo = readCpuDepthInformation( renderer, frame );
-		const active = renderer.xr.isPresenting
+		const cpuDepthState = updateCpuDepthTexture( renderer, frame );
+		const gpuDepthActive = renderer.xr.isPresenting
 			&& renderer.capabilities.isWebGL2
 			&& renderer.xr.hasDepthSensing()
 			&& depthTexture !== null
 			&& viewport !== undefined;
+		const cpuDepthActive = renderer.xr.isPresenting
+			&& viewport !== undefined
+			&& cpuDepthState.active;
 
 		snapshot = {
-			active,
+			active: gpuDepthActive || cpuDepthActive,
+			gpuDepthActive,
+			cpuDepthActive,
 			depthTexture,
+			cpuDepthTexture: cpuDepthState.texture,
 			viewportWidth: viewport?.z ?? 1,
 			viewportHeight: viewport?.w ?? 1,
-			cpuDepthAvailable: cpuDepthInfo !== null,
-			cpuDepthMeters: cpuDepthInfo,
+			cpuDepthMeters: cpuDepthState.centerMeters,
 			depthUsage,
 			featureGranted
 		};
 
 		for ( const material of materials.values() ) {
-			material.uniforms.uHasDepthSensing.value = active;
-			material.uniforms.uDepthTexture.value = depthTexture;
+			material.uniforms.uUseGpuDepth.value = gpuDepthActive;
+			material.uniforms.uUseCpuDepth.value = gpuDepthActive === false && cpuDepthActive;
+			material.uniforms.uGpuDepthTexture.value = depthTexture;
+			material.uniforms.uCpuDepthTexture.value = cpuDepthState.texture;
 			material.uniforms.uDepthWidth.value = snapshot.viewportWidth;
 			material.uniforms.uDepthHeight.value = snapshot.viewportHeight;
 		}
 
-		return active;
+		return snapshot.active;
 
 	}
 
 	function isActive(): boolean {
 
 		return snapshot.active;
-
-	}
-
-	function getDebugState(): DepthDebugState {
-
-		if ( renderer.xr.isPresenting === false ) {
-			return {
-				label: 'Depth 未启动',
-				detail: '进入 AR 会话后会检测 depth-sensing 状态。',
-				tone: 'checking',
-				active: false
-			};
-		}
-
-		if ( renderer.capabilities.isWebGL2 === false ) {
-			return {
-				label: 'Depth 不可用',
-				detail: '当前 WebGL 环境不支持 depth 调试遮挡，已回退普通显示。',
-				tone: 'unsupported',
-				active: false
-			};
-		}
-
-		if ( snapshot.featureGranted === false ) {
-			return {
-				label: 'Depth 未授权',
-				detail: '当前浏览器或设备没有返回 depth-sensing，X-Ray 会退回整模显示。',
-				tone: 'unsupported',
-				active: false
-			};
-		}
-
-		if ( snapshot.active ) {
-			return {
-				label: 'Depth 已启用',
-				detail: `真实遮挡判断正在生效。usage=${snapshot.depthUsage}${formatCpuDepthSuffix( snapshot.cpuDepthMeters )}`,
-				tone: 'supported',
-				active: true
-			};
-		}
-
-		if ( snapshot.cpuDepthAvailable ) {
-			return {
-				label: 'Depth CPU 可用',
-				detail: `已拿到 CPU depth 帧，但 GPU depth 纹理未生效。usage=${snapshot.depthUsage}${formatCpuDepthSuffix( snapshot.cpuDepthMeters )}`,
-				tone: 'checking',
-				active: false
-			};
-		}
-
-		return {
-			label: 'Depth 等待中',
-			detail: `会话已申请 depth-sensing，但当前还没有拿到有效深度帧。usage=${snapshot.depthUsage}`,
-			tone: 'checking',
-			active: false
-		};
 
 	}
 
@@ -237,8 +233,10 @@ export function createDepthAwareOverlayRuntime(
 			toneMapped: false,
 			side: THREE.DoubleSide,
 			uniforms: {
-				uDepthTexture: { value: snapshot.depthTexture },
-				uHasDepthSensing: { value: snapshot.active },
+				uGpuDepthTexture: { value: snapshot.depthTexture },
+				uCpuDepthTexture: { value: snapshot.cpuDepthTexture },
+				uUseGpuDepth: { value: snapshot.gpuDepthActive },
+				uUseCpuDepth: { value: snapshot.cpuDepthActive },
 				uDepthWidth: { value: snapshot.viewportWidth },
 				uDepthHeight: { value: snapshot.viewportHeight },
 				uTintColor: {
@@ -247,7 +245,8 @@ export function createDepthAwareOverlayRuntime(
 				uTintOpacity: {
 					value: kind === 'xray' ? XRAY_OPACITY : WIREFRAME_OPACITY
 				},
-				uDepthBias: { value: DEPTH_COMPARE_BIAS }
+				uGpuDepthBias: { value: GPU_DEPTH_COMPARE_BIAS },
+				uCpuDepthBiasMeters: { value: CPU_DEPTH_COMPARE_BIAS_METERS }
 			}
 		} );
 
@@ -263,23 +262,91 @@ export function createDepthAwareOverlayRuntime(
 		}
 
 		materials.clear();
+		cpuDepthTextureData = null;
+		cpuDepthTexture?.dispose();
+		cpuDepthTexture = null;
 
 	}
 
 	return {
 		update,
 		isActive,
-		getDebugState,
 		getMaterial,
 		dispose
 	};
+
+	function updateCpuDepthTexture(
+		rendererInstance: THREE.WebGLRenderer,
+		frame?: XRFrame
+	): CpuDepthTextureState {
+
+		const depthInfo = readCpuDepthInformation( rendererInstance, frame );
+		if ( depthInfo === null ) {
+			return {
+				texture: cpuDepthTexture,
+				centerMeters: null,
+				active: false
+			};
+		}
+
+		const sampleWidth = Math.max( 1, Math.min( depthInfo.width, MAX_CPU_DEPTH_TEXTURE_WIDTH ) );
+		const sampleHeight = Math.max(
+			1,
+			Math.round( depthInfo.height * ( sampleWidth / Math.max( depthInfo.width, 1 ) ) )
+		);
+		const pixelCount = sampleWidth * sampleHeight;
+
+		if ( cpuDepthTextureData === null || cpuDepthTextureData.length !== pixelCount ) {
+			cpuDepthTextureData = new Float32Array( pixelCount );
+			cpuDepthTexture?.dispose();
+			cpuDepthTexture = new THREE.DataTexture(
+				cpuDepthTextureData,
+				sampleWidth,
+				sampleHeight,
+				THREE.RedFormat,
+				THREE.FloatType
+			);
+			cpuDepthTexture.magFilter = THREE.NearestFilter;
+			cpuDepthTexture.minFilter = THREE.NearestFilter;
+			cpuDepthTexture.generateMipmaps = false;
+			cpuDepthTexture.flipY = false;
+			cpuDepthTexture.unpackAlignment = 1;
+			cpuDepthTexture.needsUpdate = true;
+		} else if ( cpuDepthTexture !== null ) {
+			cpuDepthTexture.image.width = sampleWidth;
+			cpuDepthTexture.image.height = sampleHeight;
+		}
+
+		for ( let y = 0; y < sampleHeight; y += 1 ) {
+			const normalizedY = ( y + 0.5 ) / sampleHeight;
+			for ( let x = 0; x < sampleWidth; x += 1 ) {
+				const normalizedX = ( x + 0.5 ) / sampleWidth;
+				const depthMeters = depthInfo.getDepthInMeters( normalizedX, normalizedY );
+				cpuDepthTextureData[ y * sampleWidth + x ] = Number.isFinite( depthMeters )
+					? depthMeters
+					: 0;
+			}
+		}
+
+		if ( cpuDepthTexture !== null ) {
+			cpuDepthTexture.needsUpdate = true;
+		}
+
+		const centerMeters = depthInfo.getDepthInMeters( 0.5, 0.5 );
+		return {
+			texture: cpuDepthTexture,
+			centerMeters: Number.isFinite( centerMeters ) ? centerMeters : null,
+			active: cpuDepthTexture !== null
+		};
+
+	}
 
 }
 
 function readCpuDepthInformation(
 	renderer: THREE.WebGLRenderer,
 	frame?: XRFrame
-): number | null {
+): XRCPUDepthInformationLike | null {
 
 	if ( frame === undefined ) {
 		return null;
@@ -303,24 +370,9 @@ function readCpuDepthInformation(
 
 	try {
 		const depthInfo = depthFrame.getDepthInformation( firstView );
-		if ( depthInfo === null || typeof depthInfo.getDepthInMeters !== 'function' ) {
-			return null;
-		}
-
-		const depthMeters = depthInfo.getDepthInMeters( 0.5, 0.5 );
-		return Number.isFinite( depthMeters ) ? depthMeters : null;
+		return depthInfo ?? null;
 	} catch {
 		return null;
 	}
-
-}
-
-function formatCpuDepthSuffix(depthMeters: number | null): string {
-
-	if ( depthMeters === null || Number.isFinite( depthMeters ) === false ) {
-		return '';
-	}
-
-	return ` / cpu(0.5,0.5)=${depthMeters.toFixed( 2 )}m`;
 
 }

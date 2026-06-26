@@ -13,7 +13,6 @@ import { BottomDrawer } from './BottomDrawer.js';
 import { ManualAdjustmentOverlay } from './ManualAdjustmentOverlay.js';
 import { ActionButton } from '../components/ActionButton.js';
 import { GuardedPressButton } from '../components/GuardedPressButton.js';
-import { StatusBadge } from '../components/StatusBadge.js';
 import { BrowsePanel } from '../panels/BrowsePanel.js';
 import { RegistrationPanel } from '../panels/RegistrationPanel.js';
 import { ToolsPanel } from '../panels/ToolsPanel.js';
@@ -70,24 +69,11 @@ export function ArRuntimeView(props: {
 					/>
 				)}
 
-				{showCaptureOverlay ? null : (
-					<div className="ar-depth-debug" data-ar-ui="true">
-						<div className="ar-depth-debug__row">
-							<StatusBadge label={engine.depthDebug.label} tone={engine.depthDebug.tone} />
-							<span className="ar-depth-debug__title">Depth 调试</span>
-						</div>
-						<div className="ar-depth-debug__detail">{engine.depthDebug.detail}</div>
-					</div>
-				)}
-
 				{showCaptureOverlay ? null : showPlacementUi && showGuidance ? (
 					<div className="guidance-card">
 						<h2>{guidance.title}</h2>
 						<p>{guidance.body}</p>
-						<div className="guidance-card__debug">
-							<div>{engine.depthDebug.label} / {engine.depthDebug.detail}</div>
-							<div>{engine.coarseLocationDebugText}</div>
-						</div>
+						<div className="guidance-card__debug">{engine.coarseLocationDebugText}</div>
 					</div>
 				) : null}
 
@@ -97,10 +83,7 @@ export function ArRuntimeView(props: {
 						<div className="target-guidance-card__direction">{engine.targetGuidance.directionText}</div>
 						<div className="target-guidance-card__distance">{engine.targetGuidance.distanceText}</div>
 						<p>{engine.targetGuidance.detailText}</p>
-						<div className="target-guidance-card__debug">
-							<div>{engine.depthDebug.label} / {engine.depthDebug.detail}</div>
-							<div>{engine.coarseLocationDebugText}</div>
-						</div>
+						<div className="target-guidance-card__debug">{engine.coarseLocationDebugText}</div>
 					</div>
 				) : null}
 

@@ -534,7 +534,6 @@ textarea {
 }
 
 .topbar,
-.ar-depth-debug,
 .guidance-card,
 .target-guidance-card,
 .primary-bar,
@@ -543,40 +542,6 @@ textarea {
 .drawer-toggle,
 .bottom-nav {
 	z-index: 2;
-}
-
-.ar-depth-debug {
-	position: fixed;
-	top: calc(max(14px, env(safe-area-inset-top, 0px)) + 86px);
-	left: 14px;
-	right: 14px;
-	padding: 10px 12px;
-	border-radius: 16px;
-	background:
-		linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.06) 100%),
-		rgba(15, 23, 42, 0.48);
-	backdrop-filter: blur(16px);
-	color: #fff;
-	box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
-}
-
-.ar-depth-debug__row {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-}
-
-.ar-depth-debug__title {
-	font-size: 12px;
-	font-weight: 700;
-	color: rgba(255, 255, 255, 0.82);
-}
-
-.ar-depth-debug__detail {
-	margin-top: 6px;
-	font-size: 11px;
-	line-height: 1.55;
-	color: rgba(255, 255, 255, 0.72);
 }
 
 .guidance-card {
@@ -619,7 +584,7 @@ textarea {
 	position: fixed;
 	left: 16px;
 	right: 16px;
-	top: calc(max(14px, env(safe-area-inset-top, 0px)) + 148px);
+	top: calc(max(14px, env(safe-area-inset-top, 0px)) + 84px);
 	padding: 14px 16px 15px;
 	border-radius: 20px;
 	background:

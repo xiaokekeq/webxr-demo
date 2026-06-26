@@ -1083,6 +1083,14 @@ export class ThreeEngine {
 		this.syncSceneHost();
 		this.placementSession.fitDesktopPreviewToCamera();
 		this.emit();
+		window.requestAnimationFrame( () => {
+			if ( this.disposed || this.sceneBundle.renderer.xr.isPresenting ) {
+				return;
+			}
+
+			this.syncSceneHost();
+			this.placementSession.fitDesktopPreviewToCamera();
+		} );
 
 	}
 

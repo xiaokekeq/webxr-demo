@@ -54,7 +54,7 @@ export function ArPage(): React.JSX.Element {
 		setAppLayoutMode( isDesktopLayout );
 	}, [ isDesktopLayout ] );
 
-	useEffect( () => {
+	useLayoutEffect( () => {
 		const className = 'app-mode--ar-session';
 		if ( state.engine.appMode === 'ar-session' ) {
 			document.documentElement.classList.add( className );

@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { AppActions, AppState } from '../store/ar-state.js';
-import { ActionButton } from '../components/ActionButton.js';
 import { GuardedPressButton } from '../components/GuardedPressButton.js';
 
 const HOLD_REPEAT_INTERVAL_MS = 96;
@@ -17,6 +16,25 @@ function PresetChip(props: {
 		<GuardedPressButton
 			className={ `manual-overlay__preset${props.active ? ' is-active' : ''}` }
 			onPress={props.onPress}
+		>
+			{props.label}
+		</GuardedPressButton>
+	);
+
+}
+
+function FloatingAction(props: {
+	label: string;
+	kind?: 'primary';
+	onPress(): void;
+	disabled?: boolean;
+}): React.JSX.Element {
+
+	return (
+		<GuardedPressButton
+			className={ `manual-overlay__floating-action${props.kind === 'primary' ? ' manual-overlay__floating-action--primary' : ''}` }
+			onPress={props.onPress}
+			disabled={props.disabled}
 		>
 			{props.label}
 		</GuardedPressButton>
@@ -186,15 +204,9 @@ export function ManualAdjustmentOverlay(props: {
 
 	return (
 		<div className="manual-overlay-shell">
-			<div className="manual-overlay">
-				<div className="manual-overlay__header">
-					<div>
-						<strong>手动微调</strong>
-						<p>按住摇杆持续微调，尽量让 AR 画面保持开阔，不再用密集按钮挡视野。</p>
-					</div>
-					<ActionButton label="返回面板" onClick={ () => actions.setRegistrationView( 'overview' ) } kind="secondary" />
-				</div>
+			<div className="manual-overlay__mode-badge">微调模式</div>
 
+			<div className="manual-overlay__topbar">
 				<div className="manual-overlay__presets">
 					<PresetChip
 						label="细调"
@@ -213,85 +225,85 @@ export function ManualAdjustmentOverlay(props: {
 					/>
 				</div>
 
-				<div className="manual-overlay__pads">
-					<JoystickPad
-						title="平移"
-						subtitle="前后左右"
-						segments={{
-							up: {
-								icon: '↑',
-								label: '前移',
-								onStep: () => actions.adjustTranslation( 'z', -1 ),
-								disabled: !canManualAdjust
-							},
-							right: {
-								icon: '→',
-								label: '右移',
-								onStep: () => actions.adjustTranslation( 'x', 1 ),
-								disabled: !canManualAdjust
-							},
-							down: {
-								icon: '↓',
-								label: '后移',
-								onStep: () => actions.adjustTranslation( 'z', 1 ),
-								disabled: !canManualAdjust
-							},
-							left: {
-								icon: '←',
-								label: '左移',
-								onStep: () => actions.adjustTranslation( 'x', -1 ),
-								disabled: !canManualAdjust
-							}
-						}}
-					/>
-
-					<JoystickPad
-						title="姿态"
-						subtitle="升降 / 旋转"
-						segments={{
-							up: {
-								icon: '↑',
-								label: '上移',
-								onStep: () => actions.adjustTranslation( 'y', 1 ),
-								disabled: !canManualAdjust
-							},
-							right: {
-								icon: '↻',
-								label: '右旋',
-								onStep: () => actions.adjustYaw( 1 ),
-								disabled: !canManualAdjust
-							},
-							down: {
-								icon: '↓',
-								label: '下移',
-								onStep: () => actions.adjustTranslation( 'y', -1 ),
-								disabled: !canManualAdjust
-							},
-							left: {
-								icon: '↺',
-								label: '左旋',
-								onStep: () => actions.adjustYaw( -1 ),
-								disabled: !canManualAdjust
-							}
-						}}
-					/>
+				<div className="manual-overlay__action-stack">
+					<FloatingAction label="退出微调" onPress={ () => actions.setRegistrationView( 'overview' ) } />
+					<FloatingAction label="保存" kind="primary" onPress={actions.saveManualRegistration} disabled={!canManualAdjust} />
+					<FloatingAction label="重置" onPress={actions.resetManualRegistration} disabled={!canManualAdjust} />
 				</div>
+			</div>
 
-				<div className="manual-overlay__scale-row">
-					<ActionButton label="缩小" onClick={ () => actions.adjustScale( -1 ) } disabled={!canManualAdjust} />
-					<ActionButton label="放大" onClick={ () => actions.adjustScale( 1 ) } disabled={!canManualAdjust} />
-				</div>
+			<div className="manual-overlay__readout">
+				<div>{engine.manualReadout.positionText}</div>
+				<div>{engine.manualReadout.yawText} / {engine.manualReadout.scaleText}</div>
+			</div>
 
-				<p className="manual-overlay__readout">
-					位置: {engine.manualReadout.positionText}<br />
-					角度: {engine.manualReadout.yawText}<br />
-					尺度: {engine.manualReadout.scaleText}
-				</p>
+			<div className="manual-overlay__scale-stack">
+				<FloatingAction label="缩小" onPress={ () => actions.adjustScale( -1 ) } disabled={!canManualAdjust} />
+				<FloatingAction label="放大" onPress={ () => actions.adjustScale( 1 ) } disabled={!canManualAdjust} />
+			</div>
 
-				<div className="manual-overlay__actions">
-					<ActionButton label="保存微调" onClick={actions.saveManualRegistration} kind="primary" disabled={!canManualAdjust} />
-					<ActionButton label="重置微调" onClick={actions.resetManualRegistration} disabled={!canManualAdjust} />
-				</div>
+			<div className="manual-overlay__pads">
+				<JoystickPad
+					title="平移"
+					subtitle="前后左右"
+					segments={{
+						up: {
+							icon: '↑',
+							label: '前移',
+							onStep: () => actions.adjustTranslation( 'z', -1 ),
+							disabled: !canManualAdjust
+						},
+						right: {
+							icon: '→',
+							label: '右移',
+							onStep: () => actions.adjustTranslation( 'x', 1 ),
+							disabled: !canManualAdjust
+						},
+						down: {
+							icon: '↓',
+							label: '后移',
+							onStep: () => actions.adjustTranslation( 'z', 1 ),
+							disabled: !canManualAdjust
+						},
+						left: {
+							icon: '←',
+							label: '左移',
+							onStep: () => actions.adjustTranslation( 'x', -1 ),
+							disabled: !canManualAdjust
+						}
+					}}
+				/>
+
+				<JoystickPad
+					title="姿态"
+					subtitle="升降 / 旋转"
+					segments={{
+						up: {
+							icon: '↑',
+							label: '上移',
+							onStep: () => actions.adjustTranslation( 'y', 1 ),
+							disabled: !canManualAdjust
+						},
+						right: {
+							icon: '↻',
+							label: '右旋',
+							onStep: () => actions.adjustYaw( 1 ),
+							disabled: !canManualAdjust
+						},
+						down: {
+							icon: '↓',
+							label: '下移',
+							onStep: () => actions.adjustTranslation( 'y', -1 ),
+							disabled: !canManualAdjust
+						},
+						left: {
+							icon: '↺',
+							label: '左旋',
+							onStep: () => actions.adjustYaw( -1 ),
+							disabled: !canManualAdjust
+						}
+					}}
+				/>
 			</div>
 		</div>
 	);

@@ -23,10 +23,9 @@ export function ArRuntimeView(props: {
 	state: AppState;
 	actions: AppActions;
 	canvasRef: React.RefObject<HTMLDivElement | null>;
-	xrButtonRef: React.RefObject<HTMLDivElement | null>;
 }): React.JSX.Element {
 
-	const { state, actions, canvasRef, xrButtonRef } = props;
+	const { state, actions, canvasRef } = props;
 	const engine = state.engine;
 	const guidance = getGuidanceContent( engine.arSessionPhase );
 	const showPlacementUi = engine.arSessionPhase === 'scanning' || engine.arSessionPhase === 'ready-to-place';
@@ -51,7 +50,6 @@ export function ArRuntimeView(props: {
 	return (
 		<div className={ `mobile-ar-root${showPlacementUi ? ' mobile-ar-root--placement' : ''}` }>
 			<ArCanvas canvasRef={canvasRef} className="scene-host scene-host--fullscreen" />
-			<div ref={xrButtonRef} className="xr-button-wrap" />
 
 			<div
 				className="mobile-overlay"

@@ -13,18 +13,15 @@ export function PreArView(props: {
 	state: AppState;
 	actions: AppActions;
 	canvasRef: React.RefObject<HTMLDivElement | null>;
-	xrButtonRef: React.RefObject<HTMLDivElement | null>;
 }): React.JSX.Element {
 
-	const { state, actions, canvasRef, xrButtonRef } = props;
+	const { state, actions, canvasRef } = props;
 	const engine = state.engine;
 	const currentModelName = engine.availableModels.find( ( item ) => item.id === engine.selectedModelId )?.name ?? '-';
 	const currentStage = engine.timelineStages[ engine.currentTimelineStageIndex ] ?? '-';
 
 	return (
 		<div className="mobile-pre-ar">
-			<div ref={xrButtonRef} className="xr-button-wrap" />
-
 			<div className="page-card">
 				<h1>{engine.projectName}</h1>
 				<div className="meta-list">

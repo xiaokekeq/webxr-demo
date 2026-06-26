@@ -187,31 +187,30 @@ export function ArPage(): React.JSX.Element {
 		);
 	}
 
-	if ( state.engine.appMode === 'ar-session' ) {
-		return (
-			<>
-				<ArCanvas canvasRef={preArCanvasRef} className="scene-host scene-host--hidden" />
-				<ArCanvas canvasRef={desktopCanvasRef} className="scene-host scene-host--hidden" />
+	return (
+		<>
+			<div ref={xrButtonRef} className="xr-button-wrap" />
+			<ArCanvas canvasRef={desktopCanvasRef} className="scene-host scene-host--hidden" />
+			<div
+				className={ `mobile-view-shell${state.engine.appMode === 'ar-session' ? ' mobile-view-shell--hidden' : ''}` }
+				aria-hidden={state.engine.appMode === 'ar-session'}
+			>
+				<PreArView
+					state={state}
+					actions={actions}
+					canvasRef={preArCanvasRef}
+				/>
+			</div>
+			<div
+				className={ `mobile-view-shell${state.engine.appMode === 'ar-session' ? '' : ' mobile-view-shell--hidden'}` }
+				aria-hidden={state.engine.appMode !== 'ar-session'}
+			>
 				<ArRuntimeView
 					state={state}
 					actions={actions}
 					canvasRef={arCanvasRef}
-					xrButtonRef={xrButtonRef}
 				/>
-			</>
-		);
-	}
-
-	return (
-		<>
-			<ArCanvas canvasRef={arCanvasRef} className="scene-host scene-host--hidden" />
-			<ArCanvas canvasRef={desktopCanvasRef} className="scene-host scene-host--hidden" />
-			<PreArView
-				state={state}
-				actions={actions}
-				canvasRef={preArCanvasRef}
-				xrButtonRef={xrButtonRef}
-			/>
+			</div>
 		</>
 	);
 

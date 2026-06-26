@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { DepthSensingMode } from '../registration/registration-store.js';
 
 export type DepthAwareOverlayKind = 'xray' | 'wireframe';
 
@@ -139,7 +140,7 @@ void main() {
 export interface DepthAwareOverlayRuntime {
 	update(frame?: XRFrame): boolean;
 	isActive(): boolean;
-	setCpuDepthFallbackEnabled(enabled: boolean): void;
+	setDepthSensingMode(mode: DepthSensingMode): void;
 	getMaterial(kind: DepthAwareOverlayKind): THREE.ShaderMaterial;
 	dispose(): void;
 }
@@ -152,7 +153,7 @@ export function createDepthAwareOverlayRuntime(
 	const materials = new Map<DepthAwareOverlayKind, THREE.ShaderMaterial>();
 	let cpuDepthTextureData: Float32Array | null = null;
 	let cpuDepthTexture: THREE.DataTexture | null = null;
-	let cpuDepthFallbackEnabled = false;
+	let depthSensingMode: DepthSensingMode = 'disabled';
 	let snapshot: OverlaySnapshot = {
 		active: false,
 		gpuDepthActive: false,
@@ -174,19 +175,22 @@ export function createDepthAwareOverlayRuntime(
 		const viewport = cameraXR.cameras[ 0 ]?.viewport;
 		const featureGranted = session?.enabledFeatures?.includes( 'depth-sensing' ) ?? false;
 		const depthUsage = session?.depthUsage ?? 'unknown';
-		const cpuDepthState = cpuDepthFallbackEnabled
+		const cpuDepthState = shouldUseCpuDepthMode( depthSensingMode )
 			? updateCpuDepthTexture( renderer, frame )
 			: {
 				texture: cpuDepthTexture,
 				centerMeters: null,
 				active: false
 			};
-		const gpuDepthActive = renderer.xr.isPresenting
+		const gpuDepthSupported = renderer.xr.isPresenting
 			&& renderer.capabilities.isWebGL2
 			&& renderer.xr.hasDepthSensing()
 			&& depthTexture !== null
 			&& viewport !== undefined;
-		const cpuDepthActive = renderer.xr.isPresenting
+		const gpuDepthActive = shouldUseGpuDepthMode( depthSensingMode )
+			&& gpuDepthSupported;
+		const cpuDepthActive = shouldUseCpuDepthMode( depthSensingMode )
+			&& renderer.xr.isPresenting
 			&& viewport !== undefined
 			&& cpuDepthState.active;
 
@@ -222,9 +226,9 @@ export function createDepthAwareOverlayRuntime(
 
 	}
 
-	function setCpuDepthFallbackEnabled(enabled: boolean): void {
+	function setDepthSensingMode(mode: DepthSensingMode): void {
 
-		cpuDepthFallbackEnabled = enabled;
+		depthSensingMode = mode;
 
 	}
 
@@ -285,7 +289,7 @@ export function createDepthAwareOverlayRuntime(
 	return {
 		update,
 		isActive,
-		setCpuDepthFallbackEnabled,
+		setDepthSensingMode,
 		getMaterial,
 		dispose
 	};
@@ -355,6 +359,18 @@ export function createDepthAwareOverlayRuntime(
 		};
 
 	}
+
+}
+
+function shouldUseGpuDepthMode(mode: DepthSensingMode): boolean {
+
+	return mode === 'gpu' || mode === 'auto';
+
+}
+
+function shouldUseCpuDepthMode(mode: DepthSensingMode): boolean {
+
+	return mode === 'cpu' || mode === 'auto';
 
 }
 

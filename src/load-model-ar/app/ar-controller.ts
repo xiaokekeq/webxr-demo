@@ -1,5 +1,6 @@
 import { createStore } from 'zustand/vanilla';
 import type {
+	DepthSensingMode,
 	DisplayMode,
 	MeasurementMode,
 	WorkspaceMode
@@ -54,7 +55,7 @@ export interface LoadModelArController {
 		resetPlacement(): void;
 		setManualAdjustmentPreset(preset: ManualAdjustmentPreset): void;
 		setAutoPreviewPlacementEnabled(enabled: boolean): void;
-		setCpuDepthFallbackEnabled(enabled: boolean): void;
+		setDepthSensingMode(mode: DepthSensingMode): void;
 		adjustTranslation(axis: 'x' | 'y' | 'z', direction: 1 | -1): void;
 		adjustYaw(direction: 1 | -1): void;
 		adjustScale(direction: 1 | -1): void;
@@ -373,9 +374,9 @@ export function createLoadModelArController(): LoadModelArController {
 
 			},
 
-			setCpuDepthFallbackEnabled(enabled) {
+			setDepthSensingMode(mode) {
 
-				engine.setCpuDepthFallbackEnabled( enabled );
+				engine.setDepthSensingMode( mode );
 
 			},
 

@@ -20,6 +20,7 @@ import {
 	createDefaultPrecisionRegistrationState,
 	createDefaultTargetGuidanceState,
 	createRegistrationStore,
+	type DepthSensingMode,
 	type DisplayMode,
 	type MeasurementMode,
 	type RegistrationStore,
@@ -40,6 +41,7 @@ import { createDisplayModeController, preserveRootTransform } from './display-mo
 import { computeTargetGuidanceState } from './internal/placement/target-guidance.js';
 import { createARScene, resizeARScene } from './scene.js';
 import { createXRSessionRuntime } from './xr.js';
+import { getDepthSensingModeLabel } from '../shared/depth-sensing-modes.js';
 import { getDisplayModeLabel } from '../shared/display-modes.js';
 import { formatGeodetic } from '../shared/formatters.js';
 import { clearPrecisionRegistrationResult } from '../registration/precision-registration-storage.js';
@@ -97,7 +99,7 @@ function createInitialState(): RegistrationStoreState {
 		},
 		manualAdjustmentPreset: 'fine',
 		autoPreviewPlacementEnabled: false,
-		cpuDepthFallbackEnabled: false,
+		depthSensingMode: 'disabled',
 		registrationMetrics: {
 			gpsText: '-',
 			enuText: '-',
@@ -375,6 +377,7 @@ export class ThreeEngine {
 				statusRuntime.setStatus( message );
 				this.emit();
 			},
+			initialDepthSensingMode: this.store.getState().depthSensingMode,
 			onSessionStart: () => {
 				this.handleXRSessionStart();
 			},
@@ -749,18 +752,18 @@ export class ThreeEngine {
 
 	}
 
-	setCpuDepthFallbackEnabled(enabled: boolean): void {
+	setDepthSensingMode(mode: DepthSensingMode): void {
 
-		if ( this.store.getState().cpuDepthFallbackEnabled === enabled ) {
+		if ( this.store.getState().depthSensingMode === mode ) {
 			return;
 		}
 
-		this.store.patch( { cpuDepthFallbackEnabled: enabled } );
-		this.displayModeController.setCpuDepthFallbackEnabled( enabled );
+		this.store.patch( { depthSensingMode: mode } );
+		this.xrRuntime.setDepthSensingMode( mode );
+		this.displayModeController.setDepthSensingMode( mode );
 		this.setStatus(
-			enabled
-				? '已开启 CPU depth 回退，可在 GPU depth 不可用时继续测试遮挡判定。'
-				: '已关闭 CPU depth 回退，当前只保留 GPU depth 路径用于排查稳定性。'
+			`Depth 模式已切换为：${getDepthSensingModeLabel( mode )}。`
+			+ ( this.sceneBundle.renderer.xr.isPresenting ? ' 新的能力请求会在下次进入 AR 时生效。' : '' )
 		);
 		this.emit();
 

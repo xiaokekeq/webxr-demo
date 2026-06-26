@@ -1,5 +1,6 @@
 import type * as THREE from 'three';
 import type { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import type { DepthSensingMode } from '../registration/registration-store.js';
 
 export type SetStatus = (message: string) => void;
 
@@ -178,6 +179,7 @@ export interface ARSceneBundle {
 export interface XRHitTestController {
 	setup(): void;
 	update(frame: XRFrame): void;
+	setDepthSensingMode(mode: DepthSensingMode): void;
 	hasGroundHit(): boolean;
 	getHitPosition(target: THREE.Vector3): THREE.Vector3 | null;
 	getHitTestQuality(): XRHitTestQuality | null;

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { ARButton } from 'three/addons/webxr/ARButton.js';
 import type { ARButtonSessionInit } from 'three/addons/webxr/ARButton.js';
+import type { DepthSensingMode } from '../registration/registration-store.js';
 import type { SetStatus, XRHitTestController, XRHitTestQuality } from '../shared/types.js';
 
 interface CreateXRHitTestControllerOptions {
@@ -8,6 +9,7 @@ interface CreateXRHitTestControllerOptions {
 	reticle: THREE.Group;
 	xrButtonWrap: HTMLElement;
 	setStatus: SetStatus;
+	initialDepthSensingMode: DepthSensingMode;
 	onSessionStart?: () => void;
 	onSessionEnd?: () => void;
 	onSelect?: () => void;
@@ -74,6 +76,7 @@ export function createXRHitTestController(
 		reticle,
 		xrButtonWrap,
 		setStatus,
+		initialDepthSensingMode,
 		onSessionStart,
 		onSessionEnd,
 		onSelect,
@@ -86,24 +89,28 @@ export function createXRHitTestController(
 	let lastStableHitPosition: THREE.Vector3 | null = null;
 	let recentHitSamples: Array<{ position: THREE.Vector3; time: number }> = [];
 	let launchElement: HTMLElement | null = null;
+	let depthSensingMode = initialDepthSensingMode;
 
 	function setup(): void {
 
-		const sessionInit: DepthAwareArButtonSessionInit = {
-			requiredFeatures: [ 'hit-test' ],
-			optionalFeatures: [ 'dom-overlay', 'depth-sensing' ],
-			domOverlay: { root: document.body },
-			depthSensing: {
-				usagePreference: [ 'gpu-optimized', 'cpu-optimized' ],
-				dataFormatPreference: [ 'luminance-alpha', 'float32' ]
-			}
-		};
-
-		launchElement = ARButton.createButton( renderer, sessionInit );
-
-		xrButtonWrap.appendChild( launchElement );
+		refreshLaunchElement();
 		renderer.xr.addEventListener( 'sessionstart', handleSessionStart );
 		renderer.xr.addEventListener( 'sessionend', handleSessionEnd );
+
+	}
+
+	function setDepthSensingMode(mode: DepthSensingMode): void {
+
+		if ( depthSensingMode === mode ) {
+			return;
+		}
+
+		depthSensingMode = mode;
+		if ( renderer.xr.isPresenting ) {
+			return;
+		}
+
+		refreshLaunchElement();
 
 	}
 
@@ -114,6 +121,7 @@ export function createXRHitTestController(
 		lastSuccessfulHitTime = 0;
 		lastStableHitPosition = null;
 		recentHitSamples = [];
+		refreshLaunchElement();
 		setStatus( '已进入 AR，请缓慢移动手机，让系统持续识别地面或墙面。' );
 
 		const session = renderer.xr.getSession();
@@ -285,6 +293,7 @@ export function createXRHitTestController(
 	return {
 		setup,
 		update,
+		setDepthSensingMode,
 		hasGroundHit,
 		getHitPosition,
 		getHitTestQuality,
@@ -294,6 +303,14 @@ export function createXRHitTestController(
 
 		}
 	};
+
+	function refreshLaunchElement(): void {
+
+		launchElement?.remove();
+		launchElement = ARButton.createButton( renderer, createSessionInit( depthSensingMode ) );
+		xrButtonWrap.appendChild( launchElement );
+
+	}
 
 	function pushHitSample(position: THREE.Vector3, time: number): void {
 
@@ -316,6 +333,47 @@ export function createXRHitTestController(
 			( sample ) => now - sample.time <= HIT_QUALITY_WINDOW_MS
 		);
 
+	}
+
+}
+
+function createSessionInit(mode: DepthSensingMode): DepthAwareArButtonSessionInit {
+
+	const sessionInit: DepthAwareArButtonSessionInit = {
+		requiredFeatures: [ 'hit-test' ],
+		optionalFeatures: [ 'dom-overlay' ],
+		domOverlay: { root: document.body }
+	};
+
+	if ( mode === 'disabled' ) {
+		return sessionInit;
+	}
+
+	sessionInit.optionalFeatures = [ 'dom-overlay', 'depth-sensing' ];
+	sessionInit.depthSensing = {
+		usagePreference: getDepthUsagePreference( mode ),
+		dataFormatPreference: mode === 'cpu'
+			? [ 'float32', 'luminance-alpha' ]
+			: [ 'luminance-alpha', 'float32' ]
+	};
+
+	return sessionInit;
+
+}
+
+function getDepthUsagePreference(
+	mode: DepthSensingMode
+): Array<'cpu-optimized' | 'gpu-optimized'> {
+
+	switch ( mode ) {
+		case 'gpu':
+			return [ 'gpu-optimized' ];
+		case 'cpu':
+			return [ 'cpu-optimized' ];
+		case 'auto':
+			return [ 'gpu-optimized', 'cpu-optimized' ];
+		case 'disabled':
+			return [ 'gpu-optimized' ];
 	}
 
 }

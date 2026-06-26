@@ -1,4 +1,5 @@
-﻿import type { ARSceneBundle, SetStatus, XRHitTestController } from '../shared/types.js';
+import type { DepthSensingMode } from '../registration/registration-store.js';
+import type { ARSceneBundle, SetStatus, XRHitTestController } from '../shared/types.js';
 import {
 	createXRHitTestController,
 	detectImmersiveArSupport,
@@ -9,6 +10,7 @@ interface CreateXRSessionRuntimeOptions {
 	sceneBundle: ARSceneBundle;
 	xrButtonWrap: HTMLElement;
 	setStatus: SetStatus;
+	initialDepthSensingMode: DepthSensingMode;
 	onSessionStart(): void;
 	onSessionEnd(): void;
 	canReportStatus(): boolean;
@@ -19,6 +21,7 @@ interface CreateXRSessionRuntimeOptions {
 export interface XRSessionRuntime {
 	setup(): void;
 	detectSupport(): Promise<ImmersiveArSupportInfo>;
+	setDepthSensingMode(mode: DepthSensingMode): void;
 	requestSession(): void;
 	renderFrame(time: number, frame?: XRFrame): void;
 	getHitTestController(): XRHitTestController;
@@ -30,6 +33,7 @@ export function createXRSessionRuntime(options: CreateXRSessionRuntimeOptions): 
 		sceneBundle,
 		xrButtonWrap,
 		setStatus,
+		initialDepthSensingMode,
 		onSessionStart,
 		onSessionEnd,
 		canReportStatus,
@@ -42,6 +46,7 @@ export function createXRSessionRuntime(options: CreateXRSessionRuntimeOptions): 
 		reticle: sceneBundle.reticle,
 		xrButtonWrap,
 		setStatus,
+		initialDepthSensingMode,
 		onSessionStart,
 		onSessionEnd,
 		canReportStatus
@@ -57,6 +62,12 @@ export function createXRSessionRuntime(options: CreateXRSessionRuntimeOptions): 
 		detectSupport() {
 
 			return detectImmersiveArSupport();
+
+		},
+
+		setDepthSensingMode(mode) {
+
+			xrHitTest.setDepthSensingMode( mode );
 
 		},
 
@@ -90,4 +101,3 @@ export function createXRSessionRuntime(options: CreateXRSessionRuntimeOptions): 
 	};
 
 }
-

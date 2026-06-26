@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { DisplayMode } from '../registration/registration-store.js';
+import type { DepthSensingMode, DisplayMode } from '../registration/registration-store.js';
 import {
 	createDepthAwareOverlayRuntime,
 	type DepthAwareOverlayKind
@@ -26,7 +26,7 @@ const DISPLAY_MODE_TAGS = {
 export interface DisplayModeController {
 	sync(mode: DisplayMode): void;
 	updateDepthState(frame?: XRFrame): void;
-	setCpuDepthFallbackEnabled(enabled: boolean): void;
+	setDepthSensingMode(mode: DepthSensingMode): void;
 	reset(): void;
 	dispose(): void;
 }
@@ -88,10 +88,10 @@ export function createDisplayModeController(
 
 	}
 
-	function setCpuDepthFallbackEnabled(enabled: boolean): void {
+	function setDepthSensingMode(mode: DepthSensingMode): void {
 
 		const wasActive = depthAwareOverlay.isActive();
-		depthAwareOverlay.setCpuDepthFallbackEnabled( enabled );
+		depthAwareOverlay.setDepthSensingMode( mode );
 		const isActive = depthAwareOverlay.update();
 		if ( wasActive === isActive ) {
 			return;
@@ -294,7 +294,7 @@ export function createDisplayModeController(
 	return {
 		sync,
 		updateDepthState,
-		setCpuDepthFallbackEnabled,
+		setDepthSensingMode,
 		reset,
 		dispose
 	};

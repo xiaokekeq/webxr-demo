@@ -8,6 +8,7 @@ export type AppMode = 'pre-ar' | 'ar-session';
 export type ArSupportState = 'checking' | 'supported' | 'unsupported';
 export type ArSessionPhase = 'scanning' | 'ready-to-place' | 'placing' | 'placed';
 export type DisplayMode = 'normal' | 'xray' | 'occlusion-outline';
+export type DepthSensingMode = 'disabled' | 'gpu' | 'cpu' | 'auto';
 export type PrecisionFeedbackTone = 'neutral' | 'info' | 'success' | 'error';
 export type MeasurementMode = 'distance-3d' | 'distance-horizontal' | 'depth';
 
@@ -101,7 +102,7 @@ export interface RegistrationStoreState {
 	manualReadout: ManualReadoutState;
 	manualAdjustmentPreset: ManualAdjustmentPreset;
 	autoPreviewPlacementEnabled: boolean;
-	cpuDepthFallbackEnabled: boolean;
+	depthSensingMode: DepthSensingMode;
 	registrationMetrics: RegistrationMetricsState;
 	placementSummary: PlacementSummaryState;
 	targetGuidance: TargetGuidanceState;

@@ -246,6 +246,31 @@ textarea {
 	resize: vertical;
 }
 
+.segmented-field__list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.segmented-field__option {
+	flex: 1 1 92px;
+	min-height: 38px;
+	padding: 0 12px;
+	border-radius: 14px;
+	background: #f3f6fb;
+	color: var(--muted);
+	box-shadow: inset 0 0 0 1px var(--line);
+	cursor: pointer;
+	font-size: 12px;
+	font-weight: 700;
+}
+
+.segmented-field__option.is-active {
+	background: linear-gradient(180deg, #3d7bff 0%, #2f6df6 100%);
+	color: #fff;
+	box-shadow: none;
+}
+
 .value-chip {
 	justify-content: flex-start;
 	background: var(--surface-soft);

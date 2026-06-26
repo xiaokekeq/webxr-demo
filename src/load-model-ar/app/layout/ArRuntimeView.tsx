@@ -65,7 +65,6 @@ export function ArRuntimeView(props: {
 					<ArStatusBar
 						title={engine.projectName}
 						subtitle={subtitle}
-						debugSubtitle={engine.coarseLocationDebugText}
 						status={engine.arSessionPhase === 'ready-to-place' ? '点击放置' : getPhaseLabel( engine.arSessionPhase )}
 						onStatusClick={showPlacementUi ? () => void actions.placeModel() : undefined}
 						statusDisabled={engine.arSessionPhase !== 'ready-to-place'}
@@ -76,6 +75,7 @@ export function ArRuntimeView(props: {
 					<div className="guidance-card">
 						<h2>{guidance.title}</h2>
 						<p>{guidance.body}</p>
+						<div className="guidance-card__debug">{engine.coarseLocationDebugText}</div>
 					</div>
 				) : null}
 
@@ -85,6 +85,7 @@ export function ArRuntimeView(props: {
 						<div className="target-guidance-card__direction">{engine.targetGuidance.directionText}</div>
 						<div className="target-guidance-card__distance">{engine.targetGuidance.distanceText}</div>
 						<p>{engine.targetGuidance.detailText}</p>
+						<div className="target-guidance-card__debug">{engine.coarseLocationDebugText}</div>
 					</div>
 				) : null}
 

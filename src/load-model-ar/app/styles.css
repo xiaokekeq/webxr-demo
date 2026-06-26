@@ -512,15 +512,6 @@ textarea {
 	color: rgba(255, 255, 255, 0.84);
 }
 
-.topbar__debug {
-	margin-top: 4px;
-	max-width: min(72vw, 520px);
-	font-size: 11px;
-	line-height: 1.5;
-	color: rgba(255, 255, 255, 0.72);
-	word-break: break-word;
-}
-
 .status-pill {
 	background: rgba(255, 255, 255, 0.14);
 	color: #fff;
@@ -579,6 +570,16 @@ textarea {
 	color: rgba(255, 255, 255, 0.84);
 }
 
+.guidance-card__debug {
+	margin-top: 12px;
+	padding-top: 12px;
+	border-top: 1px solid rgba(255, 255, 255, 0.14);
+	font-size: 11px;
+	line-height: 1.6;
+	color: rgba(255, 255, 255, 0.72);
+	word-break: break-word;
+}
+
 .target-guidance-card {
 	position: fixed;
 	left: 16px;
@@ -631,6 +632,16 @@ textarea {
 	font-size: 13px;
 	line-height: 1.6;
 	color: #334155;
+}
+
+.target-guidance-card__debug {
+	margin-top: 10px;
+	padding-top: 10px;
+	border-top: 1px solid rgba(148, 163, 184, 0.28);
+	font-size: 11px;
+	line-height: 1.6;
+	color: #475569;
+	word-break: break-word;
 }
 
 .primary-bar {

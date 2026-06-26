@@ -65,6 +65,7 @@ export function ArRuntimeView(props: {
 					<ArStatusBar
 						title={engine.projectName}
 						subtitle={subtitle}
+						debugSubtitle={engine.coarseLocationDebugText}
 						status={engine.arSessionPhase === 'ready-to-place' ? '点击放置' : getPhaseLabel( engine.arSessionPhase )}
 						onStatusClick={showPlacementUi ? () => void actions.placeModel() : undefined}
 						statusDisabled={engine.arSessionPhase !== 'ready-to-place'}

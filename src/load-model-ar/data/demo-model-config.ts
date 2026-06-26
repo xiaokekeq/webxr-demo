@@ -4,6 +4,7 @@ import {
 	enuToGeodetic,
 	type GeodeticCoordinate
 } from '../registration/geodesy.js';
+import { convertGeodeticToWgs84 } from '../registration/coordinate-systems.js';
 
 export interface DemoModelLocalPoint {
 	x: number;
@@ -40,6 +41,15 @@ interface LegacyControlPointShape {
 	z: number;
 }
 
+interface RawGeodeticCoordinateShape {
+	lat: number;
+	lon?: number;
+	lng?: number;
+	alt?: number;
+	height?: number;
+	coordType?: string;
+}
+
 type PointLike = DemoModelLocalPoint | [ number, number, number ] | number[];
 
 interface LocalDebugOriginShape {
@@ -69,7 +79,10 @@ interface LocalDebugModelConfig {
 interface LegacyDemoModelConfig extends Omit<DemoModelConfig, 'siteFrame' | 'registration' | 'controlPoints'> {
 	siteFrame?: DemoModelConfig['siteFrame'];
 	registration?: DemoModelConfig['registration'];
-	controlPoints: Record<string, DemoModelControlPointCorrespondence | LegacyControlPointShape>;
+	controlPoints: Record<string, {
+		modelLocal: DemoModelLocalPoint;
+		world: RawGeodeticCoordinateShape;
+	} | LegacyControlPointShape>;
 }
 
 type RawDemoModelConfig = LegacyDemoModelConfig | LocalDebugModelConfig;
@@ -102,12 +115,15 @@ function normalizeDemoModelConfig(config: RawDemoModelConfig): DemoModelConfig {
 		return normalizeLocalDebugModelConfig( config );
 	}
 
-	const siteFrame = config.siteFrame ?? {
-		origin: {
-			lat: config.anchor.lat,
-			lon: config.anchor.lon,
-			alt: config.anchor.alt
-		},
+	const anchor = normalizeGeodeticShape( config.anchor as RawGeodeticCoordinateShape, 'anchor' );
+	const siteOrigin = normalizeGeodeticShape(
+		( config.siteFrame?.origin ?? config.anchor ) as RawGeodeticCoordinateShape,
+		'siteFrame.origin'
+	);
+
+	const siteFrame = {
+		...( config.siteFrame ?? {} ),
+		origin: siteOrigin,
 		axes: 'enu'
 	};
 
@@ -120,13 +136,16 @@ function normalizeDemoModelConfig(config: RawDemoModelConfig): DemoModelConfig {
 
 	for ( const [ id, point ] of Object.entries( config.controlPoints ) ) {
 		if ( isControlPointCorrespondence( point ) ) {
-			normalizedControlPoints[ id ] = point;
+			normalizedControlPoints[ id ] = {
+				modelLocal: point.modelLocal,
+				world: normalizeGeodeticShape( point.world, `${id}.world` )
+			};
 			continue;
 		}
 
 		normalizedControlPoints[ id ] = {
 			modelLocal: point,
-			world: synthesizeWorldControlPoint( point, config.anchor, config.yaw, config.scale )
+			world: synthesizeWorldControlPoint( point, anchor, config.yaw, config.scale )
 		};
 	}
 
@@ -134,9 +153,9 @@ function normalizeDemoModelConfig(config: RawDemoModelConfig): DemoModelConfig {
 		normalizedControlPoints.ORIGIN = {
 			modelLocal: { x: 0, y: 0, z: 0 },
 			world: {
-				lat: config.anchor.lat,
-				lon: config.anchor.lon,
-				alt: config.anchor.alt
+				lat: anchor.lat,
+				lon: anchor.lon,
+				alt: anchor.alt
 			}
 		};
 	}
@@ -144,7 +163,7 @@ function normalizeDemoModelConfig(config: RawDemoModelConfig): DemoModelConfig {
 	return {
 		modelId: config.modelId,
 		siteFrame,
-		anchor: config.anchor,
+		anchor,
 		yaw: config.yaw,
 		scale: config.scale,
 		registration,
@@ -336,11 +355,43 @@ function normalizeLocalDebugOrigin(origin: LocalDebugOriginShape): GeodeticCoord
 			? origin.alt
 			: 0;
 
-	return {
+	return convertGeodeticToWgs84( {
 		lat: origin.lat,
 		lon: origin.lng,
 		alt: altitude
-	};
+	}, origin.coordType );
+
+}
+
+function normalizeGeodeticShape(
+	coordinate: RawGeodeticCoordinateShape,
+	label: string
+): GeodeticCoordinate {
+
+	if ( typeof coordinate.lat !== 'number' ) {
+		throw new Error( `${label} is missing a valid latitude.` );
+	}
+
+	const longitude = typeof coordinate.lon === 'number'
+		? coordinate.lon
+		: typeof coordinate.lng === 'number'
+			? coordinate.lng
+			: null;
+	if ( longitude === null ) {
+		throw new Error( `${label} is missing a valid longitude.` );
+	}
+
+	const altitude = typeof coordinate.alt === 'number'
+		? coordinate.alt
+		: typeof coordinate.height === 'number'
+			? coordinate.height
+			: 0;
+
+	return convertGeodeticToWgs84( {
+		lat: coordinate.lat,
+		lon: longitude,
+		alt: altitude
+	}, coordinate.coordType );
 
 }
 

@@ -40,6 +40,7 @@ import { createDisplayModeController, preserveRootTransform } from './display-mo
 import { computeTargetGuidanceState } from './internal/placement/target-guidance.js';
 import { createARScene, resizeARScene } from './scene.js';
 import { createXRSessionRuntime } from './xr.js';
+import { formatGeodetic } from '../shared/formatters.js';
 
 const MAX_VISIBLE_AUTO_PLACEMENT_DISTANCE_METERS = 8;
 const MAX_RELIABLE_GPS_ACCURACY_METERS = 15;
@@ -127,6 +128,7 @@ function createInitialState(): RegistrationStoreState {
 		measurement: createDefaultMeasurementState(),
 		registrationStatusDetail: '状态：等待识别平面',
 		runtimeStatus: '正在准备 AR 工作区。',
+		coarseLocationDebugText: '手机 未获取 / 目标 -- / 精度 -- / 距离 --',
 		desktopPreviewBadge: DEFAULT_DESKTOP_PREVIEW_BADGE,
 		logMessages: []
 	};
@@ -382,8 +384,9 @@ export class ThreeEngine {
 						statusRuntime.setStatus( message );
 						this.emit();
 					},
-					target: createCoarseTargetFromEngineeringSolution( solution )
+						target: createCoarseTargetFromEngineeringSolution( solution )
 				} );
+				this.updateCoarseLocationDebugText();
 			},
 			onLoadManualRegistration: ( modelId ) => {
 				this.manualRegistration.load( modelId );
@@ -513,9 +516,11 @@ export class ThreeEngine {
 			void this.coarseRegistration.prime()
 				.then( () => {
 					this.appendLog( '粗配准传感器预热完成。' );
+					this.updateCoarseLocationDebugText();
 				} )
 				.catch( () => {
 					this.appendLog( '粗配准预热未能自动完成。' );
+					this.updateCoarseLocationDebugText();
 				} );
 		} catch ( error ) {
 			console.error( 'AR engine initialization failed:', error );
@@ -628,6 +633,7 @@ export class ThreeEngine {
 
 		try {
 			await this.coarseRegistration.enable();
+			this.updateCoarseLocationDebugText();
 			this.store.patch( { registrationStatusDetail: '状态：粗配准已启用' } );
 			this.syncArSessionPhase();
 		} catch ( error ) {
@@ -641,6 +647,7 @@ export class ThreeEngine {
 
 		try {
 			await this.coarseRegistration.refreshGeolocation();
+			this.updateCoarseLocationDebugText();
 			this.setStatus( this.coarseRegistration.getReadyMessage() );
 			this.syncArSessionPhase();
 		} catch ( error ) {
@@ -1019,6 +1026,36 @@ export class ThreeEngine {
 
 		this.currentStatus = message;
 		this.store.patch( { runtimeStatus: message } );
+
+	}
+
+	private updateCoarseLocationDebugText(): void {
+
+		const debugSnapshot = this.coarseRegistration.getDebugSnapshot();
+		const currentText = debugSnapshot.currentGeodetic === null
+			? '手机 未获取'
+			: `手机 ${formatGeodetic(
+				debugSnapshot.currentGeodetic.lat,
+				debugSnapshot.currentGeodetic.lon,
+				debugSnapshot.currentGeodetic.alt
+			)}`;
+		const targetText = debugSnapshot.targetGeodetic === null
+			? '目标 --'
+			: `目标 ${formatGeodetic(
+				debugSnapshot.targetGeodetic.lat,
+				debugSnapshot.targetGeodetic.lon,
+				debugSnapshot.targetGeodetic.alt
+			)}`;
+		const accuracyText = debugSnapshot.accuracyMeters === null
+			? '精度 --'
+			: `精度 ${Math.round( debugSnapshot.accuracyMeters )}m`;
+		const distanceText = debugSnapshot.distanceMeters === null
+			? '距离 --'
+			: `距离 ${Math.round( debugSnapshot.distanceMeters )}m`;
+
+		this.store.patch( {
+			coarseLocationDebugText: `${currentText} / ${targetText} / ${accuracyText} / ${distanceText}`
+		} );
 
 	}
 

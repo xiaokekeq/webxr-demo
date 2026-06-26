@@ -12,6 +12,22 @@ interface DeviceOrientationEventWithCompass extends DeviceOrientationEvent {
 	webkitCompassHeading?: number;
 }
 
+interface CoarseRegistrationDebugSnapshot {
+	currentGeodetic: {
+		lat: number;
+		lon: number;
+		alt: number;
+	} | null;
+	targetGeodetic: {
+		lat: number;
+		lon: number;
+		alt: number;
+	} | null;
+	accuracyMeters: number | null;
+	distanceMeters: number | null;
+	headingDeg: number | null;
+}
+
 const tempPosition = new THREE.Vector3();
 const tempEnuOffset = new THREE.Vector3();
 const tempArOffset = new THREE.Vector3();
@@ -271,12 +287,39 @@ export function createCoarseRegistrationController(
 
 	}
 
+	function getDebugSnapshot(): CoarseRegistrationDebugSnapshot {
+
+		const distanceMeters = getTargetOffsetEnu()?.length() ?? null;
+
+		return {
+			currentGeodetic: lastGeolocation === null
+				? null
+				: {
+					lat: lastGeolocation.coords.latitude,
+					lon: lastGeolocation.coords.longitude,
+					alt: lastGeolocation.coords.altitude ?? 0
+				},
+			targetGeodetic: target.mode === 'absolute-site'
+				? {
+					lat: target.latitude,
+					lon: target.longitude,
+					alt: target.altitude ?? 0
+				}
+				: null,
+			accuracyMeters: lastGeolocation?.coords.accuracy ?? null,
+			distanceMeters,
+			headingDeg: lastHeadingDeg
+		};
+
+	}
+
 	return {
 		prime,
 		enable,
 		refreshGeolocation,
 		canEstimate,
 		estimatePlacement,
+		getDebugSnapshot,
 		getReadyMessage,
 		getMissingRequirementMessage
 	};

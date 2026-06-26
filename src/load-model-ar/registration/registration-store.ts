@@ -108,6 +108,7 @@ export interface RegistrationStoreState {
 	measurement: MeasurementState;
 	registrationStatusDetail: string;
 	runtimeStatus: string;
+	coarseLocationDebugText: string;
 	desktopPreviewBadge: string;
 	logMessages: string[];
 }

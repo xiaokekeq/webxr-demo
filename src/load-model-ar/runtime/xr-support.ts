@@ -1,6 +1,4 @@
 import * as THREE from 'three';
-import { ARButton } from 'three/addons/webxr/ARButton.js';
-import type { ARButtonSessionInit } from 'three/addons/webxr/ARButton.js';
 import type { DepthSensingMode } from '../registration/registration-store.js';
 import type { SetStatus, XRHitTestController, XRHitTestQuality } from '../shared/types.js';
 
@@ -19,11 +17,17 @@ interface CreateXRHitTestControllerOptions {
 interface XRDepthSensingSessionInit {
 	depthSensing?: {
 		usagePreference: Array<'cpu-optimized' | 'gpu-optimized'>;
-		dataFormatPreference: Array<'luminance-alpha' | 'float32' | 'unsigned-short'>;
+		formatPreference: Array<'luminance-alpha' | 'float32' | 'unsigned-short'>;
 	};
 }
 
-type DepthAwareArButtonSessionInit = Partial<ARButtonSessionInit> & XRDepthSensingSessionInit;
+interface DepthAwareSessionInit extends XRDepthSensingSessionInit {
+	requiredFeatures?: string[];
+	optionalFeatures?: string[];
+	domOverlay?: {
+		root: HTMLElement;
+	};
+}
 
 const reticlePosition = new THREE.Vector3();
 const qualityCentroid = new THREE.Vector3();
@@ -43,7 +47,7 @@ export async function detectImmersiveArSupport(): Promise<ImmersiveArSupportInfo
 	if ( 'xr' in navigator === false || navigator.xr === undefined ) {
 		return {
 			supported: false,
-			message: '当前设备不支持 AR。可以继续查看模型与数据，但无法进入现场 AR 核查。'
+			message: '当前设备不支持 WebXR AR，可继续浏览模型，但无法进入 AR 会话。'
 		};
 	}
 
@@ -52,16 +56,16 @@ export async function detectImmersiveArSupport(): Promise<ImmersiveArSupportInfo
 		return supported
 			? {
 				supported: true,
-				message: '当前设备支持 AR。完成模型和阶段确认后，可点击进入 AR 开始现场核查。'
+				message: '当前设备支持 WebXR AR，确认模型后即可进入现场模式。'
 			}
 			: {
 				supported: false,
-				message: '当前设备不支持 AR。可以继续查看模型与数据，但无法进入现场 AR 核查。'
+				message: '当前设备不支持 WebXR AR，可继续浏览模型，但无法进入 AR 会话。'
 			};
 	} catch {
 		return {
 			supported: false,
-			message: 'AR 能力检测失败。当前无法启动现场 AR 核查。'
+			message: 'AR 能力检测失败，当前无法启动 AR 会话。'
 		};
 	}
 
@@ -88,12 +92,11 @@ export function createXRHitTestController(
 	let lastSuccessfulHitTime = 0;
 	let lastStableHitPosition: THREE.Vector3 | null = null;
 	let recentHitSamples: Array<{ position: THREE.Vector3; time: number }> = [];
-	let launchElement: HTMLElement | null = null;
 	let depthSensingMode = initialDepthSensingMode;
 
 	function setup(): void {
 
-		refreshLaunchElement();
+		xrButtonWrap.replaceChildren();
 		renderer.xr.addEventListener( 'sessionstart', handleSessionStart );
 		renderer.xr.addEventListener( 'sessionend', handleSessionEnd );
 
@@ -101,16 +104,7 @@ export function createXRHitTestController(
 
 	function setDepthSensingMode(mode: DepthSensingMode): void {
 
-		if ( depthSensingMode === mode ) {
-			return;
-		}
-
 		depthSensingMode = mode;
-		if ( renderer.xr.isPresenting ) {
-			return;
-		}
-
-		refreshLaunchElement();
 
 	}
 
@@ -156,9 +150,8 @@ export function createXRHitTestController(
 		lastSuccessfulHitTime = 0;
 		lastStableHitPosition = null;
 		recentHitSamples = [];
-		refreshLaunchElement();
 		onSessionEnd?.();
-		setStatus( 'AR 会话已结束，可再次点击进入 AR 重新开始。' );
+		setStatus( 'AR 会话已结束，可再次进入 AR。' );
 
 	}
 
@@ -201,7 +194,7 @@ export function createXRHitTestController(
 		pushHitSample( reticlePosition, lastSuccessfulHitTime );
 
 		if ( canReportStatus?.() !== false ) {
-			setStatus( '已找到可用平面，可继续观察地面或墙面上的命中效果。' );
+			setStatus( '已找到可用平面，可继续观察地面或墙面的命中效果。' );
 		}
 
 	}
@@ -297,20 +290,35 @@ export function createXRHitTestController(
 		hasGroundHit,
 		getHitPosition,
 		getHitTestQuality,
-		requestSession() {
+		async requestSession() {
 
-			launchElement?.click();
+			if ( renderer.xr.isPresenting ) {
+				return;
+			}
+
+			if ( navigator.xr === undefined ) {
+				setStatus( '当前设备未提供 WebXR 接口。' );
+				return;
+			}
+
+			try {
+				const session = await navigator.xr.requestSession(
+					'immersive-ar',
+					createSessionInit( depthSensingMode )
+				);
+				renderer.xr.setReferenceSpaceType( 'local' );
+				await renderer.xr.setSession( session );
+			} catch ( error ) {
+				console.error( 'XR session request failed:', error );
+				setStatus(
+					error instanceof Error
+						? `AR 会话启动失败：${error.message}`
+						: 'AR 会话启动失败。'
+				);
+			}
 
 		}
 	};
-
-	function refreshLaunchElement(): void {
-
-		launchElement?.remove();
-		launchElement = ARButton.createButton( renderer, createSessionInit( depthSensingMode ) );
-		xrButtonWrap.appendChild( launchElement );
-
-	}
 
 	function pushHitSample(position: THREE.Vector3, time: number): void {
 
@@ -337,9 +345,9 @@ export function createXRHitTestController(
 
 }
 
-function createSessionInit(mode: DepthSensingMode): DepthAwareArButtonSessionInit {
+function createSessionInit(mode: DepthSensingMode): DepthAwareSessionInit {
 
-	const sessionInit: DepthAwareArButtonSessionInit = {
+	const sessionInit: DepthAwareSessionInit = {
 		requiredFeatures: [ 'hit-test' ],
 		optionalFeatures: [ 'dom-overlay' ],
 		domOverlay: { root: document.body }
@@ -352,7 +360,7 @@ function createSessionInit(mode: DepthSensingMode): DepthAwareArButtonSessionIni
 	sessionInit.optionalFeatures = [ 'dom-overlay', 'depth-sensing' ];
 	sessionInit.depthSensing = {
 		usagePreference: getDepthUsagePreference( mode ),
-		dataFormatPreference: mode === 'cpu'
+		formatPreference: mode === 'cpu'
 			? [ 'float32', 'luminance-alpha' ]
 			: [ 'luminance-alpha', 'float32' ]
 	};

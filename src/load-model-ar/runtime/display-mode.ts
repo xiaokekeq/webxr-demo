@@ -15,6 +15,7 @@ interface MaterialSnapshot {
 	opacity: number;
 	depthWrite: boolean;
 	depthTest: boolean;
+	side: THREE.Side;
 }
 
 const DISPLAY_MODE_TAGS = {
@@ -138,7 +139,8 @@ export function createDisplayModeController(
 						transparent: material.transparent,
 						opacity: material.opacity,
 						depthWrite: material.depthWrite,
-						depthTest: material.depthTest
+						depthTest: material.depthTest,
+						side: material.side
 					} );
 				} );
 			}
@@ -223,6 +225,7 @@ export function createDisplayModeController(
 			item.opacity = Math.min( item.opacity, XRAY_OPACITY );
 			item.depthWrite = false;
 			item.depthTest = true;
+			item.side = THREE.FrontSide;
 			item.needsUpdate = true;
 		} );
 
@@ -240,6 +243,7 @@ export function createDisplayModeController(
 			item.opacity = snapshot.opacity;
 			item.depthWrite = snapshot.depthWrite;
 			item.depthTest = snapshot.depthTest;
+			item.side = snapshot.side;
 			item.needsUpdate = true;
 		} );
 
@@ -255,7 +259,8 @@ export function createDisplayModeController(
 			transparent: material.transparent,
 			opacity: material.opacity,
 			depthWrite: material.depthWrite,
-			depthTest: material.depthTest
+			depthTest: material.depthTest,
+			side: material.side
 		} );
 
 	}

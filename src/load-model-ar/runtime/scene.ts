@@ -40,10 +40,15 @@ export function createARScene(canvasContainer: HTMLElement): ARSceneBundle {
 	const reticle = createReticle();
 	scene.add( reticle );
 
-	const modelAnchor = new THREE.Group();
-	scene.add( modelAnchor );
+	const previewModelAnchor = new THREE.Group();
+	previewModelAnchor.name = '__preview-model-anchor';
+	scene.add( previewModelAnchor );
 
-	return { scene, camera, renderer, controls, reticle, modelAnchor };
+	const arModelAnchor = new THREE.Group();
+	arModelAnchor.name = '__ar-model-anchor';
+	scene.add( arModelAnchor );
+
+	return { scene, camera, renderer, controls, reticle, previewModelAnchor, arModelAnchor };
 
 }
 

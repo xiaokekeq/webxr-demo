@@ -25,7 +25,8 @@ export interface PropertySelectionController {
 	): THREE.Object3D;
 	selectBusinessObject(
 		businessObject: THREE.Object3D,
-		properties: PipeRecord | null
+		properties: PipeRecord | null,
+		highlightObject?: THREE.Object3D
 	): PropertySelectionResult;
 }
 
@@ -55,6 +56,10 @@ export function createPropertySelectionController(
 					fallback = current;
 				}
 
+				if ( current.userData.__layerSelectable === true ) {
+					return current;
+				}
+
 				if ( current.name && pipesByName.has( current.name ) ) {
 					return current;
 				}
@@ -66,11 +71,12 @@ export function createPropertySelectionController(
 
 		},
 
-		selectBusinessObject(businessObject, properties) {
+		selectBusinessObject(businessObject, properties, highlightObject) {
 
 			clearSelection();
 
-			businessObject.traverse( ( child ) => {
+			const highlightRoot = highlightObject ?? businessObject;
+			highlightRoot.traverse( ( child ) => {
 				if ( child instanceof THREE.Mesh ) {
 					selectedMeshes.push( child );
 					child.userData.__originalMaterial = child.material;
@@ -89,7 +95,7 @@ export function createPropertySelectionController(
 				}
 			} );
 
-			const businessName = businessObject.name || 'UnnamedObject';
+			const businessName = getBusinessName( businessObject );
 			store.patch( {
 				propertyPanel: {
 					name: businessName,
@@ -161,6 +167,17 @@ export function createPropertySelectionController(
 		outline.raycast = () => {};
 
 		return outline;
+
+	}
+
+	function getBusinessName(object: THREE.Object3D): string {
+
+		const userDataBusinessName = object.userData.__businessName;
+		if ( typeof userDataBusinessName === 'string' && userDataBusinessName.length > 0 ) {
+			return userDataBusinessName;
+		}
+
+		return object.name || 'UnnamedObject';
 
 	}
 

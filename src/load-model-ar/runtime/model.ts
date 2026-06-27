@@ -357,23 +357,245 @@ function splitMeshByMaterialGroups(mesh: THREE.Mesh): void {
 			continue;
 		}
 
-		const geometry = mesh.geometry.clone();
-		geometry.clearGroups();
-		for ( const group of groups ) {
-			geometry.addGroup( group.start, group.count, 0 );
+		const mergedGeometry = extractGeometryForMaterialGroups( mesh.geometry, groups );
+		if ( mergedGeometry === null ) {
+			continue;
 		}
 
-		const childMesh = new THREE.Mesh( geometry, material );
-		childMesh.name = createSplitLayerName( mesh.name, material, materialIndex );
-		childMesh.visible = mesh.visible;
-		childMesh.castShadow = mesh.castShadow;
-		childMesh.receiveShadow = mesh.receiveShadow;
-		replacementRoot.add( childMesh );
+		const componentGeometries = splitGeometryIntoConnectedComponents( mergedGeometry );
+		for ( let componentIndex = 0; componentIndex < componentGeometries.length; componentIndex ++ ) {
+			const layerName = createSplitLayerName( mesh.name, material, materialIndex );
+			const componentName = componentGeometries.length === 1
+				? layerName
+				: `${layerName}__part_${String( componentIndex + 1 ).padStart( 2, '0' )}`;
+			const layerId = componentName;
+			const isSelectableLayer = shouldTreatAsSelectableLayer( componentGeometries[ componentIndex ] );
+			const layerRoot = new THREE.Group();
+			layerRoot.name = componentName;
+			layerRoot.visible = mesh.visible;
+			layerRoot.userData = {
+				...mesh.userData,
+				__layerId: layerId,
+				__businessName: layerName,
+				__layerSelectable: isSelectableLayer,
+				__excludeFromLayerIndex: isSelectableLayer === false
+			};
+
+			const childMaterial = cloneMaterialWithTextures( material );
+			const childMesh = new THREE.Mesh( componentGeometries[ componentIndex ], childMaterial );
+			childMesh.name = '';
+			childMesh.visible = mesh.visible;
+			childMesh.castShadow = mesh.castShadow;
+			childMesh.receiveShadow = mesh.receiveShadow;
+			childMesh.userData = {
+				...mesh.userData,
+				__layerId: layerId,
+				__businessName: layerName,
+				__excludeFromLayerIndex: isSelectableLayer === false
+			};
+			layerRoot.add( childMesh );
+
+			replacementRoot.add( layerRoot );
+		}
 	}
+
+	if ( replacementRoot.children.length === 0 ) {
+		return;
+	}
+
+	replacementRoot.userData = { ...mesh.userData };
 
 	const parent = mesh.parent;
 	parent.add( replacementRoot );
 	parent.remove( mesh );
+
+}
+
+function shouldTreatAsSelectableLayer(geometry: THREE.BufferGeometry): boolean {
+
+	geometry.computeBoundingBox();
+	const bounds = geometry.boundingBox;
+	if ( bounds === null ) {
+		return true;
+	}
+
+	const height = bounds.max.y - bounds.min.y;
+	const triangleCount = geometry.getIndex()?.count !== undefined
+		? geometry.getIndex()!.count / 3
+		: geometry.getAttribute( 'position' ).count / 3;
+
+	// Ignore the degenerate flat cap/base patch; users treat the terrain shell as 8 layers.
+	if ( height <= 1e-5 && triangleCount <= 2 ) {
+		return false;
+	}
+
+	return true;
+
+}
+
+function extractGeometryForMaterialGroups(
+	sourceGeometry: THREE.BufferGeometry,
+	groups: THREE.BufferGeometry['groups']
+): THREE.BufferGeometry | null {
+
+	const geometry = sourceGeometry.clone();
+	const sourceIndex = sourceGeometry.getIndex();
+	const nextIndex: number[] = [];
+
+	for ( const group of groups ) {
+		const groupEnd = group.start + group.count;
+		for ( let i = group.start; i < groupEnd; i ++ ) {
+			nextIndex.push( sourceIndex === null ? i : sourceIndex.getX( i ) );
+		}
+	}
+
+	if ( nextIndex.length === 0 ) {
+		geometry.dispose();
+		return null;
+	}
+
+	geometry.clearGroups();
+	geometry.setIndex( nextIndex );
+	geometry.computeBoundingBox();
+	geometry.computeBoundingSphere();
+
+	return geometry;
+
+}
+
+function splitGeometryIntoConnectedComponents(sourceGeometry: THREE.BufferGeometry): THREE.BufferGeometry[] {
+
+	const sourceIndex = sourceGeometry.getIndex();
+	const positionAttribute = sourceGeometry.getAttribute( 'position' );
+	if ( sourceIndex === null || positionAttribute === undefined ) {
+		return [ sourceGeometry ];
+	}
+
+	if ( sourceIndex.count % 3 !== 0 ) {
+		return [ sourceGeometry ];
+	}
+
+	const triangleCount = sourceIndex.count / 3;
+	const edgeToTriangles = new Map<string, number[]>();
+	const triangleEdges: string[][] = Array.from( { length: triangleCount }, () => [] );
+	const positionKeyCache = new Map<number, string>();
+
+	for ( let triangleIndex = 0; triangleIndex < triangleCount; triangleIndex ++ ) {
+		const triangleStart = triangleIndex * 3;
+		const vertexIndices = [
+			sourceIndex.getX( triangleStart ),
+			sourceIndex.getX( triangleStart + 1 ),
+			sourceIndex.getX( triangleStart + 2 )
+		];
+		const positionKeys = vertexIndices.map( ( vertexIndex ) => {
+			const cachedKey = positionKeyCache.get( vertexIndex );
+			if ( cachedKey !== undefined ) {
+				return cachedKey;
+			}
+
+			const key = createPositionKey( positionAttribute, vertexIndex );
+			positionKeyCache.set( vertexIndex, key );
+			return key;
+		} );
+
+		const edgeKeys = [
+			createEdgeKey( positionKeys[ 0 ], positionKeys[ 1 ] ),
+			createEdgeKey( positionKeys[ 1 ], positionKeys[ 2 ] ),
+			createEdgeKey( positionKeys[ 2 ], positionKeys[ 0 ] )
+		];
+		triangleEdges[ triangleIndex ] = edgeKeys;
+
+		for ( const edgeKey of edgeKeys ) {
+			const connectedTriangles = edgeToTriangles.get( edgeKey ) ?? [];
+			connectedTriangles.push( triangleIndex );
+			edgeToTriangles.set( edgeKey, connectedTriangles );
+		}
+	}
+
+	const visitedTriangles = new Uint8Array( triangleCount );
+	const components: number[][] = [];
+
+	for ( let triangleIndex = 0; triangleIndex < triangleCount; triangleIndex ++ ) {
+		if ( visitedTriangles[ triangleIndex ] === 1 ) {
+			continue;
+		}
+
+		const queue = [ triangleIndex ];
+		visitedTriangles[ triangleIndex ] = 1;
+		const component: number[] = [];
+
+		while ( queue.length > 0 ) {
+			const currentTriangle = queue.pop();
+			if ( currentTriangle === undefined ) {
+				continue;
+			}
+
+			component.push( currentTriangle );
+			const edges = triangleEdges[ currentTriangle ];
+
+			for ( const edgeKey of edges ) {
+				const neighbors = edgeToTriangles.get( edgeKey );
+				if ( neighbors === undefined ) {
+					continue;
+				}
+
+				for ( const neighborTriangle of neighbors ) {
+					if ( visitedTriangles[ neighborTriangle ] === 1 ) {
+						continue;
+					}
+
+					visitedTriangles[ neighborTriangle ] = 1;
+					queue.push( neighborTriangle );
+				}
+			}
+		}
+
+		components.push( component );
+	}
+
+	if ( components.length <= 1 ) {
+		return [ sourceGeometry ];
+	}
+
+	const componentGeometries: THREE.BufferGeometry[] = [];
+	for ( const component of components ) {
+		const componentGeometry = sourceGeometry.clone();
+		const componentIndices: number[] = [];
+
+		for ( const triangleIndex of component ) {
+			const triangleStart = triangleIndex * 3;
+			componentIndices.push(
+				sourceIndex.getX( triangleStart ),
+				sourceIndex.getX( triangleStart + 1 ),
+				sourceIndex.getX( triangleStart + 2 )
+			);
+		}
+
+		componentGeometry.clearGroups();
+		componentGeometry.setIndex( componentIndices );
+		componentGeometry.computeBoundingBox();
+		componentGeometry.computeBoundingSphere();
+		componentGeometries.push( componentGeometry );
+	}
+
+	sourceGeometry.dispose();
+	return componentGeometries;
+
+}
+
+function createPositionKey(positionAttribute: THREE.BufferAttribute | THREE.InterleavedBufferAttribute, index: number): string {
+
+	return [
+		positionAttribute.getX( index ).toFixed( 6 ),
+		positionAttribute.getY( index ).toFixed( 6 ),
+		positionAttribute.getZ( index ).toFixed( 6 )
+	].join( '|' );
+
+}
+
+function createEdgeKey(a: string, b: string): string {
+
+	return a < b ? `${a}>>${b}` : `${b}>>${a}`;
 
 }
 
@@ -391,6 +613,37 @@ function createSplitLayerName(
 	return `${baseName}__material_${String( materialIndex ).padStart( 2, '0' )}`;
 
 }
+
+function cloneMaterialWithTextures(material: THREE.Material): THREE.Material {
+
+	const clonedMaterial = material.clone();
+
+	for ( const textureKey of TEXTURE_PROPERTY_KEYS ) {
+		const sourceTexture = clonedMaterial[ textureKey ];
+		if ( sourceTexture instanceof THREE.Texture ) {
+			clonedMaterial[ textureKey ] = sourceTexture.clone();
+		}
+	}
+
+	clonedMaterial.needsUpdate = true;
+	return clonedMaterial;
+
+}
+
+const TEXTURE_PROPERTY_KEYS = [
+	'map',
+	'alphaMap',
+	'aoMap',
+	'bumpMap',
+	'displacementMap',
+	'emissiveMap',
+	'envMap',
+	'lightMap',
+	'metalnessMap',
+	'normalMap',
+	'roughnessMap',
+	'specularMap'
+] as const;
 
 export function placeModelAt(
 	modelTemplate: THREE.Group,

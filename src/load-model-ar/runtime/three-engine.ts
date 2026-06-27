@@ -307,7 +307,7 @@ export class ThreeEngine {
 			store: this.store,
 			isPresenting: () => this.sceneBundle.renderer.xr.isPresenting,
 			hasGroundHit: () => this.xrRuntime.getHitTestController().hasGroundHit(),
-			hasPlacedModel: () => this.placementSession.getPlacedModel() !== null,
+			hasPlacedModel: () => this.placementSession.getArPlacedModel() !== null,
 			isCoarsePlacementPending: () => this.placementSession.getCoarsePlacementPending()
 		} );
 
@@ -418,7 +418,7 @@ export class ThreeEngine {
 				this.handleXRSessionEnd();
 			},
 			canReportStatus: () => (
-				this.placementSession.getPlacedModel() === null
+				this.placementSession.getArPlacedModel() === null
 				&& this.placementSession.getCoarsePlacementPending() === false
 			),
 			onAttemptCoarsePlacement: () => {
@@ -1365,6 +1365,8 @@ export class ThreeEngine {
 
 	private syncSceneHost(): void {
 
+		this.sceneBundle.previewModelAnchor.visible = this.sceneBundle.renderer.xr.isPresenting === false;
+		this.sceneBundle.arModelAnchor.visible = this.sceneBundle.renderer.xr.isPresenting;
 		this.sceneHostRuntime.sync( {
 			isDesktopLayout: this.isDesktopLayout,
 			appMode: this.store.getState().appMode
@@ -1512,7 +1514,8 @@ export class ThreeEngine {
 
 	private applyModelLayerVisibility(): void {
 
-		this.layerVisibility.applyToRoot( this.placementSession.getPlacedModel() );
+		this.layerVisibility.applyToRoot( this.placementSession.getPreviewPlacedModel() );
+		this.layerVisibility.applyToRoot( this.placementSession.getArPlacedModel() );
 		const modelLayers = this.layerVisibility.getState();
 		this.store.patch( {
 			layerNames: modelLayers.length > 0

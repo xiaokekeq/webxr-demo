@@ -40,6 +40,8 @@ interface CreatePlacementSessionOptions {
 
 export interface PlacementSession {
 	getPlacedModel(): THREE.Group | null;
+	getPreviewPlacedModel(): THREE.Group | null;
+	getArPlacedModel(): THREE.Group | null;
 	getPlacementBase(): ManualPlacementBase | null;
 	getCoarsePlacementPending(): boolean;
 	markCoarsePlacementPending(): void;
@@ -109,26 +111,52 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 		previewPlacementDistanceMeters
 	} = options;
 
-	let placedModel: THREE.Group | null = null;
-	let lastPlacementBase: ManualPlacementBase | null = null;
+	let previewPlacedModel: THREE.Group | null = null;
+	let arPlacedModel: THREE.Group | null = null;
+	let previewPlacementBase: ManualPlacementBase | null = null;
+	let arPlacementBase: ManualPlacementBase | null = null;
 	let coarsePlacementPending = false;
+
+	function getActivePlacedModel(): THREE.Group | null {
+
+		return sceneBundle.renderer.xr.isPresenting ? arPlacedModel : previewPlacedModel;
+
+	}
+
+	function getActivePlacementBase(): ManualPlacementBase | null {
+
+		return sceneBundle.renderer.xr.isPresenting ? arPlacementBase : previewPlacementBase;
+
+	}
 
 	function updatePlacementSummary(): void {
 
-		store.patch( { placementSummary: createPlacementSummaryState( placedModel ) } );
+		store.patch( { placementSummary: createPlacementSummaryState( getActivePlacedModel() ) } );
 
 	}
 
 	return {
 		getPlacedModel() {
 
-			return placedModel;
+			return getActivePlacedModel();
+
+		},
+
+		getPreviewPlacedModel() {
+
+			return previewPlacedModel;
+
+		},
+
+		getArPlacedModel() {
+
+			return arPlacedModel;
 
 		},
 
 		getPlacementBase() {
 
-			return lastPlacementBase;
+			return getActivePlacementBase();
 
 		},
 
@@ -146,9 +174,11 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 
 		resetPlacement() {
 
-			placedModel = clearPlacedModel( sceneBundle.modelAnchor, placedModel );
+			previewPlacedModel = clearPlacedModel( sceneBundle.previewModelAnchor, previewPlacedModel );
+			arPlacedModel = clearPlacedModel( sceneBundle.arModelAnchor, arPlacedModel );
 			coarsePlacementPending = false;
-			lastPlacementBase = null;
+			previewPlacementBase = null;
+			arPlacementBase = null;
 			propertySelection.clearSelection();
 			store.patch( { desktopPreviewBadge: defaultDesktopPreviewBadge } );
 			updatePlacementSummary();
@@ -216,7 +246,7 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 			const previewPlacementRequested = store.getState().autoPreviewPlacementEnabled;
 			const usePreviewPlacement = previewPlacementRequested;
 
-			lastPlacementBase = createAutoPlacementBase( {
+			arPlacementBase = createAutoPlacementBase( {
 				camera: sceneBundle.camera,
 				cameraWorldPosition,
 				groundY: groundPosition.y,
@@ -228,17 +258,17 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 				previewDistanceMeters: previewPlacementDistanceMeters,
 				usePreviewPlacement
 			} );
-			onPlacementBaseResolved?.( lastPlacementBase );
+			onPlacementBaseResolved?.( arPlacementBase );
 			const adjustedPlacement = manualApplyToPlacement(
-				lastPlacementBase,
+				arPlacementBase,
 				manualPositionTarget,
 				manualOrientationTarget
 			);
 
-			placedModel = placeAdjustedModel( {
+			arPlacedModel = placeAdjustedModel( {
 				modelTemplate,
-				placedModel,
-				modelAnchor: sceneBundle.modelAnchor,
+				placedModel: arPlacedModel,
+				modelAnchor: sceneBundle.arModelAnchor,
 				adjustedPlacement
 			} );
 
@@ -274,11 +304,11 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 
 		applyPrecisionRegistrationResult(result) {
 
-			if ( lastPlacementBase === null ) {
+			if ( arPlacementBase === null ) {
 				return;
 			}
 
-			lastPlacementBase = transformPlacementBase( lastPlacementBase, result );
+			arPlacementBase = transformPlacementBase( arPlacementBase, result );
 			updatePlacementSummary();
 
 		},
@@ -293,7 +323,9 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 				registrationSolution
 			} = args;
 
-			if ( placedModel === null || modelTemplate === null || lastPlacementBase === null ) {
+			const activePlacedModel = getActivePlacedModel();
+			const activePlacementBase = getActivePlacementBase();
+			if ( activePlacedModel === null || modelTemplate === null || activePlacementBase === null ) {
 				if ( canUsePreviewLayout() ) {
 					this.ensureDesktopPreviewPlacement( {
 						modelTemplate,
@@ -307,17 +339,26 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 			}
 
 			const adjustedPlacement = manualApplyToPlacement(
-				lastPlacementBase,
+				activePlacementBase,
 				manualPositionTarget,
 				manualOrientationTarget
 			);
 
-			placedModel = placeAdjustedModel( {
-				modelTemplate,
-				placedModel,
-				modelAnchor: sceneBundle.modelAnchor,
-				adjustedPlacement
-			} );
+			if ( sceneBundle.renderer.xr.isPresenting ) {
+				arPlacedModel = placeAdjustedModel( {
+					modelTemplate,
+					placedModel: arPlacedModel,
+					modelAnchor: sceneBundle.arModelAnchor,
+					adjustedPlacement
+				} );
+			} else {
+				previewPlacedModel = placeAdjustedModel( {
+					modelTemplate,
+					placedModel: previewPlacedModel,
+					modelAnchor: sceneBundle.previewModelAnchor,
+					adjustedPlacement
+				} );
+			}
 
 			updatePlacementSummary();
 
@@ -337,17 +378,17 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 				return;
 			}
 
-			lastPlacementBase = createDesktopPreviewBase( modelTemplate, registrationSolution );
+			previewPlacementBase = createDesktopPreviewBase( modelTemplate, registrationSolution );
 			const adjustedPlacement = manualApplyToPlacement(
-				lastPlacementBase,
+				previewPlacementBase,
 				manualPositionTarget,
 				manualOrientationTarget
 			);
 
-			placedModel = placeAdjustedModel( {
+			previewPlacedModel = placeAdjustedModel( {
 				modelTemplate,
-				placedModel,
-				modelAnchor: sceneBundle.modelAnchor,
+				placedModel: previewPlacedModel,
+				modelAnchor: sceneBundle.previewModelAnchor,
 				adjustedPlacement
 			} );
 
@@ -358,14 +399,14 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 
 		fitDesktopPreviewToCamera() {
 
-			if ( canUsePreviewLayout() === false || placedModel === null ) {
+			if ( canUsePreviewLayout() === false || previewPlacedModel === null ) {
 				return;
 			}
 
 			fitDesktopPreviewCamera( {
 				camera: sceneBundle.camera,
 				controls: sceneBundle.controls,
-				placedModel,
+				placedModel: previewPlacedModel,
 				previewDirection
 			} );
 

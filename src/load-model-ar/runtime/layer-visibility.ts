@@ -8,19 +8,13 @@ interface LayerDefinition {
 	orderIndex: number;
 }
 
-interface ManagedMaterialSnapshot {
-	transparent: boolean;
-	opacity: number;
-	depthWrite: boolean;
-	depthTest: boolean;
+interface RankedLayerDefinition {
+	id: string;
+	label: string;
+	averageY: number;
 }
 
-interface ManagedMaterialState {
-	materials: THREE.Material[];
-	snapshots: ManagedMaterialSnapshot[];
-}
-
-type NamedObjectGroups = Map<string, THREE.Object3D[]>;
+type LayerObjectGroups = Map<string, THREE.Object3D[]>;
 
 export interface LayerVisibilityController {
 	rebuild(options: {
@@ -34,9 +28,8 @@ export interface LayerVisibilityController {
 	applyToRoot(root: THREE.Group | null): void;
 }
 
-const tempBounds = new THREE.Box3();
-const tempObjectNames = new Map<string, THREE.Object3D[]>();
-const tempObjectBounds = new THREE.Box3();
+const tempLayerObjects = new Map<string, THREE.Object3D[]>();
+const tempWorldVertex = new THREE.Vector3();
 
 export function createLayerVisibilityController(): LayerVisibilityController {
 
@@ -86,27 +79,17 @@ export function createLayerVisibilityController(): LayerVisibilityController {
 			}
 
 			const layerState = getState();
-			const visibleLayers = layerState.filter( ( layer ) => layer.visible );
-			const objectByName = indexNamedObjects( root );
+			const objectsByLayerId = indexObjectsByLayerId( root );
 
 			for ( const layer of layerState ) {
-				const objects = objectByName.get( layer.id );
+				const objects = objectsByLayerId.get( layer.id );
 				if ( objects === undefined ) {
 					continue;
 				}
 
 				for ( const object of objects ) {
-					object.visible = true;
+					object.visible = layer.visible;
 					object.userData.__layerHidden = layer.visible === false;
-					object.traverse( ( child ) => {
-						if ( child instanceof THREE.Mesh ) {
-							applyMeshOpacity(
-								child,
-								layer.visible ? layer.opacity : 0,
-								visibleLayers.length
-							);
-						}
-					} );
 				}
 			}
 
@@ -115,22 +98,14 @@ export function createLayerVisibilityController(): LayerVisibilityController {
 
 	function getState(): ModelLayerState[] {
 
-		const visibleIds = layerDefinitions
-			.filter( ( layer ) => hiddenLayerIds.includes( layer.id ) === false )
-			.map( ( layer ) => layer.id );
-		const visibleCount = visibleIds.length;
-
 		return layerDefinitions.map( ( layer ) => {
 			const visible = hiddenLayerIds.includes( layer.id ) === false;
-			const visibleIndex = visible ? visibleIds.indexOf( layer.id ) : -1;
 
 			return {
 				id: layer.id,
 				label: layer.label,
 				visible,
-				opacity: visible
-					? computeVisibleLayerOpacity( visibleIndex, visibleCount )
-					: 0,
+				opacity: visible ? 1 : 0,
 				orderIndex: layer.orderIndex
 			};
 		} );
@@ -148,38 +123,33 @@ function buildLayerDefinitions(
 		return [];
 	}
 
-	const objectByName = indexNamedObjects( modelRoot );
-	const pipeLayers = Array.from( pipesByName.entries() )
-		.map( ( [ name, properties ] ) => {
-			const objects = objectByName.get( name );
-			if ( objects === undefined ) {
+	const selectableObjects = listSelectableLayerObjects( modelRoot );
+	const selectableLayers = selectableObjects
+		.map( ( object ) => {
+			const layerId = getLayerIdForObject( object );
+			if ( layerId === null ) {
 				return null;
 			}
 
-			const bounds = tempBounds.makeEmpty();
-			for ( const object of objects ) {
-				tempObjectBounds.makeEmpty().setFromObject( object );
-				if ( tempObjectBounds.isEmpty() ) {
-					continue;
-				}
-
-				bounds.union( tempObjectBounds );
-			}
-			if ( bounds.isEmpty() ) {
+			const averageY = computeObjectAverageY( object );
+			if ( averageY === null ) {
 				return null;
 			}
+
+			const businessName = getBusinessNameForObject( object ) ?? layerId;
+			const properties = pipesByName.get( businessName );
 
 			return {
-				id: name,
-				label: createLayerLabel( name, properties ),
-				topY: bounds.max.y
+				id: layerId,
+				label: createDisplayLayerLabel( layerId, businessName, properties ),
+				averageY
 			};
 		} )
 		.filter( ( item ): item is NonNullable<typeof item> => item !== null );
 
-	if ( pipeLayers.length > 0 ) {
-		return pipeLayers
-			.sort( ( a, b ) => b.topY - a.topY )
+	if ( selectableLayers.length > 0 ) {
+		return selectableLayers
+			.sort( compareLayerVerticalOrder )
 			.map( ( layer, index ) => ( {
 				id: layer.id,
 				label: layer.label,
@@ -187,40 +157,132 @@ function buildLayerDefinitions(
 			} ) );
 	}
 
-	return Array.from( objectByName.entries() )
-		.map( ( [ name, objects ] ) => {
-			const rootLevelObjects = objects.filter( ( object ) => object.parent === modelRoot && object.name.length > 0 );
-			if ( rootLevelObjects.length === 0 ) {
+	return modelRoot.children
+		.map( ( object ) => {
+			if ( object.name.length === 0 ) {
 				return null;
 			}
 
-			const bounds = tempBounds.makeEmpty();
-			for ( const object of rootLevelObjects ) {
-				tempObjectBounds.makeEmpty().setFromObject( object );
-				if ( tempObjectBounds.isEmpty() ) {
-					continue;
-				}
-
-				bounds.union( tempObjectBounds );
-			}
-			if ( bounds.isEmpty() ) {
+			const averageY = computeObjectAverageY( object );
+			if ( averageY === null ) {
 				return null;
 			}
 
 			return {
-				id: name,
-				label: name,
-				topY: bounds.max.y
+				id: object.name,
+				label: object.name,
+				averageY
 			};
 		} )
 		.filter( ( item ): item is NonNullable<typeof item> => item !== null )
-		.filter( ( item ) => Number.isFinite( item.topY ) )
-		.sort( ( a, b ) => b.topY - a.topY )
+		.filter( ( item ) => Number.isFinite( item.averageY ) )
+		.sort( compareLayerVerticalOrder )
 		.map( ( layer, index ) => ( {
 			id: layer.id,
 			label: layer.label,
 			orderIndex: index
 		} ) );
+
+}
+
+function createDisplayLayerLabel(
+	objectName: string,
+	businessName: string,
+	properties: PipeRecord | undefined
+): string {
+
+	const baseLabel = properties === undefined
+		? businessName
+		: createLayerLabel( businessName, properties );
+
+	if ( objectName === businessName ) {
+		return baseLabel;
+	}
+
+	const partMatch = /__part_(\d+)$/i.exec( objectName );
+	if ( partMatch !== null ) {
+		return `${baseLabel} #${String( Number( partMatch[ 1 ] ) )}`;
+	}
+
+	return objectName;
+
+}
+
+function compareLayerVerticalOrder(a: RankedLayerDefinition, b: RankedLayerDefinition): number {
+
+	return b.averageY - a.averageY;
+
+}
+
+function computeObjectAverageY(object: THREE.Object3D): number | null {
+
+	let totalY = 0;
+	let triangleCount = 0;
+
+	object.updateWorldMatrix( true, true );
+	object.traverse( ( child ) => {
+		if ( isExcludedFromLayerIndex( child ) || ( child instanceof THREE.Mesh ) === false ) {
+			return;
+		}
+
+		const position = child.geometry.getAttribute( 'position' );
+		if ( position === undefined ) {
+			return;
+		}
+
+		const index = child.geometry.getIndex();
+		const currentTriangleCount = index === null
+			? Math.floor( position.count / 3 )
+			: Math.floor( index.count / 3 );
+
+		for ( let triangleIndex = 0; triangleIndex < currentTriangleCount; triangleIndex ++ ) {
+			const indexOffset = triangleIndex * 3;
+			const a = index === null ? indexOffset : index.getX( indexOffset );
+			const b = index === null ? indexOffset + 1 : index.getX( indexOffset + 1 );
+			const c = index === null ? indexOffset + 2 : index.getX( indexOffset + 2 );
+
+			totalY += (
+				getWorldVertexY( position, a, child.matrixWorld )
+				+ getWorldVertexY( position, b, child.matrixWorld )
+				+ getWorldVertexY( position, c, child.matrixWorld )
+			) / 3;
+		}
+
+		triangleCount += currentTriangleCount;
+	} );
+
+	if ( triangleCount === 0 ) {
+		return null;
+	}
+
+	return totalY / triangleCount;
+
+}
+
+function getWorldVertexY(
+	position: THREE.BufferAttribute | THREE.InterleavedBufferAttribute,
+	index: number,
+	matrixWorld: THREE.Matrix4
+): number {
+
+	tempWorldVertex.fromBufferAttribute( position, index );
+	tempWorldVertex.applyMatrix4( matrixWorld );
+	return tempWorldVertex.y;
+
+}
+
+function getBusinessNameForObject(object: THREE.Object3D): string | null {
+
+	const userDataBusinessName = object.userData.__businessName;
+	if ( typeof userDataBusinessName === 'string' && userDataBusinessName.length > 0 ) {
+		return userDataBusinessName;
+	}
+
+	if ( object.name.length > 0 ) {
+		return object.name;
+	}
+
+	return null;
 
 }
 
@@ -255,26 +317,57 @@ function normalizeLayerLabel(value: string | undefined): string | null {
 
 }
 
-function indexNamedObjects(root: THREE.Object3D): NamedObjectGroups {
+function listSelectableLayerObjects(root: THREE.Object3D): THREE.Object3D[] {
 
-	tempObjectNames.clear();
+	const selectableObjects: THREE.Object3D[] = [];
 	root.traverse( ( child ) => {
 		if ( isExcludedFromLayerIndex( child ) ) {
 			return;
 		}
 
-		if ( child.name.length > 0 ) {
-			const group = tempObjectNames.get( child.name );
-			if ( group === undefined ) {
-				tempObjectNames.set( child.name, [ child ] );
-				return;
-			}
-
-			group.push( child );
+		if ( child.userData.__layerSelectable === true ) {
+			selectableObjects.push( child );
 		}
 	} );
 
-	return new Map( tempObjectNames );
+	return selectableObjects;
+
+}
+
+function indexObjectsByLayerId(root: THREE.Object3D): LayerObjectGroups {
+
+	tempLayerObjects.clear();
+	root.traverse( ( child ) => {
+		if ( isExcludedFromLayerIndex( child ) ) {
+			return;
+		}
+
+		const layerId = getLayerIdForObject( child );
+		if ( layerId === null ) {
+			return;
+		}
+
+		const group = tempLayerObjects.get( layerId );
+		if ( group === undefined ) {
+			tempLayerObjects.set( layerId, [ child ] );
+			return;
+		}
+
+		group.push( child );
+	} );
+
+	return new Map( tempLayerObjects );
+
+}
+
+function getLayerIdForObject(object: THREE.Object3D): string | null {
+
+	const layerId = object.userData.__layerId;
+	if ( typeof layerId === 'string' && layerId.length > 0 ) {
+		return layerId;
+	}
+
+	return null;
 
 }
 
@@ -290,63 +383,5 @@ function isExcludedFromLayerIndex(object: THREE.Object3D): boolean {
 	}
 
 	return false;
-
-}
-
-function applyMeshOpacity(mesh: THREE.Mesh, opacity: number, visibleLayerCount: number): void {
-
-	const managedState = getOrCreateManagedMaterials( mesh );
-	const useTransparency = visibleLayerCount > 1 || opacity < 0.999;
-
-	managedState.materials.forEach( ( material, index ) => {
-		const snapshot = managedState.snapshots[ index ];
-		material.transparent = useTransparency || snapshot.transparent;
-		material.opacity = opacity;
-		material.depthWrite = useTransparency ? false : snapshot.depthWrite;
-		material.depthTest = snapshot.depthTest;
-		material.needsUpdate = true;
-	} );
-
-}
-
-function getOrCreateManagedMaterials(
-	mesh: THREE.Mesh
-): ManagedMaterialState {
-
-	if ( mesh.userData.__layerManagedMaterialState !== undefined ) {
-		return mesh.userData.__layerManagedMaterialState as ManagedMaterialState;
-	}
-
-	const materials = Array.isArray( mesh.material ) ? mesh.material : [ mesh.material ];
-	const clonedMaterials = materials.map( ( material ) => material.clone() );
-	mesh.material = Array.isArray( mesh.material ) ? clonedMaterials : clonedMaterials[ 0 ];
-
-	const snapshots = clonedMaterials.map( ( material ) => ( {
-		transparent: material.transparent,
-		opacity: material.opacity,
-		depthWrite: material.depthWrite,
-		depthTest: material.depthTest
-	} ) );
-
-	const managedState = {
-		materials: clonedMaterials,
-		snapshots
-	};
-	mesh.userData.__layerManagedMaterialState = managedState;
-	return managedState;
-
-}
-
-function computeVisibleLayerOpacity(visibleIndex: number, visibleCount: number): number {
-
-	if ( visibleCount <= 1 ) {
-		return 1;
-	}
-
-	const startOpacity = 0.96;
-	const endOpacity = 0.42;
-	const ratio = visibleIndex / Math.max( visibleCount - 1, 1 );
-
-	return THREE.MathUtils.lerp( startOpacity, endOpacity, ratio );
 
 }

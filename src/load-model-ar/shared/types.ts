@@ -173,7 +173,8 @@ export interface ARSceneBundle {
 	renderer: THREE.WebGLRenderer;
 	controls: OrbitControls;
 	reticle: THREE.Group;
-	modelAnchor: THREE.Group;
+	previewModelAnchor: THREE.Group;
+	arModelAnchor: THREE.Group;
 }
 
 export interface XRHitTestController {

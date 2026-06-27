@@ -229,17 +229,18 @@ export function createPointerSelectionSession(
 			getPipesByName()
 		);
 		const properties = getPropertiesForBusinessObject( businessObject, clickedMesh );
-		applySelection( businessObject, properties );
+		applySelection( businessObject, properties, clickedMesh );
 
 	}
 
 	function applySelection(
 		businessObject: THREE.Object3D,
-		properties: PipeRecord | null
+		properties: PipeRecord | null,
+		highlightObject?: THREE.Object3D
 	): void {
 
-		const businessName = businessObject.name || 'UnnamedObject';
-		propertySelection.selectBusinessObject( businessObject, properties );
+		const businessName = getBusinessName( businessObject );
+		propertySelection.selectBusinessObject( businessObject, properties, highlightObject );
 		onInspectSelection();
 
 		if ( getWorkspaceMode() === 'browse' ) {
@@ -260,7 +261,9 @@ export function createPointerSelectionSession(
 		fallbackObject?: THREE.Object3D
 	): PipeRecord | null {
 
-		const businessName = businessObject.name || fallbackObject?.name || 'UnnamedObject';
+		const businessName = getBusinessName( businessObject )
+			|| getBusinessName( fallbackObject )
+			|| 'UnnamedObject';
 		return getPipesByName().get( businessName ) || null;
 
 	}
@@ -423,6 +426,25 @@ export function createPointerSelectionSession(
 		}
 
 		return false;
+
+	}
+
+	function getBusinessName(object: THREE.Object3D | undefined): string | null {
+
+		if ( object === undefined ) {
+			return null;
+		}
+
+		const userDataBusinessName = object.userData.__businessName;
+		if ( typeof userDataBusinessName === 'string' && userDataBusinessName.length > 0 ) {
+			return userDataBusinessName;
+		}
+
+		if ( object.name.length > 0 ) {
+			return object.name;
+		}
+
+		return null;
 
 	}
 

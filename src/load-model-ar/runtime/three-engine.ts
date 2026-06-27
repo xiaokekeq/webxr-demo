@@ -33,6 +33,7 @@ import {
 	type EngineeringRegistrationSolution
 } from '../registration/engineering-registration.js';
 import { createCoarseRegistrationController } from '../registration/coarse-registration.js';
+import { createEnuFrame, geodeticToEnu, type GeodeticCoordinate } from '../registration/geodesy.js';
 import {
 	createManualRegistrationController,
 	type ManualAdjustmentPreset
@@ -1126,6 +1127,11 @@ export class ThreeEngine {
 	private updateCoarseLocationDebugText(): void {
 
 		const debugSnapshot = this.coarseRegistration.getDebugSnapshot();
+		const displayTargetGeodetic = this.getModelDebugGeodeticTarget() ?? debugSnapshot.targetGeodetic;
+		const displayDistanceMeters = this.getDisplayTargetDistanceMeters(
+			debugSnapshot.currentGeodetic,
+			displayTargetGeodetic
+		) ?? debugSnapshot.distanceMeters;
 		const currentText = debugSnapshot.currentGeodetic === null
 			? '手机 未获取'
 			: `手机 ${formatGeodetic(
@@ -1133,23 +1139,43 @@ export class ThreeEngine {
 				debugSnapshot.currentGeodetic.lon,
 				debugSnapshot.currentGeodetic.alt
 			)}`;
-		const targetText = debugSnapshot.targetGeodetic === null
+		const targetText = displayTargetGeodetic === null
 			? '目标 --'
 			: `目标 ${formatGeodetic(
-				debugSnapshot.targetGeodetic.lat,
-				debugSnapshot.targetGeodetic.lon,
-				debugSnapshot.targetGeodetic.alt
+				displayTargetGeodetic.lat,
+				displayTargetGeodetic.lon,
+				displayTargetGeodetic.alt
 			)}`;
 		const accuracyText = debugSnapshot.accuracyMeters === null
 			? '精度 --'
 			: `精度 ${Math.round( debugSnapshot.accuracyMeters )}m`;
-		const distanceText = debugSnapshot.distanceMeters === null
+		const distanceText = displayDistanceMeters === null
 			? '距离 --'
-			: `距离 ${Math.round( debugSnapshot.distanceMeters )}m`;
+			: `距离 ${Math.round( displayDistanceMeters )}m`;
 
 		this.store.patch( {
 			coarseLocationDebugText: `${currentText} / ${targetText} / ${accuracyText} / ${distanceText}`
 		} );
+
+	}
+
+	private getModelDebugGeodeticTarget(): GeodeticCoordinate | null {
+
+		return this.registrationSolution?.controlPoints[ 0 ]?.worldGeodetic ?? null;
+
+	}
+
+	private getDisplayTargetDistanceMeters(
+		currentGeodetic: GeodeticCoordinate | null,
+		targetGeodetic: GeodeticCoordinate | null
+	): number | null {
+
+		if ( currentGeodetic === null || targetGeodetic === null ) {
+			return null;
+		}
+
+		const currentEnuFrame = createEnuFrame( currentGeodetic );
+		return geodeticToEnu( targetGeodetic, currentEnuFrame ).length();
 
 	}
 

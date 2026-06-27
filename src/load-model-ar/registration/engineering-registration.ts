@@ -43,6 +43,7 @@ export interface EngineeringRegistrationSolution {
 const tempRotated = new THREE.Vector3();
 const tempQuaternion = new THREE.Quaternion();
 const tempScale = new THREE.Vector3();
+const tempInverseQuaternion = new THREE.Quaternion();
 
 export function solveEngineeringRegistration(config: DemoModelConfig): EngineeringRegistrationSolution {
 
@@ -123,6 +124,27 @@ export function composeModelQuaternionInAr(
 	// Three.js applies the right-hand quaternion first. This composes:
 	// model local -> site ENU -> AR world.
 	return target.copy( enuToArQuaternion ).multiply( solution.modelToSite.rotation );
+
+}
+
+export function transformSiteEnuToModelLocal(
+	siteEnu: THREE.Vector3,
+	solution: EngineeringRegistrationSolution,
+	target = new THREE.Vector3()
+): THREE.Vector3 {
+
+	const scale = solution.modelToSite.scale;
+	if ( Math.abs( scale ) <= 1e-9 ) {
+		return target.set( 0, 0, 0 );
+	}
+
+	tempInverseQuaternion.copy( solution.modelToSite.rotation ).invert();
+
+	return target
+		.copy( siteEnu )
+		.sub( solution.modelToSite.translation )
+		multiplyScalar( 1 / scale )
+		.applyQuaternion( tempInverseQuaternion );
 
 }
 

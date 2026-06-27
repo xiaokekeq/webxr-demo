@@ -6,7 +6,7 @@
     "materialUrl": "/pipe-viewer/dz1207/dizhi1207.mtl",
     "assetTransform": {
       "upAxis": "y",
-      "scaleFactor": 1.6
+      "disableAutoScale": true
     },
     "configUrl": "/pipe-viewer/company_debug_site.config.json",
     "pipesUrl": "/pipe-viewer/dz1207.pipes.json"
@@ -32,12 +32,27 @@
   {
     "id": "dz1207",
     "name": "dz1207 real anchor",
-    "modelUrl": "/pipe-viewer/dz1207/dizhi1207.obj",
-    "materialUrl": "/pipe-viewer/dz1207/dizhi1207.mtl",
-    "assetTransform": {
-      "upAxis": "y",
-      "scaleFactor": 1.6
-    },
+    "primaryAssetId": "terrain",
+    "assets": [
+      {
+        "id": "terrain",
+        "name": "dz1207 terrain",
+        "modelUrl": "/pipe-viewer/dz1207/dizhi1207.obj",
+        "materialUrl": "/pipe-viewer/dz1207/dizhi1207.mtl",
+        "assetTransform": {
+          "upAxis": "y",
+          "disableAutoScale": true
+        }
+      },
+      {
+        "id": "stake-marker",
+        "name": "stake marker",
+        "modelUrl": "/pipe-viewer/dz1207/stake-marker.glb",
+        "assetTransform": {
+          "disableAutoScale": true
+        }
+      }
+    ],
     "configUrl": "/pipe-viewer/dz1207.config.json",
     "pipesUrl": "/pipe-viewer/dz1207.pipes.json"
   },

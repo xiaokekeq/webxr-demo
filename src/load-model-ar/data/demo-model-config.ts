@@ -17,6 +17,14 @@ export interface DemoModelControlPointCorrespondence {
 	world: GeodeticCoordinate;
 }
 
+export interface DemoModelAttachment {
+	assetId: string;
+	world: GeodeticCoordinate;
+	anchorMode: 'base-center' | 'bounds-center';
+	yawDeg: number;
+	scaleMultiplier: number;
+}
+
 export type DemoModelRegistrationMode = 'rigid' | 'similarity';
 
 export interface DemoModelConfig {
@@ -33,6 +41,7 @@ export interface DemoModelConfig {
 		minControlPoints: number;
 	};
 	controlPoints: Record<string, DemoModelControlPointCorrespondence>;
+	attachments: DemoModelAttachment[];
 }
 
 interface LegacyControlPointShape {
@@ -83,6 +92,13 @@ interface LegacyDemoModelConfig extends Omit<DemoModelConfig, 'siteFrame' | 'reg
 		modelLocal: DemoModelLocalPoint;
 		world: RawGeodeticCoordinateShape;
 	} | LegacyControlPointShape>;
+	attachments?: Array<{
+		assetId: string;
+		world: RawGeodeticCoordinateShape;
+		anchorMode?: DemoModelAttachment['anchorMode'];
+		yawDeg?: number;
+		scaleMultiplier?: number;
+	}>;
 }
 
 type RawDemoModelConfig = LegacyDemoModelConfig | LocalDebugModelConfig;
@@ -167,7 +183,8 @@ function normalizeDemoModelConfig(config: RawDemoModelConfig): DemoModelConfig {
 		yaw: config.yaw,
 		scale: config.scale,
 		registration,
-		controlPoints: normalizedControlPoints
+		controlPoints: normalizedControlPoints,
+		attachments: normalizeAttachments( config.attachments )
 	};
 
 }
@@ -192,7 +209,8 @@ function normalizeLocalDebugModelConfig(config: LocalDebugModelConfig): DemoMode
 			mode: 'rigid',
 			minControlPoints: 3
 		},
-		controlPoints: normalizedControlPoints
+		controlPoints: normalizedControlPoints,
+		attachments: []
 	};
 
 }
@@ -322,6 +340,46 @@ function validateDemoModelConfig(config: DemoModelConfig): void {
 	if ( typeof config.controlPoints !== 'object' || config.controlPoints === null ) {
 		throw new Error( 'Model config is missing valid controlPoints.' );
 	}
+
+	if ( Array.isArray( config.attachments ) === false ) {
+		throw new Error( 'Model config attachments must be an array.' );
+	}
+
+}
+
+function normalizeAttachments(
+	attachments: LegacyDemoModelConfig['attachments']
+): DemoModelAttachment[] {
+
+	if ( Array.isArray( attachments ) === false ) {
+		return [];
+	}
+
+	return attachments.map( ( attachment, index ) => {
+		if ( typeof attachment?.assetId !== 'string' || attachment.assetId.length === 0 ) {
+			throw new Error( `attachments[${index}] is missing a valid assetId.` );
+		}
+
+		const anchorMode = attachment.anchorMode === 'base-center'
+			? 'base-center'
+			: 'bounds-center';
+		const yawDeg = typeof attachment.yawDeg === 'number' && Number.isFinite( attachment.yawDeg )
+			? attachment.yawDeg
+			: 0;
+		const scaleMultiplier = typeof attachment.scaleMultiplier === 'number'
+			&& Number.isFinite( attachment.scaleMultiplier )
+			&& attachment.scaleMultiplier > 0
+			? attachment.scaleMultiplier
+			: 1;
+
+		return {
+			assetId: attachment.assetId,
+			world: normalizeGeodeticShape( attachment.world, `attachments[${index}].world` ),
+			anchorMode,
+			yawDeg,
+			scaleMultiplier
+		};
+	} );
 
 }
 

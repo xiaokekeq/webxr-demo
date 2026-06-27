@@ -4,12 +4,22 @@ export interface ModelAssetTransform {
 	disableAutoScale?: boolean;
 }
 
+export interface ModelCatalogAssetItem {
+	id: string;
+	name?: string;
+	modelUrl: string;
+	materialUrl?: string;
+	assetTransform?: ModelAssetTransform;
+}
+
 export interface ModelCatalogItem {
 	id: string;
 	name: string;
 	modelUrl: string;
 	materialUrl?: string;
 	assetTransform?: ModelAssetTransform;
+	primaryAssetId: string;
+	assets: ModelCatalogAssetItem[];
 	configUrl: string;
 	pipesUrl: string;
 }
@@ -51,22 +61,86 @@ function normalizeModelCatalogItem(item: unknown): ModelCatalogItem {
 	if (
 		typeof candidate.id !== 'string'
 		|| typeof candidate.name !== 'string'
-		|| typeof candidate.modelUrl !== 'string'
 		|| typeof candidate.configUrl !== 'string'
 		|| typeof candidate.pipesUrl !== 'string'
 	) {
 		throw new Error( 'Model catalog entry is missing required fields.' );
 	}
 
+	const assets = normalizeCatalogAssets( candidate );
+	const primaryAsset = resolvePrimaryAsset( assets, candidate.primaryAssetId );
+
 	return {
 		id: candidate.id,
 		name: candidate.name,
-		modelUrl: candidate.modelUrl,
-		materialUrl: typeof candidate.materialUrl === 'string' ? candidate.materialUrl : undefined,
-		assetTransform: normalizeAssetTransform( candidate.assetTransform ),
+		modelUrl: primaryAsset.modelUrl,
+		materialUrl: primaryAsset.materialUrl,
+		assetTransform: primaryAsset.assetTransform,
+		primaryAssetId: primaryAsset.id,
+		assets,
 		configUrl: candidate.configUrl,
 		pipesUrl: candidate.pipesUrl
 	};
+
+}
+
+function normalizeCatalogAssets(candidate: Partial<ModelCatalogItem>): ModelCatalogAssetItem[] {
+
+	if ( Array.isArray( candidate.assets ) && candidate.assets.length > 0 ) {
+		return candidate.assets.map( normalizeCatalogAssetItem );
+	}
+
+	if ( typeof candidate.modelUrl !== 'string' ) {
+		throw new Error( 'Model catalog entry is missing required fields.' );
+	}
+
+	return [
+		{
+			id: 'primary',
+			modelUrl: candidate.modelUrl,
+			materialUrl: typeof candidate.materialUrl === 'string' ? candidate.materialUrl : undefined,
+			assetTransform: normalizeAssetTransform( candidate.assetTransform )
+		}
+	];
+
+}
+
+function normalizeCatalogAssetItem(value: unknown): ModelCatalogAssetItem {
+
+	if ( typeof value !== 'object' || value === null ) {
+		throw new Error( 'Invalid model asset entry.' );
+	}
+
+	const candidate = value as Partial<ModelCatalogAssetItem>;
+	if ( typeof candidate.id !== 'string' || typeof candidate.modelUrl !== 'string' ) {
+		throw new Error( 'Model asset entry is missing required fields.' );
+	}
+
+	return {
+		id: candidate.id,
+		name: typeof candidate.name === 'string' ? candidate.name : undefined,
+		modelUrl: candidate.modelUrl,
+		materialUrl: typeof candidate.materialUrl === 'string' ? candidate.materialUrl : undefined,
+		assetTransform: normalizeAssetTransform( candidate.assetTransform )
+	};
+
+}
+
+function resolvePrimaryAsset(
+	assets: ModelCatalogAssetItem[],
+	requestedPrimaryAssetId: string | undefined
+): ModelCatalogAssetItem {
+
+	if ( typeof requestedPrimaryAssetId === 'string' ) {
+		const matchedAsset = assets.find( ( asset ) => asset.id === requestedPrimaryAssetId );
+		if ( matchedAsset === undefined ) {
+			throw new Error( `Unknown primaryAssetId: ${requestedPrimaryAssetId}` );
+		}
+
+		return matchedAsset;
+	}
+
+	return assets[ 0 ];
 
 }
 

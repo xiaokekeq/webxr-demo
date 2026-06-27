@@ -40,6 +40,7 @@ interface CreatePlacementSessionOptions {
 
 export interface PlacementSession {
 	getPlacedModel(): THREE.Group | null;
+	getPlacementBase(): ManualPlacementBase | null;
 	getCoarsePlacementPending(): boolean;
 	markCoarsePlacementPending(): void;
 	resetPlacement(): void;
@@ -53,8 +54,16 @@ export interface PlacementSession {
 			estimatePlacement(cameraWorldPosition: THREE.Vector3, groundY: number): CoarsePlacementEstimate | null;
 			getMissingRequirementMessage(): string;
 		};
+		manualApplyToPlacement(
+			base: ManualPlacementBase,
+			targetPosition: THREE.Vector3,
+			targetOrientation: THREE.Quaternion
+		): { position: THREE.Vector3; orientation: THREE.Quaternion; scale: number };
+		manualPositionTarget: THREE.Vector3;
+		manualOrientationTarget: THREE.Quaternion;
 		modelOrientationTarget: THREE.Quaternion;
 		cameraWorldPosition: THREE.Vector3;
+		onPlacementBaseResolved?(base: ManualPlacementBase): void;
 	}): void;
 	applyPrecisionRegistrationResult(result: PrecisionRegistrationResult): void;
 	reapplyManualRegistration(args: {
@@ -117,6 +126,12 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 
 		},
 
+		getPlacementBase() {
+
+			return lastPlacementBase;
+
+		},
+
 		getCoarsePlacementPending() {
 
 			return coarsePlacementPending;
@@ -159,8 +174,12 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 				modelTemplate,
 				registrationSolution,
 				coarseRegistration,
+				manualApplyToPlacement,
+				manualPositionTarget,
+				manualOrientationTarget,
 				modelOrientationTarget,
-				cameraWorldPosition
+				cameraWorldPosition,
+				onPlacementBaseResolved
 			} = args;
 
 			if (
@@ -209,16 +228,18 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 				previewDistanceMeters: previewPlacementDistanceMeters,
 				usePreviewPlacement
 			} );
+			onPlacementBaseResolved?.( lastPlacementBase );
+			const adjustedPlacement = manualApplyToPlacement(
+				lastPlacementBase,
+				manualPositionTarget,
+				manualOrientationTarget
+			);
 
 			placedModel = placeAdjustedModel( {
 				modelTemplate,
 				placedModel,
 				modelAnchor: sceneBundle.modelAnchor,
-				adjustedPlacement: {
-					position: lastPlacementBase.position,
-					orientation: lastPlacementBase.orientation,
-					scale: lastPlacementBase.scale
-				}
+				adjustedPlacement
 			} );
 
 			coarsePlacementPending = false;
@@ -378,7 +399,8 @@ function transformPlacementBase(
 		position: transformedPosition,
 		orientation: transformedOrientation,
 		scale: base.scale * result.scale,
-		scaleAnchor: transformedScaleAnchor
+		scaleAnchor: transformedScaleAnchor,
+		siteContext: base.siteContext
 	};
 
 }

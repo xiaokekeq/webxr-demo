@@ -37,6 +37,18 @@ import {
 	createManualRegistrationController,
 	type ManualAdjustmentPreset
 } from '../registration/manual-registration.js';
+import {
+	createResolvedManualRegistrationSitePose,
+	deriveManualRegistrationStateFromSitePose,
+	deserializeResolvedManualRegistrationSitePose,
+	serializeResolvedManualRegistrationSitePose,
+	type ResolvedManualRegistrationSitePose
+} from '../registration/manual-registration-site-pose.js';
+import {
+	clearManualRegistrationState,
+	loadResolvedManualRegistrationState,
+	saveResolvedManualRegistrationState
+} from '../registration/manual-registration-storage.js';
 import { createDisplayModeController, preserveRootTransform } from './display-mode.js';
 import { computeTargetGuidanceState } from './internal/placement/target-guidance.js';
 import { createARScene, resizeARScene } from './scene.js';
@@ -193,6 +205,7 @@ export class ThreeEngine {
 	private modelTemplate: THREE.Group | null = null;
 	private demoModelConfig: DemoModelConfig | null = null;
 	private registrationSolution: EngineeringRegistrationSolution | null = null;
+	private activeManualRegistrationSitePose: ResolvedManualRegistrationSitePose | null = null;
 	private lastSyncedDisplayMode: DisplayMode | null = null;
 	private lastSyncedDisplayModeRoot: THREE.Group | null = null;
 	private pipesByName = new Map<string, PipeRecord>();
@@ -337,6 +350,7 @@ export class ThreeEngine {
 				this.modelTemplate = null;
 				this.demoModelConfig = null;
 				this.registrationSolution = null;
+				this.activeManualRegistrationSitePose = null;
 				this.pipesByName = new Map<string, PipeRecord>();
 			},
 			onRuntimeBundleLoaded: ( bundle ) => {
@@ -362,7 +376,7 @@ export class ThreeEngine {
 				this.updateCoarseLocationDebugText();
 			},
 			onLoadManualRegistration: ( modelId ) => {
-				this.manualRegistration.load( modelId );
+				this.loadManualRegistration( modelId );
 			},
 			canRequestAutoPlacement: () => this.sceneBundle.renderer.xr.isPresenting && this.coarseRegistration.canEstimate(),
 			requestAutoPlacement: () => {
@@ -693,7 +707,22 @@ export class ThreeEngine {
 			return;
 		}
 
-		this.manualRegistration.save( this.demoModelConfig.modelId );
+		this.refreshActiveManualRegistrationSitePose();
+		const sitePose = this.activeManualRegistrationSitePose;
+		if ( sitePose === null ) {
+			this.setStatus( '当前放置结果缺少现场坐标上下文，暂时无法保存。' );
+			return;
+		}
+
+		const saved = saveResolvedManualRegistrationState(
+			this.demoModelConfig.modelId,
+			serializeResolvedManualRegistrationSitePose( sitePose )
+		);
+		if ( saved === false ) {
+			this.setStatus( '手动配准保存失败，请稍后重试。' );
+			return;
+		}
+
 		this.setStatus( '手动配准已保存。' );
 
 	}
@@ -706,9 +735,10 @@ export class ThreeEngine {
 		}
 
 		if ( this.demoModelConfig !== null ) {
-			this.manualRegistration.clearSaved( this.demoModelConfig.modelId );
+			clearManualRegistrationState( this.demoModelConfig.modelId );
 		}
 
+		this.activeManualRegistrationSitePose = null;
 		this.manualRegistration.reset();
 		this.reapplyManualPlacement();
 		this.setStatus( '手动微调已重置。' );
@@ -722,11 +752,12 @@ export class ThreeEngine {
 			return false;
 		}
 
-		this.manualRegistration.clearSaved( this.demoModelConfig.modelId );
+		clearManualRegistrationState( this.demoModelConfig.modelId );
 		clearPrecisionRegistrationResult( this.demoModelConfig.modelId );
 		this.store.patch( {
 			precisionRegistration: createDefaultPrecisionRegistrationState()
 		} );
+		this.activeManualRegistrationSitePose = null;
 		this.manualRegistration.reset();
 		this.reapplyManualPlacement();
 		this.setStatus( '已清除保存的配准结果。' );
@@ -949,6 +980,67 @@ export class ThreeEngine {
 
 	}
 
+	private loadManualRegistration(modelId: string): void {
+
+		const savedState = loadResolvedManualRegistrationState( modelId );
+		if ( savedState !== null ) {
+			const resolvedSitePose = deserializeResolvedManualRegistrationSitePose( savedState );
+			this.activeManualRegistrationSitePose = cloneResolvedManualRegistrationSitePose( resolvedSitePose );
+			this.syncManualRegistrationForHeading( 0 );
+			return;
+		}
+
+		this.activeManualRegistrationSitePose = null;
+		this.manualRegistration.setState( {
+			offset: new THREE.Vector3(),
+			yawDeg: 0,
+			scaleMultiplier: 1
+		}, { silent: true } );
+
+	}
+
+	private syncManualRegistrationForHeading(headingDeg: number): void {
+
+		if ( this.registrationSolution === null || this.activeManualRegistrationSitePose === null ) {
+			return;
+		}
+
+		this.manualRegistration.setState(
+			deriveManualRegistrationStateFromSitePose( {
+				sitePose: this.activeManualRegistrationSitePose,
+				registrationSolution: this.registrationSolution,
+				placementHeadingDeg: headingDeg
+			} ),
+			{ silent: true }
+		);
+
+	}
+
+	private refreshActiveManualRegistrationSitePose(): void {
+
+		if ( this.registrationSolution === null ) {
+			return;
+		}
+
+		const placedModel = this.placementSession.getPlacedModel();
+		const placementBase = this.placementSession.getPlacementBase();
+		if ( placedModel === null || placementBase === null ) {
+			return;
+		}
+
+		const sitePose = createResolvedManualRegistrationSitePose( {
+			placedModel,
+			placementBase,
+			registrationSolution: this.registrationSolution
+		} );
+		if ( sitePose === null ) {
+			return;
+		}
+
+		this.activeManualRegistrationSitePose = cloneResolvedManualRegistrationSitePose( sitePose );
+
+	}
+
 	private emit(): void {
 
 		for ( const listener of this.listeners ) {
@@ -1028,9 +1120,16 @@ export class ThreeEngine {
 			modelTemplate: this.modelTemplate,
 			registrationSolution: this.registrationSolution,
 			coarseRegistration: this.coarseRegistration,
+			manualApplyToPlacement: this.manualRegistration.applyToPlacement,
+			manualPositionTarget: this.manualPosition,
+			manualOrientationTarget: this.manualOrientation,
 			modelOrientationTarget: this.modelOrientation,
-			cameraWorldPosition: this.cameraWorldPosition
+			cameraWorldPosition: this.cameraWorldPosition,
+			onPlacementBaseResolved: ( base ) => {
+				this.syncManualRegistrationForHeading( base.siteContext?.headingDeg ?? 0 );
+			}
 		} );
+		this.refreshActiveManualRegistrationSitePose();
 
 		const placedModel = this.placementSession.getPlacedModel();
 		if ( hadPlacedModel === false && placedModel !== null ) {
@@ -1067,6 +1166,7 @@ export class ThreeEngine {
 		this.arSessionStateRuntime.handleSessionStart();
 		this.pointerSelection.suppressSelectionFor( 1200 );
 		this.placementSession.resetPlacement();
+		this.refreshActiveManualRegistrationSitePose();
 		this.syncArSessionPhase();
 		this.syncSceneHost();
 		void this.warmupCoarseRegistration().catch( ( error ) => {
@@ -1083,6 +1183,7 @@ export class ThreeEngine {
 		this.measurementController.reset();
 		this.arSessionStateRuntime.handleSessionEnd();
 		this.placementSession.resetPlacement();
+		this.syncManualRegistrationForHeading( 0 );
 		this.ensureDesktopPreviewPlacement();
 		this.syncSceneHost();
 		this.placementSession.fitDesktopPreviewToCamera();
@@ -1125,6 +1226,7 @@ export class ThreeEngine {
 
 	private ensureDesktopPreviewPlacement(): void {
 
+		this.syncManualRegistrationForHeading( 0 );
 		this.placementSession.ensureDesktopPreviewPlacement( {
 			modelTemplate: this.modelTemplate,
 			manualApplyToPlacement: this.manualRegistration.applyToPlacement,
@@ -1132,6 +1234,7 @@ export class ThreeEngine {
 			manualOrientationTarget: this.manualOrientation,
 			registrationSolution: this.registrationSolution
 		} );
+		this.refreshActiveManualRegistrationSitePose();
 
 	}
 
@@ -1144,6 +1247,7 @@ export class ThreeEngine {
 			manualPositionTarget: this.manualPosition,
 			manualOrientationTarget: this.manualOrientation
 		} );
+		this.refreshActiveManualRegistrationSitePose();
 
 		if ( this.sceneBundle.renderer.xr.isPresenting && this.placementSession.getPlacedModel() !== null ) {
 			this.arSessionStateRuntime.markPlacementCommitted( true );
@@ -1285,6 +1389,20 @@ export class ThreeEngine {
 			this.placementSession.fitDesktopPreviewToCamera();
 		}
 
+	};
+
+}
+
+function cloneResolvedManualRegistrationSitePose(
+	sitePose: ResolvedManualRegistrationSitePose
+): ResolvedManualRegistrationSitePose {
+
+	return {
+		rootSiteEnu: sitePose.rootSiteEnu.clone(),
+		rootWorldGeodetic: { ...sitePose.rootWorldGeodetic },
+		rootYawDeg: sitePose.rootYawDeg,
+		scaleMultiplier: sitePose.scaleMultiplier,
+		updatedAt: sitePose.updatedAt
 	};
 
 }

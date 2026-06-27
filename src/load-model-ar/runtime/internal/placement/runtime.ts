@@ -58,7 +58,12 @@ export function createAutoPlacementBase(options: {
 			modelOrientationTarget
 		).clone(),
 		scale: getPlacementResidualScale( modelTemplate, registrationSolution.modelToSite.scale ),
-		scaleAnchor: position.clone()
+		scaleAnchor: position.clone(),
+		siteContext: {
+			siteOriginArPosition: estimate.position.clone(),
+			headingDeg: estimate.headingDeg,
+			baseScale: getPlacementResidualScale( modelTemplate, registrationSolution.modelToSite.scale )
+		}
 	};
 
 }
@@ -86,7 +91,12 @@ export function createDesktopPreviewBase(
 		position: new THREE.Vector3(),
 		orientation: new THREE.Quaternion(),
 		scale: getPlacementResidualScale( modelTemplate, registrationSolution.modelToSite.scale ),
-		scaleAnchor: new THREE.Vector3()
+		scaleAnchor: new THREE.Vector3(),
+		siteContext: {
+			siteOriginArPosition: new THREE.Vector3(),
+			headingDeg: 0,
+			baseScale: getPlacementResidualScale( modelTemplate, registrationSolution.modelToSite.scale )
+		}
 	};
 
 }

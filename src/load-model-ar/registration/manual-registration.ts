@@ -1,11 +1,5 @@
 import * as THREE from 'three';
 import type { SetStatus } from '../shared/types.js';
-import {
-	clearManualRegistrationState,
-	loadManualRegistrationState,
-	saveManualRegistrationState,
-	type SerializedManualRegistrationState
-} from './manual-registration-storage.js';
 
 export interface ManualRegistrationState {
 	offset: THREE.Vector3;
@@ -20,6 +14,11 @@ export interface ManualPlacementBase {
 	orientation: THREE.Quaternion;
 	scale: number;
 	scaleAnchor?: THREE.Vector3;
+	siteContext?: {
+		siteOriginArPosition: THREE.Vector3;
+		headingDeg: number;
+		baseScale: number;
+	};
 }
 
 interface CreateManualRegistrationControllerOptions {
@@ -71,6 +70,19 @@ export function createManualRegistrationController(
 
 	}
 
+	function setState(
+		nextState: ManualRegistrationState,
+		options?: { silent?: boolean; statusMessage?: string }
+	): ManualRegistrationState {
+
+		state.offset.copy( nextState.offset );
+		state.yawDeg = normalizeDegrees( nextState.yawDeg );
+		state.scaleMultiplier = clamp( nextState.scaleMultiplier, 0.1, 10 );
+		emitState( options?.silent ? undefined : options?.statusMessage );
+		return getState();
+
+	}
+
 	function adjustTranslation(axis: ManualTranslationAxis, direction: 1 | -1): ManualRegistrationState {
 
 		state.offset[ axis ] += getCurrentStepConfig().translationMeters * direction;
@@ -113,68 +125,9 @@ export function createManualRegistrationController(
 
 	function reset(): ManualRegistrationState {
 
-		state.offset.set( 0, 0, 0 );
-		state.yawDeg = 0;
-		state.scaleMultiplier = 1;
-		emitState( 'Manual registration reset to defaults.' );
-		return getState();
-
-	}
-
-	function save(modelId: string): boolean {
-
-		const saved = saveManualRegistrationState( modelId, serializeState( state ) );
-		if ( saved ) {
-			setStatus( `Manual registration saved for ${modelId}.` );
-			return true;
-		}
-
-		setStatus( 'Failed to save manual registration.' );
-		return false;
-
-	}
-
-	function load(modelId: string): ManualRegistrationState {
-
-		const parsed = loadManualRegistrationState( modelId );
-		if ( parsed === null ) {
-			state.offset.set( 0, 0, 0 );
-			state.yawDeg = 0;
-			state.scaleMultiplier = 1;
-			emitState();
-			return getState();
-		}
-
-		try {
-			state.offset.set(
-				toFiniteNumber( parsed.offsetX, 0 ),
-				toFiniteNumber( parsed.offsetY, 0 ),
-				toFiniteNumber( parsed.offsetZ, 0 )
-			);
-			state.yawDeg = normalizeDegrees( toFiniteNumber( parsed.yawDeg, 0 ) );
-			state.scaleMultiplier = clamp( toFiniteNumber( parsed.scaleMultiplier, 1 ), 0.1, 10 );
-			emitState();
-		} catch {
-			state.offset.set( 0, 0, 0 );
-			state.yawDeg = 0;
-			state.scaleMultiplier = 1;
-			emitState();
-		}
-
-		return getState();
-
-	}
-
-	function clearSaved(modelId: string): boolean {
-
-		const cleared = clearManualRegistrationState( modelId );
-		if ( cleared ) {
-			setStatus( `Saved manual registration cleared for ${modelId}.` );
-			return true;
-		}
-
-		setStatus( 'Failed to clear saved manual registration.' );
-		return false;
+		return setState( createDefaultState(), {
+			statusMessage: 'Manual registration reset to defaults.'
+		} );
 
 	}
 
@@ -226,15 +179,13 @@ export function createManualRegistrationController(
 
 	return {
 		getState,
+		setState,
 		adjustTranslation,
 		adjustYaw,
 		adjustScale,
 		setAdjustmentPreset,
 		getAdjustmentPreset,
 		reset,
-		save,
-		load,
-		clearSaved,
 		hasAdjustments,
 		applyToPlacement
 	};
@@ -276,25 +227,6 @@ function cloneState(state: ManualRegistrationState): ManualRegistrationState {
 	};
 
 }
-
-function serializeState(state: ManualRegistrationState): SerializedManualRegistrationState {
-
-	return {
-		offsetX: state.offset.x,
-		offsetY: state.offset.y,
-		offsetZ: state.offset.z,
-		yawDeg: state.yawDeg,
-		scaleMultiplier: state.scaleMultiplier
-	};
-
-}
-
-function toFiniteNumber(value: unknown, fallback: number): number {
-
-	return typeof value === 'number' && Number.isFinite( value ) ? value : fallback;
-
-}
-
 function formatSignedMeters(value: number): string {
 
 	return `${value >= 0 ? '+' : ''}${value.toFixed( 2 )}m`;

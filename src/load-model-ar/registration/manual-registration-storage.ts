@@ -1,16 +1,21 @@
-export interface SerializedManualRegistrationState {
-	offsetX: number;
-	offsetY: number;
-	offsetZ: number;
-	yawDeg: number;
+export interface SerializedResolvedManualRegistrationState {
+	version: 2;
+	rootSiteEnuX: number;
+	rootSiteEnuY: number;
+	rootSiteEnuZ: number;
+	rootWorldLat: number;
+	rootWorldLon: number;
+	rootWorldAlt: number;
+	rootYawDeg: number;
 	scaleMultiplier: number;
+	updatedAt: string;
 }
 
 const STORAGE_KEY_PREFIX = 'webxr-manual-registration:';
 
-export function saveManualRegistrationState(
+export function saveResolvedManualRegistrationState(
 	modelId: string,
-	state: SerializedManualRegistrationState
+	state: SerializedResolvedManualRegistrationState
 ): boolean {
 
 	try {
@@ -23,23 +28,34 @@ export function saveManualRegistrationState(
 
 }
 
-export function loadManualRegistrationState(
+export function loadResolvedManualRegistrationState(
 	modelId: string
-): SerializedManualRegistrationState | null {
+): SerializedResolvedManualRegistrationState | null {
 
 	try {
-		const raw = localStorage.getItem( getStorageKey( modelId ) );
+		const storageKey = getStorageKey( modelId );
+		const raw = localStorage.getItem( storageKey );
 		if ( raw === null ) {
 			return null;
 		}
 
-		const parsed = JSON.parse( raw ) as Partial<SerializedManualRegistrationState>;
+		const parsed = JSON.parse( raw ) as Partial<SerializedResolvedManualRegistrationState>;
+		if ( parsed.version !== 2 ) {
+			localStorage.removeItem( storageKey );
+			return null;
+		}
+
 		return {
-			offsetX: typeof parsed.offsetX === 'number' ? parsed.offsetX : 0,
-			offsetY: typeof parsed.offsetY === 'number' ? parsed.offsetY : 0,
-			offsetZ: typeof parsed.offsetZ === 'number' ? parsed.offsetZ : 0,
-			yawDeg: typeof parsed.yawDeg === 'number' ? parsed.yawDeg : 0,
-			scaleMultiplier: typeof parsed.scaleMultiplier === 'number' ? parsed.scaleMultiplier : 1
+			version: 2,
+			rootSiteEnuX: toFiniteNumber( parsed.rootSiteEnuX, 0 ),
+			rootSiteEnuY: toFiniteNumber( parsed.rootSiteEnuY, 0 ),
+			rootSiteEnuZ: toFiniteNumber( parsed.rootSiteEnuZ, 0 ),
+			rootWorldLat: toFiniteNumber( parsed.rootWorldLat, 0 ),
+			rootWorldLon: toFiniteNumber( parsed.rootWorldLon, 0 ),
+			rootWorldAlt: toFiniteNumber( parsed.rootWorldAlt, 0 ),
+			rootYawDeg: toFiniteNumber( parsed.rootYawDeg, 0 ),
+			scaleMultiplier: toFiniteNumber( parsed.scaleMultiplier, 1 ),
+			updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : ''
 		};
 	} catch ( error ) {
 		console.error( 'Failed to load manual registration:', error );
@@ -63,5 +79,11 @@ export function clearManualRegistrationState(modelId: string): boolean {
 function getStorageKey(modelId: string): string {
 
 	return `${STORAGE_KEY_PREFIX}${modelId}`;
+
+}
+
+function toFiniteNumber(value: unknown, fallback: number): number {
+
+	return typeof value === 'number' && Number.isFinite( value ) ? value : fallback;
 
 }

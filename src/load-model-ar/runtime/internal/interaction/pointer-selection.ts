@@ -197,7 +197,10 @@ export function createPointerSelectionSession(
 	): void {
 
 		const visibleIntersections = intersections.filter(
-			( intersection ) => isLayerHidden( intersection.object, placedModel ) === false
+			( intersection ) => (
+				isLayerHidden( intersection.object, placedModel ) === false
+				&& isNonSelectableHelper( intersection.object ) === false
+			)
 		);
 
 		if ( visibleIntersections.length === 0 ) {
@@ -276,6 +279,10 @@ export function createPointerSelectionSession(
 
 		placedModel.traverse( ( child ) => {
 			if ( child instanceof THREE.Mesh ) {
+				if ( isNonSelectableHelper( child ) ) {
+					return;
+				}
+
 				businessObjects.add(
 					propertySelection.resolveBusinessObject( child, placedModel, getPipesByName() )
 				);
@@ -395,6 +402,21 @@ export function createPointerSelectionSession(
 
 			if ( current === placedModel ) {
 				return false;
+			}
+
+			current = current.parent;
+		}
+
+		return false;
+
+	}
+
+	function isNonSelectableHelper(object: THREE.Object3D): boolean {
+
+		let current: THREE.Object3D | null = object;
+		while ( current !== null ) {
+			if ( current.userData.__nonSelectableHelper === true ) {
+				return true;
 			}
 
 			current = current.parent;

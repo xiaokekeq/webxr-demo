@@ -1,0 +1,32 @@
+{
+  "name": "ponytail-local",
+  "interface": {
+    "displayName": "Ponytail Local"
+  },
+  "plugins": [
+    {
+      "name": "ponytail",
+      "source": {
+        "source": "local",
+        "path": "./plugins/ponytail"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    },
+    {
+      "name": "browserprobe",
+      "source": {
+        "source": "local",
+        "path": "./plugins/browserprobe"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Engineering"
+    }
+  ]
+}

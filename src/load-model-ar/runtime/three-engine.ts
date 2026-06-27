@@ -14,7 +14,10 @@ import { createSceneHostRuntime, type SceneHostRuntimeHosts } from './internal/r
 import { createStatusRuntime } from './internal/runtime/status-runtime.js';
 import { createWorkspaceRuntime } from './internal/runtime/workspace-runtime.js';
 import { createMeasurementController } from './internal/tools/measurement-controller.js';
-import type { DemoModelConfig } from '../data/demo-model-config.js';
+import {
+	getFirstGeodeticPointFromDemoModelConfig,
+	type DemoModelConfig
+} from '../data/demo-model-config.js';
 import {
 	createDefaultMeasurementState,
 	createDefaultPrecisionRegistrationState,
@@ -210,6 +213,7 @@ export class ThreeEngine {
 	private demoModelConfig: DemoModelConfig | null = null;
 	private registrationSolution: EngineeringRegistrationSolution | null = null;
 	private activeManualRegistrationSitePose: ResolvedManualRegistrationSitePose | null = null;
+	private currentModelDebugTargetGeodetic: GeodeticCoordinate | null = null;
 	private lastSyncedDisplayMode: DisplayMode | null = null;
 	private lastSyncedDisplayModeRoot: THREE.Group | null = null;
 	private pipesByName = new Map<string, PipeRecord>();
@@ -355,19 +359,23 @@ export class ThreeEngine {
 				this.demoModelConfig = null;
 				this.registrationSolution = null;
 				this.activeManualRegistrationSitePose = null;
+				this.currentModelDebugTargetGeodetic = null;
 				this.pipesByName = new Map<string, PipeRecord>();
 				this.layerVisibility.reset();
 				this.store.patch( {
 					layerNames: STATIC_LAYER_NAMES,
 					modelLayers: []
 				} );
+				this.updateCoarseLocationDebugText();
 			},
 			onRuntimeBundleLoaded: ( bundle ) => {
 				this.pipesByName = bundle.pipesByName;
 				this.demoModelConfig = bundle.demoModelConfig;
 				this.modelTemplate = bundle.modelTemplate;
 				this.registrationSolution = bundle.registrationSolution;
+				this.currentModelDebugTargetGeodetic = getFirstGeodeticPointFromDemoModelConfig( bundle.demoModelConfig );
 				this.rebuildModelLayers();
+				this.updateCoarseLocationDebugText();
 			},
 			onAfterModelLoaded: () => {
 				this.ensureDesktopPreviewPlacement();
@@ -1161,7 +1169,7 @@ export class ThreeEngine {
 
 	private getModelDebugGeodeticTarget(): GeodeticCoordinate | null {
 
-		return this.registrationSolution?.controlPoints[ 0 ]?.worldGeodetic ?? null;
+		return this.currentModelDebugTargetGeodetic;
 
 	}
 

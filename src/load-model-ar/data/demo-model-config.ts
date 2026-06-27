@@ -125,6 +125,19 @@ export async function loadDemoModelConfig(
 
 }
 
+export function getFirstGeodeticPointFromDemoModelConfig(
+	config: DemoModelConfig
+): GeodeticCoordinate | null {
+
+	const firstControlPoint = Object.values( config.controlPoints )[ 0 ];
+	if ( firstControlPoint !== undefined ) {
+		return firstControlPoint.world;
+	}
+
+	return config.anchor;
+
+}
+
 function normalizeDemoModelConfig(config: RawDemoModelConfig): DemoModelConfig {
 
 	if ( isLocalDebugModelConfig( config ) ) {

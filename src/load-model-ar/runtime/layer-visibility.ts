@@ -259,6 +259,10 @@ function indexNamedObjects(root: THREE.Object3D): NamedObjectGroups {
 
 	tempObjectNames.clear();
 	root.traverse( ( child ) => {
+		if ( isExcludedFromLayerIndex( child ) ) {
+			return;
+		}
+
 		if ( child.name.length > 0 ) {
 			const group = tempObjectNames.get( child.name );
 			if ( group === undefined ) {
@@ -271,6 +275,21 @@ function indexNamedObjects(root: THREE.Object3D): NamedObjectGroups {
 	} );
 
 	return new Map( tempObjectNames );
+
+}
+
+function isExcludedFromLayerIndex(object: THREE.Object3D): boolean {
+
+	let current: THREE.Object3D | null = object;
+	while ( current !== null ) {
+		if ( current.userData.__excludeFromLayerIndex === true ) {
+			return true;
+		}
+
+		current = current.parent;
+	}
+
+	return false;
 
 }
 

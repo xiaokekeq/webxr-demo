@@ -302,6 +302,14 @@ function applyBoundaryPlaneMaterial(mesh: THREE.Mesh): void {
 
 	mesh.material = highlightMaterial;
 	mesh.renderOrder = 10;
+	mesh.userData.__nonSelectableHelper = true;
+	mesh.userData.__excludeFromLayerIndex = true;
+
+	const parent = mesh.parent;
+	if ( parent !== null && parent.name.trim().toLowerCase() === 'plane' ) {
+		parent.userData.__nonSelectableHelper = true;
+		parent.userData.__excludeFromLayerIndex = true;
+	}
 
 }
 

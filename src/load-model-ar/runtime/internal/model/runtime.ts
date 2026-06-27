@@ -16,6 +16,7 @@ import {
 } from '../../../registration/engineering-registration.js';
 import { geodeticToEnu } from '../../../registration/geodesy.js';
 import type { SetStatus } from '../../../shared/types.js';
+import { attachInfoBoardToAttachment } from '../../attachment-info-board.js';
 import { loadModelTemplate } from '../../model.js';
 
 export interface LoadedModelRuntimeBundle {
@@ -116,6 +117,9 @@ function composeModelTemplate(options: {
 		}
 
 		positionAttachmentTemplate( attachmentTemplate, attachment, registrationSolution );
+		if ( attachment.info !== undefined ) {
+			attachInfoBoardToAttachment( attachmentTemplate, attachment.info );
+		}
 		compositeRoot.add( attachmentTemplate );
 	}
 

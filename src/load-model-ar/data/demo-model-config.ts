@@ -23,6 +23,15 @@ export interface DemoModelAttachment {
 	anchorMode: 'base-center' | 'bounds-center';
 	yawDeg: number;
 	scaleMultiplier: number;
+	info?: DemoModelAttachmentInfo;
+}
+
+export interface DemoModelAttachmentInfo {
+	title?: string;
+	code?: string;
+	type?: string;
+	status?: string;
+	remark?: string;
 }
 
 export type DemoModelRegistrationMode = 'rigid' | 'similarity';
@@ -98,6 +107,7 @@ interface LegacyDemoModelConfig extends Omit<DemoModelConfig, 'siteFrame' | 'reg
 		anchorMode?: DemoModelAttachment['anchorMode'];
 		yawDeg?: number;
 		scaleMultiplier?: number;
+		info?: DemoModelAttachmentInfo;
 	}>;
 }
 
@@ -390,9 +400,62 @@ function normalizeAttachments(
 			world: normalizeGeodeticShape( attachment.world, `attachments[${index}].world` ),
 			anchorMode,
 			yawDeg,
-			scaleMultiplier
+			scaleMultiplier,
+			info: normalizeAttachmentInfo( attachment.info )
 		};
 	} );
+
+}
+
+function normalizeAttachmentInfo(info: DemoModelAttachmentInfo | undefined): DemoModelAttachmentInfo | undefined {
+
+	if ( info === undefined ) {
+		return undefined;
+	}
+
+	const normalizedInfo: DemoModelAttachmentInfo = {};
+
+	const title = normalizeOptionalAttachmentText( info.title );
+	if ( title !== undefined ) {
+		normalizedInfo.title = title;
+	}
+
+	const code = normalizeOptionalAttachmentText( info.code );
+	if ( code !== undefined ) {
+		normalizedInfo.code = code;
+	}
+
+	const type = normalizeOptionalAttachmentText( info.type );
+	if ( type !== undefined ) {
+		normalizedInfo.type = type;
+	}
+
+	const status = normalizeOptionalAttachmentText( info.status );
+	if ( status !== undefined ) {
+		normalizedInfo.status = status;
+	}
+
+	const remark = normalizeOptionalAttachmentText( info.remark );
+	if ( remark !== undefined ) {
+		normalizedInfo.remark = remark;
+	}
+
+	if ( Object.keys( normalizedInfo ).length === 0 ) {
+		return undefined;
+	}
+
+	return normalizedInfo;
+
+}
+
+function normalizeOptionalAttachmentText(value: string | undefined): string | undefined {
+
+	if ( typeof value !== 'string' ) {
+		return undefined;
+	}
+
+	const trimmed = value.trim();
+	return trimmed.length > 0 ? trimmed : undefined;
 
 }
 

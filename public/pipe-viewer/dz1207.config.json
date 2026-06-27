@@ -80,7 +80,14 @@
       },
       "anchorMode": "bounds-center",
       "yawDeg": 0,
-      "scaleMultiplier": 1
+      "scaleMultiplier": 1,
+      "info": {
+        "title": "1号控制桩",
+        "code": "STAKE-01",
+        "type": "定位桩",
+        "status": "正常",
+        "remark": "用于堤防边界定位与 AR 现场核查参考。"
+      }
     }
   ]
 }

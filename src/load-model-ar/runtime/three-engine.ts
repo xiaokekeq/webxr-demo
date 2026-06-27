@@ -55,6 +55,9 @@ import {
 } from '../registration/manual-registration-storage.js';
 import { createDisplayModeController, preserveRootTransform } from './display-mode.js';
 import { createLayerVisibilityController } from './layer-visibility.js';
+import {
+	setAttachmentInfoBoardVisibility
+} from './attachment-info-board.js';
 import { computeTargetGuidanceState } from './internal/placement/target-guidance.js';
 import { createARScene, resizeARScene } from './scene.js';
 import { createXRSessionRuntime } from './xr.js';
@@ -1367,6 +1370,7 @@ export class ThreeEngine {
 
 		this.sceneBundle.previewModelAnchor.visible = this.sceneBundle.renderer.xr.isPresenting === false;
 		this.sceneBundle.arModelAnchor.visible = this.sceneBundle.renderer.xr.isPresenting;
+		this.syncAttachmentInfoBoardVisibility();
 		this.sceneHostRuntime.sync( {
 			isDesktopLayout: this.isDesktopLayout,
 			appMode: this.store.getState().appMode
@@ -1516,6 +1520,7 @@ export class ThreeEngine {
 
 		this.layerVisibility.applyToRoot( this.placementSession.getPreviewPlacedModel() );
 		this.layerVisibility.applyToRoot( this.placementSession.getArPlacedModel() );
+		this.syncAttachmentInfoBoardVisibility();
 		const modelLayers = this.layerVisibility.getState();
 		this.store.patch( {
 			layerNames: modelLayers.length > 0
@@ -1527,6 +1532,16 @@ export class ThreeEngine {
 		this.lastSyncedDisplayMode = null;
 		this.lastSyncedDisplayModeRoot = null;
 		this.syncDisplayModeState();
+
+	}
+
+	private syncAttachmentInfoBoardVisibility(): void {
+
+		setAttachmentInfoBoardVisibility( this.placementSession.getPreviewPlacedModel(), false );
+		setAttachmentInfoBoardVisibility(
+			this.placementSession.getArPlacedModel(),
+			this.sceneBundle.renderer.xr.isPresenting
+		);
 
 	}
 

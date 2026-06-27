@@ -196,7 +196,11 @@ export function createPointerSelectionSession(
 		clientY: number
 	): void {
 
-		if ( intersections.length === 0 ) {
+		const visibleIntersections = intersections.filter(
+			( intersection ) => isLayerHidden( intersection.object, placedModel ) === false
+		);
+
+		if ( visibleIntersections.length === 0 ) {
 			if ( sceneBundle.renderer.xr.isPresenting ) {
 				const fallbackSelection = findProjectedSelection( clientX, clientY, placedModel );
 				if ( fallbackSelection !== null ) {
@@ -215,7 +219,7 @@ export function createPointerSelectionSession(
 			return;
 		}
 
-		const clickedMesh = intersections[ 0 ].object;
+		const clickedMesh = visibleIntersections[ 0 ].object;
 		const businessObject = propertySelection.resolveBusinessObject(
 			clickedMesh,
 			placedModel,
@@ -285,6 +289,10 @@ export function createPointerSelectionSession(
 		} | null = null;
 
 		for ( const businessObject of businessObjects ) {
+			if ( isLayerHidden( businessObject, placedModel ) ) {
+				continue;
+			}
+
 			boundingBox.setFromObject( businessObject );
 			if ( boundingBox.isEmpty() ) {
 				continue;
@@ -374,6 +382,25 @@ export function createPointerSelectionSession(
 		}
 
 		return { minX, maxX, minY, maxY };
+
+	}
+
+	function isLayerHidden(object: THREE.Object3D, placedModel: THREE.Group): boolean {
+
+		let current: THREE.Object3D | null = object;
+		while ( current !== null ) {
+			if ( current.userData.__layerHidden === true ) {
+				return true;
+			}
+
+			if ( current === placedModel ) {
+				return false;
+			}
+
+			current = current.parent;
+		}
+
+		return false;
 
 	}
 

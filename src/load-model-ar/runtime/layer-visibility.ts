@@ -20,6 +20,8 @@ interface ManagedMaterialState {
 	snapshots: ManagedMaterialSnapshot[];
 }
 
+type NamedObjectGroups = Map<string, THREE.Object3D[]>;
+
 export interface LayerVisibilityController {
 	rebuild(options: {
 		modelRoot: THREE.Object3D | null;
@@ -33,7 +35,8 @@ export interface LayerVisibilityController {
 }
 
 const tempBounds = new THREE.Box3();
-const tempObjectNames = new Map<string, THREE.Object3D>();
+const tempObjectNames = new Map<string, THREE.Object3D[]>();
+const tempObjectBounds = new THREE.Box3();
 
 export function createLayerVisibilityController(): LayerVisibilityController {
 
@@ -87,21 +90,24 @@ export function createLayerVisibilityController(): LayerVisibilityController {
 			const objectByName = indexNamedObjects( root );
 
 			for ( const layer of layerState ) {
-				const object = objectByName.get( layer.id );
-				if ( object === undefined ) {
+				const objects = objectByName.get( layer.id );
+				if ( objects === undefined ) {
 					continue;
 				}
 
-				object.visible = layer.visible;
-				if ( layer.visible === false ) {
-					continue;
+				for ( const object of objects ) {
+					object.visible = true;
+					object.userData.__layerHidden = layer.visible === false;
+					object.traverse( ( child ) => {
+						if ( child instanceof THREE.Mesh ) {
+							applyMeshOpacity(
+								child,
+								layer.visible ? layer.opacity : 0,
+								visibleLayers.length
+							);
+						}
+					} );
 				}
-
-				object.traverse( ( child ) => {
-					if ( child instanceof THREE.Mesh ) {
-						applyMeshOpacity( child, layer.opacity, visibleLayers.length );
-					}
-				} );
 			}
 
 		}
@@ -145,12 +151,20 @@ function buildLayerDefinitions(
 	const objectByName = indexNamedObjects( modelRoot );
 	const pipeLayers = Array.from( pipesByName.entries() )
 		.map( ( [ name, properties ] ) => {
-			const object = objectByName.get( name );
-			if ( object === undefined ) {
+			const objects = objectByName.get( name );
+			if ( objects === undefined ) {
 				return null;
 			}
 
-			const bounds = tempBounds.makeEmpty().setFromObject( object );
+			const bounds = tempBounds.makeEmpty();
+			for ( const object of objects ) {
+				tempObjectBounds.makeEmpty().setFromObject( object );
+				if ( tempObjectBounds.isEmpty() ) {
+					continue;
+				}
+
+				bounds.union( tempObjectBounds );
+			}
 			if ( bounds.isEmpty() ) {
 				return null;
 			}
@@ -173,16 +187,33 @@ function buildLayerDefinitions(
 			} ) );
 	}
 
-	return Array.from( objectByName.values() )
-		.filter( ( object ) => object.parent === modelRoot && object.name.length > 0 )
-		.map( ( object ) => {
-			const bounds = tempBounds.makeEmpty().setFromObject( object );
+	return Array.from( objectByName.entries() )
+		.map( ( [ name, objects ] ) => {
+			const rootLevelObjects = objects.filter( ( object ) => object.parent === modelRoot && object.name.length > 0 );
+			if ( rootLevelObjects.length === 0 ) {
+				return null;
+			}
+
+			const bounds = tempBounds.makeEmpty();
+			for ( const object of rootLevelObjects ) {
+				tempObjectBounds.makeEmpty().setFromObject( object );
+				if ( tempObjectBounds.isEmpty() ) {
+					continue;
+				}
+
+				bounds.union( tempObjectBounds );
+			}
+			if ( bounds.isEmpty() ) {
+				return null;
+			}
+
 			return {
-				id: object.name,
-				label: object.name,
-				topY: bounds.isEmpty() ? Number.NEGATIVE_INFINITY : bounds.max.y
+				id: name,
+				label: name,
+				topY: bounds.max.y
 			};
 		} )
+		.filter( ( item ): item is NonNullable<typeof item> => item !== null )
 		.filter( ( item ) => Number.isFinite( item.topY ) )
 		.sort( ( a, b ) => b.topY - a.topY )
 		.map( ( layer, index ) => ( {
@@ -224,12 +255,18 @@ function normalizeLayerLabel(value: string | undefined): string | null {
 
 }
 
-function indexNamedObjects(root: THREE.Object3D): Map<string, THREE.Object3D> {
+function indexNamedObjects(root: THREE.Object3D): NamedObjectGroups {
 
 	tempObjectNames.clear();
 	root.traverse( ( child ) => {
-		if ( child.name.length > 0 && tempObjectNames.has( child.name ) === false ) {
-			tempObjectNames.set( child.name, child );
+		if ( child.name.length > 0 ) {
+			const group = tempObjectNames.get( child.name );
+			if ( group === undefined ) {
+				tempObjectNames.set( child.name, [ child ] );
+				return;
+			}
+
+			group.push( child );
 		}
 	} );
 

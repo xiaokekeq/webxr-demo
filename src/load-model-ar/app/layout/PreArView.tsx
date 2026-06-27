@@ -3,7 +3,6 @@ import type { AppActions, AppState } from '../store/ar-state.js';
 import { ArCanvas } from './ArCanvas.js';
 import { ModelSelector } from '../components/ModelSelector.js';
 import { DisplayModeSelector } from '../components/DisplayModeSelector.js';
-import { LayerSelector } from '../components/LayerSelector.js';
 import { StageSelector } from '../components/StageSelector.js';
 import { ActionButton } from '../components/ActionButton.js';
 import { StatusBadge } from '../components/StatusBadge.js';
@@ -57,12 +56,6 @@ export function PreArView(props: {
 					stages={engine.timelineStages}
 					currentIndex={engine.currentTimelineStageIndex}
 					onSelect={actions.setTimelineStage}
-				/>
-				<LayerSelector
-					layers={engine.modelLayers}
-					onHideTopLayer={actions.hideTopModelLayer}
-					onRestoreLayer={actions.restoreModelLayer}
-					onResetLayers={actions.resetModelLayers}
 				/>
 
 				<ActionButton

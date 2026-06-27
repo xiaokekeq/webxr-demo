@@ -53,9 +53,11 @@ export function ArRuntimeView(props: {
 		&& engine.arSessionPhase === 'placed'
 		&& showTargetGuidance === false
 		&& engine.modelLayers.length > 1;
-	const canPeelTopLayer = visibleLayerCount > 1;
-	const cycleLayerLabel = canPeelTopLayer ? '隐藏上层' : '恢复一层';
-	const cycleLayerAction = canPeelTopLayer ? actions.hideTopModelLayer : actions.restoreModelLayer;
+	const cycleDirection = state.ui.layerCycleDirection;
+	const cycleLayerLabel = cycleDirection === 'restore' ? '恢复一层' : '隐藏上层';
+	const cycleLayerHint = cycleDirection === 'restore'
+		? '正在从下往上恢复，恢复到完整模型后会重新切回剥层'
+		: '继续从上往下剥离模型层，剥到最底层后会自动切到恢复';
 
 	return (
 		<div className={ `mobile-ar-root${showPlacementUi ? ' mobile-ar-root--placement' : ''}` }>
@@ -99,12 +101,12 @@ export function ArRuntimeView(props: {
 					<div className="layer-quickbar">
 						<div className="layer-quickbar__summary">
 							<strong>{`当前可见 ${visibleLayerCount} / ${engine.modelLayers.length} 层`}</strong>
-							<span>{canPeelTopLayer ? '继续从上往下剥离模型层' : '已到最底层，继续点击会逐层恢复'}</span>
+							<span>{cycleLayerHint}</span>
 						</div>
 						<div className="layer-quickbar__actions">
 							<ActionButton
 								label={cycleLayerLabel}
-								onClick={cycleLayerAction}
+								onClick={actions.cycleModelLayer}
 								kind="primary"
 							/>
 							<ActionButton

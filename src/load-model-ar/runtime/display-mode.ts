@@ -27,6 +27,7 @@ export interface DisplayModeController {
 	sync(mode: DisplayMode): void;
 	updateDepthState(frame?: XRFrame): void;
 	setDepthSensingMode(mode: DepthSensingMode): void;
+	captureMaterialBaseline(): void;
 	reset(): void;
 	dispose(): void;
 }
@@ -121,6 +122,27 @@ export function createDisplayModeController(
 
 		reset();
 		depthAwareOverlay.dispose();
+
+	}
+
+	function captureMaterialBaseline(): void {
+
+		if ( currentRoot === null ) {
+			return;
+		}
+
+		currentRoot.traverse( ( child ) => {
+			if ( child instanceof THREE.Mesh ) {
+				forEachMaterial( child.material, ( material ) => {
+					materialSnapshots.set( material, {
+						transparent: material.transparent,
+						opacity: material.opacity,
+						depthWrite: material.depthWrite,
+						depthTest: material.depthTest
+					} );
+				} );
+			}
+		} );
 
 	}
 
@@ -295,6 +317,7 @@ export function createDisplayModeController(
 		sync,
 		updateDepthState,
 		setDepthSensingMode,
+		captureMaterialBaseline,
 		reset,
 		dispose
 	};

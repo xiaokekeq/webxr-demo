@@ -53,6 +53,9 @@ export interface LoadModelArController {
 		enableCoarseRegistration(): Promise<void>;
 		refreshGeoLocation(): Promise<void>;
 		resetPlacement(): void;
+		hideTopModelLayer(): void;
+		restoreModelLayer(): void;
+		resetModelLayers(): void;
 		setManualAdjustmentPreset(preset: ManualAdjustmentPreset): void;
 		setAutoPreviewPlacementEnabled(enabled: boolean): void;
 		setDepthSensingMode(mode: DepthSensingMode): void;
@@ -359,6 +362,24 @@ export function createLoadModelArController(): LoadModelArController {
 					registrationView: 'overview',
 					measurementCaptureActive: false
 				} );
+
+			},
+
+			hideTopModelLayer() {
+
+				engine.hideTopModelLayer();
+
+			},
+
+			restoreModelLayer() {
+
+				engine.restoreModelLayer();
+
+			},
+
+			resetModelLayers() {
+
+				engine.resetModelLayers();
 
 			},
 

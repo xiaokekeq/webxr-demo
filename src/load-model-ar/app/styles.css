@@ -306,6 +306,64 @@ textarea {
 	color: var(--brand);
 }
 
+.layer-panel {
+	margin-top: 14px;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.layer-panel__actions {
+	margin-top: 0;
+}
+
+.layer-list {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.layer-item {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 12px 14px;
+	border-radius: 16px;
+	background: linear-gradient(180deg, rgba(61, 123, 255, 0.12) 0%, rgba(61, 123, 255, 0.05) 100%);
+	box-shadow: inset 0 0 0 1px rgba(61, 123, 255, 0.14);
+}
+
+.layer-item.is-hidden {
+	background: var(--surface-soft);
+	box-shadow: inset 0 0 0 1px var(--line);
+	opacity: 0.72;
+}
+
+.layer-item__main {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	min-width: 0;
+}
+
+.layer-item__main strong {
+	font-size: 13px;
+}
+
+.layer-item__main span,
+.layer-item__meta span {
+	font-size: 12px;
+	color: var(--muted);
+}
+
+.layer-item__meta {
+	flex: 0 0 auto;
+	padding: 6px 10px;
+	border-radius: 999px;
+	background: rgba(255, 255, 255, 0.72);
+}
+
 .stage-grid {
 	display: grid;
 	grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -577,6 +635,7 @@ textarea {
 .topbar,
 .guidance-card,
 .target-guidance-card,
+.layer-quickbar,
 .primary-bar,
 .precision-capture-bar,
 .drawer-anchor,
@@ -683,6 +742,44 @@ textarea {
 	line-height: 1.6;
 	color: #475569;
 	word-break: break-word;
+}
+
+.layer-quickbar {
+	position: fixed;
+	left: 16px;
+	right: 16px;
+	top: calc(max(14px, env(safe-area-inset-top, 0px)) + 84px);
+	padding: 12px 14px;
+	border-radius: 20px;
+	background:
+		linear-gradient(180deg, rgba(248, 250, 252, 0.96) 0%, rgba(226, 232, 240, 0.94) 100%);
+	color: #0f172a;
+	box-shadow: 0 16px 38px rgba(15, 23, 42, 0.2);
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.layer-quickbar__summary {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.layer-quickbar__summary strong {
+	font-size: 14px;
+}
+
+.layer-quickbar__summary span {
+	font-size: 12px;
+	line-height: 1.5;
+	color: #475569;
+}
+
+.layer-quickbar__actions {
+	display: grid;
+	grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+	gap: 10px;
 }
 
 .manual-overlay-shell {

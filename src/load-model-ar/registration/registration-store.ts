@@ -41,6 +41,14 @@ export interface PlacementSummaryState {
 	scaleText: string;
 }
 
+export interface ModelLayerState {
+	id: string;
+	label: string;
+	visible: boolean;
+	opacity: number;
+	orderIndex: number;
+}
+
 export interface TargetGuidanceState {
 	visible: boolean;
 	directionText: string;
@@ -97,6 +105,7 @@ export interface RegistrationStoreState {
 	timelineStages: readonly string[];
 	currentTimelineStageIndex: number;
 	layerNames: readonly string[];
+	modelLayers: ModelLayerState[];
 	pipeList: PipeRecord[];
 	propertyPanel: PropertyPanelState;
 	manualReadout: ManualReadoutState;

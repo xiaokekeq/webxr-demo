@@ -58,7 +58,12 @@ export function PreArView(props: {
 					currentIndex={engine.currentTimelineStageIndex}
 					onSelect={actions.setTimelineStage}
 				/>
-				<LayerSelector layers={engine.layerNames} />
+				<LayerSelector
+					layers={engine.modelLayers}
+					onHideTopLayer={actions.hideTopModelLayer}
+					onRestoreLayer={actions.restoreModelLayer}
+					onResetLayers={actions.resetModelLayers}
+				/>
 
 				<ActionButton
 					label="进入 AR"

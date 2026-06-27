@@ -50,6 +50,7 @@ import {
 	saveResolvedManualRegistrationState
 } from '../registration/manual-registration-storage.js';
 import { createDisplayModeController, preserveRootTransform } from './display-mode.js';
+import { createLayerVisibilityController } from './layer-visibility.js';
 import { computeTargetGuidanceState } from './internal/placement/target-guidance.js';
 import { createARScene, resizeARScene } from './scene.js';
 import { createXRSessionRuntime } from './xr.js';
@@ -93,6 +94,7 @@ function createInitialState(): RegistrationStoreState {
 		timelineStages: TIMELINE_STAGES,
 		currentTimelineStageIndex: 2,
 		layerNames: STATIC_LAYER_NAMES,
+		modelLayers: [],
 		pipeList: [],
 		propertyPanel: {
 			name: '未选择构件',
@@ -184,6 +186,7 @@ export class ThreeEngine {
 	private readonly manualOrientation = new THREE.Quaternion();
 	private readonly desktopAxesHelper = new THREE.AxesHelper( 0.8 );
 	private readonly displayModeController;
+	private readonly layerVisibility = createLayerVisibilityController();
 	private readonly propertySelection;
 	private readonly placementSession;
 	private readonly modelSession;
@@ -352,15 +355,22 @@ export class ThreeEngine {
 				this.registrationSolution = null;
 				this.activeManualRegistrationSitePose = null;
 				this.pipesByName = new Map<string, PipeRecord>();
+				this.layerVisibility.reset();
+				this.store.patch( {
+					layerNames: STATIC_LAYER_NAMES,
+					modelLayers: []
+				} );
 			},
 			onRuntimeBundleLoaded: ( bundle ) => {
 				this.pipesByName = bundle.pipesByName;
 				this.demoModelConfig = bundle.demoModelConfig;
 				this.modelTemplate = bundle.modelTemplate;
 				this.registrationSolution = bundle.registrationSolution;
+				this.rebuildModelLayers();
 			},
 			onAfterModelLoaded: () => {
 				this.ensureDesktopPreviewPlacement();
+				this.applyModelLayerVisibility();
 				this.syncSceneHost();
 				this.placementSession.fitDesktopPreviewToCamera();
 				this.emit();
@@ -765,6 +775,63 @@ export class ThreeEngine {
 
 	}
 
+	hideTopModelLayer(): void {
+
+		const beforeState = this.layerVisibility.getState();
+		const nextState = this.layerVisibility.hideTopLayer();
+		if ( nextState.length === 0 ) {
+			this.setStatus( '当前模型没有可管理的分层。' );
+			return;
+		}
+
+		if ( countHiddenLayers( nextState ) === countHiddenLayers( beforeState ) ) {
+			this.setStatus( '已经隐藏到最底层了。' );
+			return;
+		}
+
+		const hiddenLayer = nextState.find( ( layer, index ) => (
+			layer.visible === false && beforeState[ index ]?.visible !== false
+		) );
+		this.applyModelLayerVisibility();
+		this.setStatus( `已隐藏最上层：${hiddenLayer?.label ?? '当前层'}。` );
+
+	}
+
+	restoreModelLayer(): void {
+
+		const beforeState = this.layerVisibility.getState();
+		const nextState = this.layerVisibility.restoreLastHiddenLayer();
+		if ( nextState.length === 0 ) {
+			this.setStatus( '当前模型没有可管理的分层。' );
+			return;
+		}
+
+		if ( countHiddenLayers( nextState ) === countHiddenLayers( beforeState ) ) {
+			this.setStatus( '当前没有已隐藏的层可恢复。' );
+			return;
+		}
+
+		const restoredLayer = nextState.find( ( layer, index ) => (
+			layer.visible === true && beforeState[ index ]?.visible === false
+		) );
+		this.applyModelLayerVisibility();
+		this.setStatus( `已恢复一层：${restoredLayer?.label ?? '当前层'}。` );
+
+	}
+
+	resetModelLayers(): void {
+
+		const nextState = this.layerVisibility.reset();
+		if ( nextState.length === 0 ) {
+			this.setStatus( '当前模型没有可管理的分层。' );
+			return;
+		}
+
+		this.applyModelLayerVisibility();
+		this.setStatus( '已恢复全部模型分层。' );
+
+	}
+
 	setManualAdjustmentPreset(preset: ManualAdjustmentPreset): void {
 
 		this.manualRegistration.setAdjustmentPreset( preset );
@@ -1130,6 +1197,7 @@ export class ThreeEngine {
 			}
 		} );
 		this.refreshActiveManualRegistrationSitePose();
+		this.applyModelLayerVisibility();
 
 		const placedModel = this.placementSession.getPlacedModel();
 		if ( hadPlacedModel === false && placedModel !== null ) {
@@ -1235,6 +1303,7 @@ export class ThreeEngine {
 			registrationSolution: this.registrationSolution
 		} );
 		this.refreshActiveManualRegistrationSitePose();
+		this.applyModelLayerVisibility();
 
 	}
 
@@ -1248,6 +1317,7 @@ export class ThreeEngine {
 			manualOrientationTarget: this.manualOrientation
 		} );
 		this.refreshActiveManualRegistrationSitePose();
+		this.applyModelLayerVisibility();
 
 		if ( this.sceneBundle.renderer.xr.isPresenting && this.placementSession.getPlacedModel() !== null ) {
 			this.arSessionStateRuntime.markPlacementCommitted( true );
@@ -1391,6 +1461,38 @@ export class ThreeEngine {
 
 	};
 
+	private rebuildModelLayers(): void {
+
+		const modelLayers = this.layerVisibility.rebuild( {
+			modelRoot: this.modelTemplate,
+			pipesByName: this.pipesByName
+		} );
+		this.store.patch( {
+			layerNames: modelLayers.length > 0
+				? modelLayers.map( ( layer ) => layer.label )
+				: STATIC_LAYER_NAMES,
+			modelLayers
+		} );
+
+	}
+
+	private applyModelLayerVisibility(): void {
+
+		this.layerVisibility.applyToRoot( this.placementSession.getPlacedModel() );
+		const modelLayers = this.layerVisibility.getState();
+		this.store.patch( {
+			layerNames: modelLayers.length > 0
+				? modelLayers.map( ( layer ) => layer.label )
+				: STATIC_LAYER_NAMES,
+			modelLayers
+		} );
+		this.displayModeController.captureMaterialBaseline();
+		this.lastSyncedDisplayMode = null;
+		this.lastSyncedDisplayModeRoot = null;
+		this.syncDisplayModeState();
+
+	}
+
 }
 
 function cloneResolvedManualRegistrationSitePose(
@@ -1404,6 +1506,12 @@ function cloneResolvedManualRegistrationSitePose(
 		scaleMultiplier: sitePose.scaleMultiplier,
 		updatedAt: sitePose.updatedAt
 	};
+
+}
+
+function countHiddenLayers(layers: Array<{ visible: boolean }>): number {
+
+	return layers.reduce( ( count, layer ) => count + ( layer.visible ? 0 : 1 ), 0 );
 
 }
 

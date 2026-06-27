@@ -50,7 +50,12 @@ export function BrowsePanel(props: {
 					</div>
 				</div>
 
-				<LayerSelector layers={engine.layerNames} />
+				<LayerSelector
+					layers={engine.modelLayers}
+					onHideTopLayer={actions.hideTopModelLayer}
+					onRestoreLayer={actions.restoreModelLayer}
+					onResetLayers={actions.resetModelLayers}
+				/>
 				<StageSelector
 					stages={engine.timelineStages}
 					currentIndex={engine.currentTimelineStageIndex}

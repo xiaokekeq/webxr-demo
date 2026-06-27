@@ -166,6 +166,7 @@ async function loadObjModelTemplate(
 			loader.load(
 				fileName,
 				( object ) => {
+					normalizeObjModelStructure( object );
 					const { template, report } = createPlaceableTemplate( object, perModelScaleFactor, assetTransform );
 					attachModelSourceMetadata( template, extractModelSourceMetadata( object, 'obj' ) );
 
@@ -256,6 +257,130 @@ function splitAssetUrl(url: string): { basePath: string; fileName: string } {
 		basePath: cleanUrl.slice( 0, slashIndex + 1 ),
 		fileName: cleanUrl.slice( slashIndex + 1 ) + ( queryIndex === -1 ? '' : url.slice( queryIndex ) )
 	};
+
+}
+
+function normalizeObjModelStructure(root: THREE.Object3D): void {
+
+	const splitTargets: THREE.Mesh[] = [];
+	root.traverse( ( child ) => {
+		if ( child instanceof THREE.Mesh ) {
+			if ( isBoundaryPlaneMesh( child ) ) {
+				applyBoundaryPlaneMaterial( child );
+				return;
+			}
+
+			if ( shouldSplitMeshByMaterialGroups( child ) ) {
+				splitTargets.push( child );
+			}
+		}
+	} );
+
+	for ( const mesh of splitTargets ) {
+		splitMeshByMaterialGroups( mesh );
+	}
+
+}
+
+function isBoundaryPlaneMesh(mesh: THREE.Mesh): boolean {
+
+	return mesh.name.trim().toLowerCase() === 'plane';
+
+}
+
+function applyBoundaryPlaneMaterial(mesh: THREE.Mesh): void {
+
+	const highlightMaterial = new THREE.MeshBasicMaterial( {
+		name: '__boundary-plane-highlight',
+		color: 0x55d7ff,
+		transparent: true,
+		opacity: 0.18,
+		depthWrite: false,
+		side: THREE.DoubleSide,
+		toneMapped: false
+	} );
+
+	mesh.material = highlightMaterial;
+	mesh.renderOrder = 10;
+
+}
+
+function shouldSplitMeshByMaterialGroups(mesh: THREE.Mesh): boolean {
+
+	return Array.isArray( mesh.material )
+		&& mesh.material.length > 1
+		&& mesh.geometry.groups.length > 1;
+
+}
+
+function splitMeshByMaterialGroups(mesh: THREE.Mesh): void {
+
+	if ( mesh.parent === null || Array.isArray( mesh.material ) === false ) {
+		return;
+	}
+
+	const materialGroups = new Map<number, THREE.BufferGeometry['groups']>();
+	for ( const group of mesh.geometry.groups ) {
+		const entries = materialGroups.get( group.materialIndex ) ?? [];
+		entries.push( {
+			start: group.start,
+			count: group.count,
+			materialIndex: 0
+		} );
+		materialGroups.set( group.materialIndex, entries );
+	}
+
+	if ( materialGroups.size <= 1 ) {
+		return;
+	}
+
+	const replacementRoot = new THREE.Group();
+	replacementRoot.name = mesh.name;
+	replacementRoot.position.copy( mesh.position );
+	replacementRoot.quaternion.copy( mesh.quaternion );
+	replacementRoot.scale.copy( mesh.scale );
+	replacementRoot.visible = mesh.visible;
+	replacementRoot.castShadow = mesh.castShadow;
+	replacementRoot.receiveShadow = mesh.receiveShadow;
+
+	for ( const [ materialIndex, groups ] of materialGroups ) {
+		const material = mesh.material[ materialIndex ];
+		if ( material === undefined ) {
+			continue;
+		}
+
+		const geometry = mesh.geometry.clone();
+		geometry.clearGroups();
+		for ( const group of groups ) {
+			geometry.addGroup( group.start, group.count, 0 );
+		}
+
+		const childMesh = new THREE.Mesh( geometry, material );
+		childMesh.name = createSplitLayerName( mesh.name, material, materialIndex );
+		childMesh.visible = mesh.visible;
+		childMesh.castShadow = mesh.castShadow;
+		childMesh.receiveShadow = mesh.receiveShadow;
+		replacementRoot.add( childMesh );
+	}
+
+	const parent = mesh.parent;
+	parent.add( replacementRoot );
+	parent.remove( mesh );
+
+}
+
+function createSplitLayerName(
+	baseName: string,
+	material: THREE.Material,
+	materialIndex: number
+): string {
+
+	const materialName = material.name.trim();
+	if ( materialName.length > 0 ) {
+		return `${baseName}__${materialName}`;
+	}
+
+	return `${baseName}__material_${String( materialIndex ).padStart( 2, '0' )}`;
 
 }
 

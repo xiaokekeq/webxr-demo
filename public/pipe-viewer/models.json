@@ -49,6 +49,7 @@
         "name": "stake marker",
         "modelUrl": "/pipe-viewer/dz1207/stake-marker.glb",
         "assetTransform": {
+          "scaleFactor": 0.01,
           "disableAutoScale": true
         }
       }

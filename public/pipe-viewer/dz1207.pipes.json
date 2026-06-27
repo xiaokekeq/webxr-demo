@@ -1,22 +1,58 @@
 {
   "pipes": [
     {
-      "name": "dizhi1207",
+      "name": "dizhi1207__e32eyy",
       "type": "terrain-layer",
       "diameter": "--",
-      "material": "terrain-solid",
+      "material": "texture-zfzrt1",
       "depth": "--",
       "status": "normal",
-      "remark": "dz1207 main solid body"
+      "remark": "dz1207 material group e32eyy"
     },
     {
-      "name": "Plane",
+      "name": "dizhi1207__e32e43yy",
       "type": "terrain-layer",
       "diameter": "--",
-      "material": "terrain-base-plane",
+      "material": "texture-zfzrt",
       "depth": "--",
       "status": "normal",
-      "remark": "dz1207 base plane"
+      "remark": "dz1207 material group e32e43yy"
+    },
+    {
+      "name": "dizhi1207__e32e43",
+      "type": "terrain-layer",
+      "diameter": "--",
+      "material": "texture-srt",
+      "depth": "--",
+      "status": "normal",
+      "remark": "dz1207 material group e32e43"
+    },
+    {
+      "name": "dizhi1207__e32e43yyhh",
+      "type": "terrain-layer",
+      "diameter": "--",
+      "material": "texture-fs",
+      "depth": "--",
+      "status": "normal",
+      "remark": "dz1207 material group e32e43yyhh"
+    },
+    {
+      "name": "dizhi1207__e3yhh",
+      "type": "terrain-layer",
+      "diameter": "--",
+      "material": "texture-cs",
+      "depth": "--",
+      "status": "normal",
+      "remark": "dz1207 material group e3yhh"
+    },
+    {
+      "name": "dizhi1207__e3yhhw",
+      "type": "terrain-layer",
+      "diameter": "--",
+      "material": "texture-cs1",
+      "depth": "--",
+      "status": "normal",
+      "remark": "dz1207 material group e3yhhw"
     }
   ]
 }

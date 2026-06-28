@@ -293,81 +293,72 @@ function startLoop(): void {
 	const tick = (): void => {
 
 		animationFrameId = window.requestAnimationFrame( tick );
+		frameCount += 1;
 		renderLoopRunning = true;
 		lastFrameTimestamp = Date.now();
-		frameCount += 1;
 
-		if ( renderer === null || scene === null || camera === null ) {
-			syncDebugState();
-			return;
-		}
-
+		const sourceReady = Boolean( arToolkitSource?.ready );
 		const sourceElement = arToolkitSource?.domElement ?? null;
-		if (
-			arToolkitSource?.ready
-			&& arToolkitContext !== null
-			&& sourceElement !== null
-		) {
+		const hasDomElement = Boolean( sourceElement );
+		const contextReady = Boolean( arToolkitContext );
+		const controlsReady = Boolean( markerControls );
+		markerControlsReady = controlsReady;
+
+		if ( sourceReady && hasDomElement && contextReady && sourceElement !== null && arToolkitContext !== null ) {
 			arToolkitContext.update( sourceElement );
 			lastArToolkitUpdateTimestamp = Date.now();
 		}
 
-		renderMarkerPoseState();
-		renderer.render( scene, camera );
+		const visible = Boolean( markerRoot?.visible );
+		markerRootVisible = visible;
+		updateVisibleState( visible ? 'visible' : 'lost' );
+
+		if ( visible && markerRoot !== null ) {
+			markerRoot.updateMatrixWorld( true );
+
+			const markerPoseInAr = createMarkerPoseInArFromArjsObject( {
+				markerId: DEFAULT_MARKER_ID,
+				object3D: markerRoot,
+				timestamp: Date.now()
+			} );
+			const shouldLog = lastVisible === false || markerPoseInAr.timestamp - lastLoggedAt >= LOG_INTERVAL_MS;
+
+			if ( shouldLog ) {
+				logMarkerPose( markerPoseInAr );
+				lastLoggedAt = markerPoseInAr.timestamp;
+			}
+
+			lastVisible = true;
+			setPoseState( markerPoseInAr, true );
+			resolveMarkerLocalizationDebug( markerPoseInAr, shouldLog );
+		} else {
+			if ( lastVisible ) {
+				console.info( '[ArjsMarkerTracking]', {
+					markerId: DEFAULT_MARKER_ID,
+					visible: false,
+					matrix: null,
+					position: null,
+					quaternion: null,
+					timestamp: Date.now()
+				} );
+			}
+
+			lastVisible = false;
+			setPoseState( null, false );
+			setLocalizationState( null, false );
+			setStabilityState( localizationStabilizer.getReport() );
+		}
+
+		if ( renderer !== null && scene !== null && camera !== null ) {
+			renderer.render( scene, camera );
+		}
+
 		syncDebugState();
 		maybeLogArjsLoop();
 
 	};
 
 	tick();
-
-}
-
-function renderMarkerPoseState(): void {
-
-	if ( markerRoot === null ) {
-		return;
-	}
-
-	markerRoot.updateMatrixWorld( true );
-	const visible = markerRoot.visible === true;
-	markerRootVisible = visible;
-	syncDebugState();
-
-	if ( visible === false ) {
-		if ( lastVisible ) {
-			console.info( '[ArjsMarkerTracking]', {
-				markerId: DEFAULT_MARKER_ID,
-				visible: false,
-				matrix: null,
-				position: null,
-				quaternion: null,
-				timestamp: Date.now()
-			} );
-		}
-
-		lastVisible = false;
-		setPoseState( null, false );
-		setLocalizationState( null, false );
-		setStabilityState( localizationStabilizer.getReport() );
-		return;
-	}
-
-	const markerPoseInAr = createMarkerPoseInArFromArjsObject( {
-		markerId: DEFAULT_MARKER_ID,
-		object3D: markerRoot,
-		timestamp: Date.now()
-	} );
-	const shouldLog = lastVisible === false || markerPoseInAr.timestamp - lastLoggedAt >= LOG_INTERVAL_MS;
-
-	if ( shouldLog ) {
-		logMarkerPose( markerPoseInAr );
-		lastLoggedAt = markerPoseInAr.timestamp;
-	}
-
-	lastVisible = true;
-	setPoseState( markerPoseInAr, true );
-	resolveMarkerLocalizationDebug( markerPoseInAr, shouldLog );
 
 }
 
@@ -417,6 +408,16 @@ function resolveMarkerLocalizationDebug(
 		setLocalizationState( null, false );
 		setStabilityState( localizationStabilizer.getReport() );
 	}
+
+}
+
+function updateVisibleState(state: 'visible' | 'lost'): void {
+
+	const visible = state === 'visible';
+	visibleElement.textContent = state;
+	summaryVisibleElement.textContent = state;
+	guideFrameElement.classList.toggle( 'marker-test__guide--detected', visible );
+	guideLabelElement.textContent = visible ? 'Marker detected' : 'Place Hiro marker inside frame';
 
 }
 
@@ -492,11 +493,6 @@ function handleSaveStableResult(): void {
 }
 
 function setPoseState(markerPoseInArValue: MarkerPoseInAr | null, visible: boolean): void {
-
-	visibleElement.textContent = visible ? 'visible' : 'lost';
-	summaryVisibleElement.textContent = visible ? 'visible' : 'lost';
-	guideFrameElement.classList.toggle( 'marker-test__guide--detected', visible );
-	guideLabelElement.textContent = visible ? 'Marker detected' : 'Place Hiro marker inside frame';
 
 	if ( markerPoseInArValue === null ) {
 		positionElement.textContent = '-';

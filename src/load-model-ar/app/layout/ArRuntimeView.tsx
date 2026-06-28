@@ -1,11 +1,23 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import type React from 'react';
 import type { AppActions, AppState } from '../store/ar-state.js';
-import type { DisplayMode } from '../../registration/registration-store.js';
+import {
+	PANEL_OPTIONS,
+	getDisplayModeLabel,
+	getGuidanceContent,
+	getPhaseLabel,
+	getWorkspaceLabel
+} from '../store/selectors.js';
 import { ArCanvas } from './ArCanvas.js';
+import { ArStatusBar } from './ArStatusBar.js';
+import { BottomDrawer } from './BottomDrawer.js';
+import { ManualAdjustmentOverlay } from './ManualAdjustmentOverlay.js';
 import { ActionButton } from '../components/ActionButton.js';
-
-const XRAY_SLIDER_VALUE = 52;
-const OCCLUSION_SLIDER_VALUE = 86;
+import { GuardedPressButton } from '../components/GuardedPressButton.js';
+import { BrowsePanel } from '../panels/BrowsePanel.js';
+import { RegistrationPanel } from '../panels/RegistrationPanel.js';
+import { ToolsPanel } from '../panels/ToolsPanel.js';
+import { InspectionPanel } from '../panels/InspectionPanel.js';
+import { usePlacementGuidance } from './use-placement-guidance.js';
 
 export function ArRuntimeView(props: {
 	state: AppState;
@@ -15,99 +27,40 @@ export function ArRuntimeView(props: {
 
 	const { state, actions, canvasRef } = props;
 	const engine = state.engine;
-	const currentModelName = engine.availableModels.find( ( item ) => item.id === engine.selectedModelId )?.name ?? '-';
-	const currentStage = engine.timelineStages[ engine.currentTimelineStageIndex ] ?? '-';
-	const hasPlacedModel = engine.arSessionPhase === 'placed';
-	const hitTestReady = engine.arSessionPhase === 'ready-to-place' || engine.arSessionPhase === 'placing' || hasPlacedModel;
-	const canPlace = engine.arSessionPhase === 'ready-to-place';
-	const usePreviewPlacement = engine.autoPreviewPlacementEnabled;
-	const placementButtonLabel = getPlacementButtonLabel( engine.arSessionPhase, hasPlacedModel, canPlace );
-	const [ perspectiveValue, setPerspectiveValue ] = useState<number>(
-		getPerspectiveValueForMode( engine.displayMode )
-	);
-	const [ stagePickerOpen, setStagePickerOpen ] = useState( false );
-	const [ propertyCardOpen, setPropertyCardOpen ] = useState( false );
-
-	const propertyCardItems = useMemo( () => ( [
-		{
-			label: '\u5f53\u524d\u9636\u6bb5',
-			value: currentStage
-		},
-		{
-			label: '\u900f\u89c6\u5f3a\u5ea6',
-			value: String( perspectiveValue )
-		},
-		{
-			label: '\u5f53\u524d\u6784\u4ef6',
-			value: getCurrentMeshName( engine.hasSelection, engine.propertyPanel.meshName )
-		},
-		{
-			label: '\u6750\u8d28\u540d\u79f0',
-			value: getCurrentMaterialName( engine.hasSelection, engine.propertyPanel.materialName )
-		}
-	] ), [ currentStage, engine.hasSelection, engine.propertyPanel.materialName, engine.propertyPanel.meshName, perspectiveValue ] );
-
-	useEffect( () => {
-		setPerspectiveValue( getPerspectiveValueForMode( engine.displayMode ) );
-	}, [ engine.displayMode ] );
-
-	useEffect( () => {
-		if ( engine.hasSelection ) {
-			setPropertyCardOpen( true );
-		}
-	}, [ engine.hasSelection ] );
-
-	useEffect( () => {
-		console.info( '[MinimalPlacementUI]', {
-			hasPlacedModel,
-			hitTestReady,
-			canPlace,
-			placementButtonLabel
-		} );
-	}, [ canPlace, hasPlacedModel, hitTestReady, placementButtonLabel ] );
-
-	function handlePerspectiveChange(event: React.ChangeEvent<HTMLInputElement>): void {
-
-		const nextValue = clampPerspectiveValue( Number( event.target.value ) );
-		setPerspectiveValue( nextValue );
-		actions.setDisplayMode( getDisplayModeForPerspectiveValue( nextValue ) );
-
-	}
-
-	function handleStageSelect(index: number): void {
-
-		actions.setTimelineStage( index );
-		setStagePickerOpen( false );
-
-	}
-
-	function handlePlaceModel(): void {
-
-		console.info( '[PlaceModelRequested]', {
-			canPlace,
-			hasHitTest: hitTestReady,
-			selectedModelId: engine.selectedModelId
-		} );
-
-		if ( canPlace === false ) {
-			return;
-		}
-
-		void actions.placeModel();
-
-	}
-
-	function handleResetPlacement(): void {
-
-		console.info( '[ResetPlacementRequested]', {
-			hasPlacedModel
-		} );
-		actions.resetPlacement();
-
-	}
+	const guidance = getGuidanceContent( engine.arSessionPhase );
+	const showPlacementUi = engine.arSessionPhase === 'scanning' || engine.arSessionPhase === 'ready-to-place';
+	const showGuidance = usePlacementGuidance( engine.arSessionPhase );
+	const canInspect = engine.arSessionPhase === 'placed';
+	const canOpenBrowse = engine.arSessionPhase === 'placed' || showPlacementUi;
+	const canOpenTools = true;
+	const placeActionLabel = engine.arSessionPhase === 'ready-to-place' ? '开始放置' : '继续扫描';
+	const drawerToggleLabel = state.ui.drawerOpen ? '收起面板' : `展开${getWorkspaceLabel( engine.workspaceMode )}`;
+	const displayModeLabel = getDisplayModeLabel( engine.displayMode );
+	const subtitle = `${getWorkspaceLabel( engine.workspaceMode )} / ${getPhaseLabel( engine.arSessionPhase )} / ${displayModeLabel} / RMS ${engine.registrationMetrics.rmsText}`;
+	const showMeasurementCaptureOverlay = state.ui.measurementCaptureActive
+		&& engine.workspaceMode === 'tools';
+	const measurementCaptureActionLabel = `记录第 ${engine.measurement.capturedPointLabels.length + 1} 点`;
+	const showCaptureOverlay = showMeasurementCaptureOverlay;
+	const showTargetGuidance = engine.arSessionPhase === 'placed' && engine.targetGuidance.visible;
+	const showManualAdjustmentOverlay = showCaptureOverlay === false
+		&& engine.workspaceMode === 'registration'
+		&& state.ui.registrationView === 'manual'
+		&& engine.appMode === 'ar-session';
+	const hiddenLayerCount = engine.modelLayers.filter( ( layer ) => layer.visible === false ).length;
+	const visibleLayerCount = engine.modelLayers.length - hiddenLayerCount;
+	const showLayerQuickBar = showCaptureOverlay === false
+		&& showManualAdjustmentOverlay === false
+		&& engine.arSessionPhase === 'placed'
+		&& showTargetGuidance === false
+		&& engine.modelLayers.length > 1;
+	const cycleDirection = state.ui.layerCycleDirection;
+	const cycleLayerLabel = cycleDirection === 'restore' ? '恢复一层' : '隐藏上层';
+	const cycleLayerHint = cycleDirection === 'restore'
+		? '正在从下往上恢复，恢复到完整模型后会重新切回剥层'
+		: '继续从上往下剥离模型层，剥到最底层后会自动切到恢复';
 
 	return (
-		<div className="mobile-ar-root mobile-ar-root--simple">
+		<div className={ `mobile-ar-root${showPlacementUi ? ' mobile-ar-root--placement' : ''}` }>
 			<ArCanvas canvasRef={canvasRef} className="scene-host scene-host--fullscreen" />
 
 			<div
@@ -116,227 +69,126 @@ export function ArRuntimeView(props: {
 				onPointerDownCapture={actions.handleArUiInteraction}
 				onPointerUpCapture={actions.handleArUiInteraction}
 			>
-				<header className="ar-minimal-topbar">
-					<div className="ar-minimal-topbar__model" title={currentModelName}>
-						{currentModelName}
-					</div>
-					<div className="ar-minimal-topbar__actions">
-						<button
-							type="button"
-							className={ `ar-mini-toggle${usePreviewPlacement ? ' is-active' : ''}` }
-							onClick={ () => actions.setAutoPreviewPlacementEnabled( !usePreviewPlacement ) }
-						>
-							<span className="ar-mini-toggle__label">{'\u524d\u65b9\u9884\u89c8'}</span>
-							<span className="ar-mini-toggle__value">
-								{usePreviewPlacement ? '\u5df2\u5173\u95ed\u771f\u5b9e\u4f4d\u7f6e' : '\u4f7f\u7528\u771f\u5b9e\u4f4d\u7f6e'}
-							</span>
-						</button>
-						<button
-							type="button"
-							className="ar-pill-button"
-							onClick={ () => setStagePickerOpen( ( current ) => !current ) }
-						>
-							<span>{currentStage}</span>
-							<span className={ `ar-pill-button__chevron${stagePickerOpen ? ' is-open' : ''}` }>{'\u25be'}</span>
-						</button>
-						<ActionButton label={'\u9000\u51fa AR'} onClick={actions.exitAr} kind="secondary" />
-					</div>
-				</header>
-
-				{stagePickerOpen ? (
-					<section className="ar-stage-popover">
-						<div className="ar-stage-popover__title">{'\u751f\u547d\u5468\u671f'}</div>
-						<div className="ar-stage-popover__list">
-							{engine.timelineStages.map( ( stage, index ) => (
-								<button
-									key={stage}
-									type="button"
-									className={ `ar-stage-popover__item${index === engine.currentTimelineStageIndex ? ' is-active' : ''}` }
-									onClick={ () => handleStageSelect( index ) }
-								>
-									{stage}
-								</button>
-							))}
-						</div>
-					</section>
-				) : null}
-
-				{hasPlacedModel ? null : (
-					<div className={ `ar-placement-crosshair${hitTestReady ? ' is-ready' : ''}` } aria-hidden="true">
-						<div className="ar-placement-crosshair__ring" />
-						<div className="ar-placement-crosshair__line ar-placement-crosshair__line--h" />
-						<div className="ar-placement-crosshair__line ar-placement-crosshair__line--v" />
-					</div>
+				{showCaptureOverlay ? null : (
+					<ArStatusBar
+						title={engine.projectName}
+						subtitle={subtitle}
+						status={engine.arSessionPhase === 'ready-to-place' ? '点击放置' : getPhaseLabel( engine.arSessionPhase )}
+						onStatusClick={showPlacementUi ? () => void actions.placeModel() : undefined}
+						statusDisabled={engine.arSessionPhase !== 'ready-to-place'}
+					/>
 				)}
 
-				<div className="ar-model-capsule-stack">
-					<button
-						type="button"
-						className="ar-model-capsule"
-						onClick={ () => setPropertyCardOpen( ( current ) => !current ) }
-					>
-						{currentModelName}
-					</button>
-
-					{propertyCardOpen ? (
-						<section className="ar-compact-property-card">
-							<div className="ar-compact-property-card__header">
-								<strong>{currentModelName}</strong>
-								<button
-									type="button"
-									className="ar-compact-property-card__close"
-									onClick={ () => setPropertyCardOpen( false ) }
-								>
-									{'\u5173\u95ed'}
-								</button>
-							</div>
-							<div className="ar-compact-property-card__grid">
-								{propertyCardItems.map( ( item ) => (
-									<div key={item.label}>
-										<span>{item.label}</span>
-										<strong>{item.value}</strong>
-									</div>
-								) )}
-							</div>
-							<div className="ar-compact-property-card__hint">
-								{engine.hasSelection
-									? '\u70b9\u51fb\u6a21\u578b\u5176\u4ed6\u6784\u4ef6\u53ef\u7ee7\u7eed\u66f4\u65b0\u5c5e\u6027\u3002'
-									: '\u70b9\u51fb\u6a21\u578b\u6784\u4ef6\u67e5\u770b\u5c5e\u6027\u3002'}
-							</div>
-						</section>
-					) : null}
-				</div>
-
-				<section className="ar-placement-bar">
-					{hasPlacedModel ? (
-						<button
-							type="button"
-							className="ar-placement-button ar-placement-button--secondary"
-							onClick={handleResetPlacement}
-						>
-							{'\u91cd\u65b0\u653e\u7f6e'}
-						</button>
-					) : (
-						<button
-							type="button"
-							className={ `ar-placement-button${canPlace ? ' is-active' : ''}` }
-							onClick={handlePlaceModel}
-							disabled={canPlace === false}
-						>
-							{placementButtonLabel}
-						</button>
-					)}
-				</section>
-
-				<section className="ar-minimal-perspective">
-					<div className="ar-minimal-perspective__header">
-						<strong>{'\u900f\u89c6'}</strong>
-						<span>{perspectiveValue}</span>
+				{showCaptureOverlay ? null : showPlacementUi && showGuidance ? (
+					<div className="guidance-card">
+						<h2>{guidance.title}</h2>
+						<p>{guidance.body}</p>
+						<div className="guidance-card__debug">{engine.coarseLocationDebugText}</div>
 					</div>
-					<input
-						className="ar-minimal-perspective__slider"
-						type="range"
-						min="0"
-						max="100"
-						step="1"
-						value={perspectiveValue}
-						onChange={handlePerspectiveChange}
-						disabled={hasPlacedModel === false}
-					/>
-					{hasPlacedModel ? null : (
-						<div className="ar-minimal-perspective__hint">{'\u8bf7\u5148\u653e\u7f6e\u6a21\u578b'}</div>
-					)}
-				</section>
+				) : null}
+
+				{showCaptureOverlay ? null : showTargetGuidance ? (
+					<div className={ `target-guidance-card target-guidance-card--${engine.targetGuidance.alignment}` }>
+						<div className="target-guidance-card__eyebrow">当前未看到模型</div>
+						<div className="target-guidance-card__direction">{engine.targetGuidance.directionText}</div>
+						<div className="target-guidance-card__distance">{engine.targetGuidance.distanceText}</div>
+						<p>{engine.targetGuidance.detailText}</p>
+						<div className="target-guidance-card__debug">{engine.coarseLocationDebugText}</div>
+					</div>
+				) : null}
+
+				{showLayerQuickBar ? (
+					<div className="layer-quickbar">
+						<div className="layer-quickbar__summary">
+							<strong>{`当前可见 ${visibleLayerCount} / ${engine.modelLayers.length} 层`}</strong>
+							<span>{cycleLayerHint}</span>
+						</div>
+						<div className="layer-quickbar__actions">
+							<ActionButton
+								label={cycleLayerLabel}
+								onClick={actions.cycleModelLayer}
+								kind="primary"
+							/>
+							<ActionButton
+								label="恢复全部"
+								onClick={actions.resetModelLayers}
+								kind="secondary"
+								disabled={hiddenLayerCount === 0}
+							/>
+						</div>
+					</div>
+				) : null}
+
+				{showManualAdjustmentOverlay ? <ManualAdjustmentOverlay state={state} actions={actions} /> : null}
+
+				{showCaptureOverlay ? null : showPlacementUi ? (
+					<div className="primary-bar">
+						<ActionButton label="退出 AR" onClick={actions.exitAr} kind="secondary" />
+						<ActionButton
+							label={placeActionLabel}
+							onClick={ () => void actions.placeModel() }
+							kind="primary"
+							disabled={engine.arSessionPhase !== 'ready-to-place'}
+						/>
+					</div>
+				) : null}
+
+				{showCaptureOverlay || showManualAdjustmentOverlay ? null : (
+					<BottomDrawer
+						open={state.ui.drawerOpen}
+						workspaceMode={engine.workspaceMode}
+						onToggle={actions.toggleDrawer}
+						toggleLabel={drawerToggleLabel}
+					>
+						{engine.workspaceMode === 'browse' ? <BrowsePanel state={state} actions={actions} canInspect={canInspect} /> : null}
+						{engine.workspaceMode === 'registration' ? <RegistrationPanel state={state} actions={actions} /> : null}
+						{engine.workspaceMode === 'tools' ? <ToolsPanel state={state} actions={actions} /> : null}
+						{engine.workspaceMode === 'inspection' ? <InspectionPanel state={state} actions={actions} /> : null}
+					</BottomDrawer>
+				)}
+
+				{showMeasurementCaptureOverlay ? (
+					<div className="precision-capture-bar">
+						<div className="precision-capture-bar__content">
+							<strong>当前模式：{engine.measurement.activeLabel}</strong>
+							<span>测点进度：{engine.measurement.capturedPointLabels.length} / {engine.measurement.requiredPointCount}</span>
+							<span>采样质量：{engine.measurement.targetQualityText}</span>
+							<span>{engine.measurement.feedbackText || engine.measurement.detailText}</span>
+						</div>
+						<div className="precision-capture-bar__actions">
+							<ActionButton
+								label="取消测量"
+								onClick={actions.cancelMeasurement}
+								kind="secondary"
+							/>
+							<ActionButton
+								label={measurementCaptureActionLabel}
+								onClick={actions.confirmMeasurementPoint}
+								kind="primary"
+							/>
+						</div>
+					</div>
+				) : (
+					<nav className="bottom-nav">
+						{PANEL_OPTIONS.map( ( item ) => (
+							<GuardedPressButton
+								key={item.value}
+								className={ `nav-button${engine.workspaceMode === item.value ? ' is-active' : ''}` }
+								onPress={ () => actions.activatePanel( item.value ) }
+								disabled={
+									( item.value === 'browse' && !canOpenBrowse )
+									|| ( item.value === 'tools' && !canOpenTools )
+									|| ( item.value === 'inspection' && !canInspect )
+								}
+							>
+								<span className="nav-button__icon">{item.short}</span>
+								<span>{item.label}</span>
+							</GuardedPressButton>
+						))}
+					</nav>
+				)}
 			</div>
 		</div>
 	);
-
-}
-
-function clampPerspectiveValue(value: number): number {
-
-	if ( Number.isFinite( value ) === false ) {
-		return 0;
-	}
-
-	return Math.min( 100, Math.max( 0, Math.round( value ) ) );
-
-}
-
-function getPerspectiveValueForMode(mode: DisplayMode): number {
-
-	if ( mode === 'xray' ) {
-		return XRAY_SLIDER_VALUE;
-	}
-
-	if ( mode === 'occlusion-outline' ) {
-		return OCCLUSION_SLIDER_VALUE;
-	}
-
-	return 0;
-
-}
-
-function getDisplayModeForPerspectiveValue(value: number): DisplayMode {
-
-	if ( value >= 71 ) {
-		return 'occlusion-outline';
-	}
-
-	if ( value >= 1 ) {
-		return 'xray';
-	}
-
-	return 'normal';
-
-}
-
-function getPlacementButtonLabel(
-	phase: AppState['engine']['arSessionPhase'],
-	hasPlacedModel: boolean,
-	canPlace: boolean
-): string {
-
-	if ( hasPlacedModel ) {
-		return '\u91cd\u65b0\u653e\u7f6e';
-	}
-
-	if ( canPlace ) {
-		return '\u653e\u7f6e\u6a21\u578b';
-	}
-
-	if ( phase === 'placing' ) {
-		return '\u6b63\u5728\u653e\u7f6e...';
-	}
-
-	return '\u626b\u63cf\u5e73\u9762\u4e2d...';
-
-}
-
-function getCurrentMeshName(hasSelection: boolean, meshName: string | undefined): string {
-
-	if ( hasSelection === false ) {
-		return '\u672a\u9009\u62e9';
-	}
-
-	if ( typeof meshName === 'string' && meshName.trim().length > 0 ) {
-		return meshName;
-	}
-
-	return '\u672a\u547d\u540d\u6784\u4ef6';
-
-}
-
-function getCurrentMaterialName(hasSelection: boolean, materialName: string | undefined): string {
-
-	if ( hasSelection === false ) {
-		return '\u672a\u547d\u540d\u6750\u8d28';
-	}
-
-	if ( typeof materialName === 'string' && materialName.trim().length > 0 && materialName !== '-' ) {
-		return materialName;
-	}
-
-	return '\u672a\u547d\u540d\u6750\u8d28';
 
 }

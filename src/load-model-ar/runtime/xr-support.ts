@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { DepthSensingMode } from '../registration/registration-store.js';
-import type { SetStatus, XRHitTestController, XRHitTestQuality } from '../shared/types.js';
+import type { SetStatus, XRAnchorHandle, XRHitTestController, XRHitTestQuality } from '../shared/types.js';
 
 interface CreateXRHitTestControllerOptions {
 	renderer: THREE.WebGLRenderer;
@@ -30,6 +30,7 @@ interface DepthAwareSessionInit extends XRDepthSensingSessionInit {
 }
 
 const reticlePosition = new THREE.Vector3();
+const reticleMatrix = new THREE.Matrix4();
 const qualityCentroid = new THREE.Vector3();
 const qualityDelta = new THREE.Vector3();
 const RETICLE_PERSIST_MS = 350;
@@ -91,6 +92,9 @@ export function createXRHitTestController(
 	let hitTestSourceRequested = false;
 	let lastSuccessfulHitTime = 0;
 	let lastStableHitPosition: THREE.Vector3 | null = null;
+	let lastStableHitMatrix: THREE.Matrix4 | null = null;
+	let lastHitTestResult: XRHitTestResult | null = null;
+	let anchorSupportDetected = false;
 	let recentHitSamples: Array<{ position: THREE.Vector3; time: number }> = [];
 	let depthSensingMode = initialDepthSensingMode;
 	let sessionRequestPending = false;
@@ -115,6 +119,9 @@ export function createXRHitTestController(
 		reticle.visible = false;
 		lastSuccessfulHitTime = 0;
 		lastStableHitPosition = null;
+		lastStableHitMatrix = null;
+		lastHitTestResult = null;
+		anchorSupportDetected = false;
 		recentHitSamples = [];
 		setStatus( '已进入 AR，请缓慢移动手机，让系统持续识别地面或墙面。' );
 
@@ -151,6 +158,9 @@ export function createXRHitTestController(
 		hitTestSourceRequested = false;
 		lastSuccessfulHitTime = 0;
 		lastStableHitPosition = null;
+		lastStableHitMatrix = null;
+		lastHitTestResult = null;
+		anchorSupportDetected = false;
 		recentHitSamples = [];
 		onSessionEnd?.();
 		setStatus( 'AR 会话已结束，可再次进入 AR。' );
@@ -189,10 +199,16 @@ export function createXRHitTestController(
 		}
 
 		lastSuccessfulHitTime = performance.now();
+		lastHitTestResult = firstHit;
+		anchorSupportDetected = typeof ( firstHit as XRHitTestResult & {
+			createAnchor?: () => Promise<XRAnchorHandle>;
+		} ).createAnchor === 'function';
 		reticle.visible = true;
 		reticle.matrix.fromArray( pose.transform.matrix );
+		reticleMatrix.fromArray( pose.transform.matrix );
 		reticlePosition.setFromMatrixPosition( reticle.matrix );
 		lastStableHitPosition = reticlePosition.clone();
+		lastStableHitMatrix = reticleMatrix.clone();
 		pushHitSample( reticlePosition, lastSuccessfulHitTime );
 
 		if ( canReportStatus?.() !== false ) {
@@ -208,6 +224,7 @@ export function createXRHitTestController(
 			return;
 		}
 
+		lastHitTestResult = null;
 		reticle.visible = false;
 		if ( canReportStatus?.() !== false ) {
 			setStatus( '当前未命中平面，请缓慢移动手机并保持墙面或地面在视野中。' );
@@ -251,6 +268,17 @@ export function createXRHitTestController(
 
 	}
 
+	function getHitMatrix(target: THREE.Matrix4): THREE.Matrix4 | null {
+
+		if ( lastStableHitMatrix === null ) {
+			return null;
+		}
+
+		target.copy( lastStableHitMatrix );
+		return target;
+
+	}
+
 	function getHitTestQuality(): XRHitTestQuality | null {
 
 		if ( hasGroundHit() === false ) {
@@ -285,13 +313,44 @@ export function createXRHitTestController(
 
 	}
 
+	function supportsAnchors(): boolean {
+
+		return anchorSupportDetected;
+
+	}
+
+	async function createAnchorFromLatestHit(): Promise<XRAnchorHandle | null> {
+
+		const hitResultWithAnchor = lastHitTestResult as ( XRHitTestResult & {
+			createAnchor?: () => Promise<XRAnchorHandle>;
+		} ) | null;
+		if ( hitResultWithAnchor?.createAnchor === undefined ) {
+			return null;
+		}
+
+		try {
+			return await hitResultWithAnchor.createAnchor();
+		} catch ( error ) {
+			console.warn( '[XRAnchorPlacement]', {
+				created: false,
+				reason: 'createAnchor failed',
+				error
+			} );
+			return null;
+		}
+
+	}
+
 	return {
 		setup,
 		update,
 		setDepthSensingMode,
 		hasGroundHit,
 		getHitPosition,
+		getHitMatrix,
 		getHitTestQuality,
+		supportsAnchors,
+		createAnchorFromLatestHit,
 		async requestSession() {
 
 			if ( renderer.xr.isPresenting || sessionRequestPending ) {
@@ -355,7 +414,7 @@ function createSessionInit(mode: DepthSensingMode): DepthAwareSessionInit {
 
 	const sessionInit: DepthAwareSessionInit = {
 		requiredFeatures: [ 'hit-test' ],
-		optionalFeatures: [ 'dom-overlay' ],
+		optionalFeatures: [ 'dom-overlay', 'anchors' ],
 		domOverlay: { root: document.body }
 	};
 

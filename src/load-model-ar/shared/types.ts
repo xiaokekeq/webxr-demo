@@ -146,7 +146,13 @@ export interface ARSceneBundle {
 	controls: OrbitControls;
 	reticle: THREE.Group;
 	previewModelAnchor: THREE.Group;
+	arPlacementAnchor: THREE.Group;
 	arModelAnchor: THREE.Group;
+}
+
+export interface XRAnchorHandle {
+	anchorSpace: XRSpace;
+	delete?(): void;
 }
 
 export interface XRHitTestController {
@@ -155,7 +161,10 @@ export interface XRHitTestController {
 	setDepthSensingMode(mode: DepthSensingMode): void;
 	hasGroundHit(): boolean;
 	getHitPosition(target: THREE.Vector3): THREE.Vector3 | null;
+	getHitMatrix(target: THREE.Matrix4): THREE.Matrix4 | null;
 	getHitTestQuality(): XRHitTestQuality | null;
+	supportsAnchors(): boolean;
+	createAnchorFromLatestHit(): Promise<XRAnchorHandle | null>;
 	requestSession(): void;
 }
 

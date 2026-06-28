@@ -42,6 +42,7 @@ export function ArRuntimeView(props: {
 	const measurementCaptureActionLabel = `记录第 ${engine.measurement.capturedPointLabels.length + 1} 点`;
 	const showCaptureOverlay = showMeasurementCaptureOverlay;
 	const showTargetGuidance = engine.arSessionPhase === 'placed' && engine.targetGuidance.visible;
+	const showCoarsePlacementDebug = engine.autoPreviewPlacementEnabled === false;
 	const showManualAdjustmentOverlay = showCaptureOverlay === false
 		&& engine.workspaceMode === 'registration'
 		&& state.ui.registrationView === 'manual'
@@ -92,7 +93,9 @@ export function ArRuntimeView(props: {
 					<div className="guidance-card">
 						<h2>{guidance.title}</h2>
 						<p>{guidance.body}</p>
-						<div className="guidance-card__debug">{engine.coarseLocationDebugText}</div>
+						{showCoarsePlacementDebug ? (
+							<div className="guidance-card__debug">{engine.coarseLocationDebugText}</div>
+						) : null}
 					</div>
 				) : null}
 
@@ -115,7 +118,9 @@ export function ArRuntimeView(props: {
 							</button>
 						</div>
 						<p>{engine.targetGuidance.detailText}</p>
-						<div className="target-guidance-card__debug">{engine.coarseLocationDebugText}</div>
+						{showCoarsePlacementDebug ? (
+							<div className="target-guidance-card__debug">{engine.coarseLocationDebugText}</div>
+						) : null}
 					</div>
 				) : null}
 

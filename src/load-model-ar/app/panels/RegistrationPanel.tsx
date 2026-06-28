@@ -34,19 +34,6 @@ function resolveMarkerTestConfig(state: AppState): {
 	};
 
 }
-
-function parseRmsMeters(rmsText: string): number | null {
-
-	const match = rmsText.match( /-?\d+(?:\.\d+)?/ );
-	if ( match === null ) {
-		return null;
-	}
-
-	const parsed = Number( match[ 0 ] );
-	return Number.isFinite( parsed ) ? parsed : null;
-
-}
-
 export function RegistrationPanel(props: {
 	state: AppState;
 	actions: AppActions;
@@ -69,9 +56,6 @@ export function RegistrationPanel(props: {
 		&& hasStableMarkerResult
 		&& markerResultTooOld === false;
 	const canClearMarkerCorrection = engine.appMode === 'ar-session' && markerCorrectionActive;
-	const engineeringRmsMeters = parseRmsMeters( chain.engineeringControlRegistration.rmsText );
-	const shouldWarnLargeRms = engineeringRmsMeters !== null && engineeringRmsMeters > 0.5;
-	const canPlaceDebugCube = engine.appMode === 'ar-session' && engine.arSessionPhase !== 'scanning';
 
 	function handleClearSavedRegistration(): void {
 
@@ -147,31 +131,10 @@ export function RegistrationPanel(props: {
 				/>
 
 				<div className="button-row">
-					<ActionButton
-						label="Place debug cube"
-						onClick={actions.placeDebugAnchorCube}
-						kind="secondary"
-						disabled={!canPlaceDebugCube}
-					/>
-					<ActionButton
-						label="Clear debug cube"
-						onClick={actions.clearDebugAnchorCube}
-						kind="secondary"
-						disabled={engine.appMode !== 'ar-session'}
-					/>
-				</div>
-
-				<div className="button-row">
 					<ActionButton label="Reset placement" onClick={actions.resetPlacement} kind="primary" />
 					<ActionButton label="Re-run coarse registration" onClick={ () => void actions.enableCoarseRegistration() } />
 					<ActionButton label="Refresh location" onClick={ () => void actions.refreshGeoLocation() } />
 				</div>
-
-				{shouldWarnLargeRms ? (
-					<p className="note-block">
-						配准误差较大，模型可能无法稳定贴合现场点位。
-					</p>
-				) : null}
 
 				<div className="button-row">
 					<ActionButton

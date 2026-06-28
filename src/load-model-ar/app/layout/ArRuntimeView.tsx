@@ -59,12 +59,12 @@ export function ArRuntimeView(props: {
 	const cycleLayerHint = cycleDirection === 'restore'
 		? '当前正在逐层恢复模型显示，恢复完成后会回到继续剥离模式。'
 		: '当前正在从上到下隐藏模型层，隐藏到底后会自动切换到恢复模式。';
-	const showXraySlider = showCaptureOverlay === false
+	const showVisualizationSlider = showCaptureOverlay === false
 		&& showManualAdjustmentOverlay === false
 		&& showPlacementUi === false
 		&& showGuidance === false
 		&& state.ui.drawerOpen === false
-		&& engine.displayMode === 'transparent-xray';
+		&& engine.displayMode !== 'solid-overlay';
 	const [ targetGuidanceHidden, setTargetGuidanceHidden ] = useState( false );
 	const showTargetGuidanceCard = showTargetGuidance && targetGuidanceHidden === false;
 	const showTargetGuidanceToggle = showTargetGuidance && targetGuidanceHidden;
@@ -186,7 +186,7 @@ export function ArRuntimeView(props: {
 					</BottomDrawer>
 				)}
 
-				{showXraySlider ? (
+				{showVisualizationSlider ? (
 					<div className="ar-minimal-perspective">
 						<input
 							className="ar-minimal-perspective__slider"

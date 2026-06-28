@@ -23,7 +23,7 @@ export function BrowsePanel(props: {
 
 	return (
 		<div className="panel-stack">
-			<PanelSection title="AR 透视显示模式" subtitle="当前先启用普通叠加和透明透视，其他模式入口保留待后续实现。">
+			<PanelSection title="AR 透视显示模式" subtitle="五种显示模式共用同一套 AR 放置与配准结果，只切换可视化方式。">
 				<DisplayModeSelector value={engine.displayMode} onChange={actions.setDisplayMode} label="模式" />
 				<SegmentedField
 					label="Depth 模式"

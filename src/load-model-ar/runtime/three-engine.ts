@@ -72,6 +72,9 @@ import {
 import { createDisplayModeController, preserveRootTransform } from './display-mode.js';
 import { createLayerVisibilityController } from './layer-visibility.js';
 import { createArXrayVisualizationController } from './visualization/ar-xray-visualization.js';
+import { createArSpatialRevealController } from './visualization/ar-spatial-reveal.js';
+import { createArLayerPeelingController } from './visualization/ar-layer-peeling.js';
+import { createArSectionCutController } from './visualization/ar-section-cut.js';
 import {
 	setAttachmentInfoBoardVisibility
 } from './attachment-info-board.js';
@@ -120,7 +123,12 @@ function createInitialState(): RegistrationStoreState {
 		arSessionPhase: 'scanning',
 		workspaceMode: 'browse',
 		displayMode: 'solid-overlay',
-		structureRevealValue: 100,
+		structureRevealValue: 0,
+		transparentXrayValue: 0,
+		spatialRevealValue: 50,
+		layerPeelingValue: 0,
+		sectionCutValue: 50,
+		sectionCutPlaneMode: 'horizontal-section',
 		timelineStages: TIMELINE_STAGES,
 		currentTimelineStageIndex: 2,
 		layerNames: STATIC_LAYER_NAMES,
@@ -201,6 +209,9 @@ export class ThreeEngine {
 	private readonly desktopAxesHelper = new THREE.AxesHelper( 0.8 );
 	private readonly displayModeController;
 	private readonly structureRevealController = createArXrayVisualizationController();
+	private readonly spatialRevealController;
+	private readonly layerPeelingController = createArLayerPeelingController();
+	private readonly sectionCutController;
 	private readonly layerVisibility = createLayerVisibilityController();
 	private readonly propertySelection;
 	private readonly placementSession;
@@ -232,7 +243,7 @@ export class ThreeEngine {
 	private currentModelDebugTargetGeodetic: GeodeticCoordinate | null = null;
 	private lastSyncedDisplayMode: ArDisplayMode | null = null;
 	private lastSyncedDisplayModeRoot: THREE.Group | null = null;
-	private lastStructureRevealSignature = '';
+	private lastVisualizationSignature = '';
 	private pipesByName = new Map<string, PipeRecord>();
 	private coarseWarmupPromise: Promise<void> | null = null;
 	private coarseRegistration = createCoarseRegistrationController( {
@@ -311,6 +322,8 @@ export class ThreeEngine {
 			getPlacedModel: () => this.placementSession.getPlacedModel(),
 			renderer: this.sceneBundle.renderer
 		} );
+		this.spatialRevealController = createArSpatialRevealController( this.sceneBundle.renderer );
+		this.sectionCutController = createArSectionCutController( this.sceneBundle.renderer );
 
 		this.workspaceRuntime = createWorkspaceRuntime( {
 			store: this.store,
@@ -382,8 +395,8 @@ export class ThreeEngine {
 				this.currentModelDebugTargetGeodetic = null;
 				this.pipesByName = new Map<string, PipeRecord>();
 				this.layerVisibility.reset();
-				this.structureRevealController.restore();
-				this.lastStructureRevealSignature = '';
+				this.restoreVisualizationControllers();
+				this.lastVisualizationSignature = '';
 				this.store.patch( {
 					layerNames: STATIC_LAYER_NAMES,
 					modelLayers: []
@@ -477,12 +490,12 @@ export class ThreeEngine {
 
 		this.store.subscribe( () => {
 			this.syncDisplayModeState();
-			this.syncStructureRevealState();
+			this.syncVisualizationState();
 			this.emit();
 		} );
 
 		this.syncDisplayModeState();
-		this.syncStructureRevealState();
+		this.syncVisualizationState();
 
 	}
 
@@ -590,7 +603,11 @@ export class ThreeEngine {
 		this.sceneBundle.renderer.xr.removeEventListener( 'sessionstart', this.bindArSelectionSession );
 		this.sceneBundle.renderer.xr.removeEventListener( 'sessionend', this.unbindArSelectionSession );
 		this.displayModeController.dispose();
+		this.restoreVisualizationControllers();
 		this.structureRevealController.dispose();
+		this.spatialRevealController.dispose();
+		this.layerPeelingController.dispose();
+		this.sectionCutController.dispose();
 		this.measurementController.dispose();
 		this.sceneBundle.controls.dispose();
 		this.sceneBundle.renderer.dispose();
@@ -629,20 +646,27 @@ export class ThreeEngine {
 			return;
 		}
 
-		if (
-			mode === 'spatial-reveal'
-			|| mode === 'layer-peeling'
-			|| mode === 'section-cut'
-		) {
-			this.setStatus( `${getDisplayModeLabel( mode )} 暂未实现。` );
+		const state = this.store.getState();
+		if ( state.displayMode === mode ) {
 			return;
 		}
 
-		if ( this.store.getState().displayMode === mode ) {
-			return;
+		const previousMode = state.displayMode;
+		this.store.patch( {
+			displayMode: mode,
+			structureRevealValue: getDisplayModeSliderValue( state, mode )
+		} );
+
+		if ( previousMode === 'layer-peeling' && mode !== 'layer-peeling' ) {
+			this.layerVisibility.reset();
+			this.applyModelLayerVisibility();
+		} else if ( mode === 'layer-peeling' ) {
+			this.layerVisibility.setHiddenLayerCount(
+				percentToHiddenLayerCount( state.layerPeelingValue, this.layerVisibility.getState().length )
+			);
+			this.applyModelLayerVisibility();
 		}
 
-		this.store.patch( { displayMode: mode } );
 		this.setStatus( `显示模式已切换为：${getDisplayModeLabel( mode )}` );
 
 	}
@@ -650,11 +674,44 @@ export class ThreeEngine {
 	setStructureRevealValue(value: number): void {
 
 		const clampedValue = THREE.MathUtils.clamp( Math.round( value ), 0, 100 );
-		if ( this.store.getState().structureRevealValue === clampedValue ) {
+		const state = this.store.getState();
+		if ( state.structureRevealValue === clampedValue && state.displayMode !== 'layer-peeling' ) {
 			return;
 		}
 
-		this.store.patch( { structureRevealValue: clampedValue } );
+		switch ( state.displayMode ) {
+			case 'transparent-xray':
+				this.store.patch( {
+					structureRevealValue: clampedValue,
+					transparentXrayValue: clampedValue
+				} );
+				break;
+			case 'spatial-reveal':
+				this.store.patch( {
+					structureRevealValue: clampedValue,
+					spatialRevealValue: clampedValue
+				} );
+				break;
+			case 'layer-peeling':
+				this.store.patch( {
+					structureRevealValue: clampedValue,
+					layerPeelingValue: clampedValue
+				} );
+				this.layerVisibility.setHiddenLayerCount(
+					percentToHiddenLayerCount( clampedValue, this.layerVisibility.getState().length )
+				);
+				this.applyModelLayerVisibility();
+				break;
+			case 'section-cut':
+				this.store.patch( {
+					structureRevealValue: clampedValue,
+					sectionCutValue: clampedValue
+				} );
+				break;
+			default:
+				this.store.patch( { structureRevealValue: clampedValue } );
+				break;
+		}
 
 	}
 
@@ -993,6 +1050,7 @@ export class ThreeEngine {
 			layer.visible === false && beforeState[ index ]?.visible !== false
 		) );
 		this.applyModelLayerVisibility();
+		this.syncLayerPeelingValueFromLayers();
 		this.setStatus( `已隐藏最上层：${hiddenLayer?.label ?? '当前层'}。` );
 
 	}
@@ -1015,6 +1073,7 @@ export class ThreeEngine {
 			layer.visible === true && beforeState[ index ]?.visible === false
 		) );
 		this.applyModelLayerVisibility();
+		this.syncLayerPeelingValueFromLayers();
 		this.setStatus( `已恢复一层：${restoredLayer?.label ?? '当前层'}。` );
 
 	}
@@ -1028,6 +1087,7 @@ export class ThreeEngine {
 		}
 
 		this.applyModelLayerVisibility();
+		this.syncLayerPeelingValueFromLayers();
 		this.setStatus( '已恢复全部模型分层。' );
 
 	}
@@ -1835,44 +1895,99 @@ export class ThreeEngine {
 
 	}
 
-	private syncStructureRevealState(): void {
+	private syncVisualizationState(): void {
 
 		const state = this.store.getState();
 		const modelRoot = state.appMode === 'ar-session'
 			? this.placementSession.getArPlacedModel()
 			: null;
-		const xrayValue = state.displayMode === 'transparent-xray'
-			? state.structureRevealValue
-			: 0;
-		const report = this.structureRevealController.apply( {
-			modelRoot,
-			value: xrayValue,
-			modelLayers: state.modelLayers
-		} );
-		const signature = `${state.appMode}|${state.displayMode}|${xrayValue}|${modelRoot?.uuid ?? 'none'}|${report.opacityMode}|${report.totalLayerCount}|${report.affectedMeshCount}|${report.affectedMaterialCount}`;
-		if ( signature === this.lastStructureRevealSignature ) {
+		const currentValue = getDisplayModeSliderValue( state );
+		const signature = [
+			state.appMode,
+			state.displayMode,
+			currentValue,
+			state.sectionCutPlaneMode,
+			modelRoot?.uuid ?? 'none',
+			state.modelLayers.map( ( layer ) => `${layer.id}:${layer.visible ? '1' : '0'}` ).join( '|' )
+		].join( '::' );
+		if ( signature === this.lastVisualizationSignature ) {
 			return;
 		}
 
-		this.lastStructureRevealSignature = signature;
-		console.info( '[LayerXray]', {
-			value: report.value,
-			opacityMode: report.opacityMode,
-			totalLayerCount: report.totalLayerCount,
-			affectedMeshCount: report.affectedMeshCount,
-			affectedMaterialCount: report.affectedMaterialCount,
-			hasModelRoot: report.hasModelRoot
-		} );
-		if ( report.opacityMode === 'layered' ) {
-			for ( const layerReport of report.layerReports ) {
-				console.info( '[LayerXrayLayer]', {
-					layerId: layerReport.layerId,
-					layerIndex: layerReport.layerIndex,
-					layerName: layerReport.layerName,
-					opacity: layerReport.opacity,
-					visible: layerReport.visible
+		this.lastVisualizationSignature = signature;
+		this.restoreVisualizationControllers( state.displayMode );
+
+		switch ( state.displayMode ) {
+			case 'transparent-xray': {
+				const report = this.structureRevealController.apply( {
+					modelRoot,
+					value: state.transparentXrayValue,
+					modelLayers: state.modelLayers
 				} );
+				console.info( '[LayerXray]', {
+					value: report.value,
+					opacityMode: report.opacityMode,
+					totalLayerCount: report.totalLayerCount,
+					affectedMeshCount: report.affectedMeshCount,
+					affectedMaterialCount: report.affectedMaterialCount,
+					hasModelRoot: report.hasModelRoot
+				} );
+				if ( report.opacityMode === 'layered' ) {
+					for ( const layerReport of report.layerReports ) {
+						console.info( '[LayerXrayLayer]', {
+							layerId: layerReport.layerId,
+							layerIndex: layerReport.layerIndex,
+							layerName: layerReport.layerName,
+							opacity: layerReport.opacity,
+							visible: layerReport.visible
+						} );
+					}
+				}
+				break;
 			}
+			case 'spatial-reveal': {
+				const report = this.spatialRevealController.apply( modelRoot, state.spatialRevealValue );
+				console.info( '[SpatialReveal]', {
+					value: report.value,
+					axis: report.axis,
+					direction: report.direction,
+					modelMin: report.modelMin,
+					modelMax: report.modelMax,
+					revealPosition: report.revealPosition,
+					affectedMeshCount: report.affectedMeshCount,
+					affectedMaterialCount: report.affectedMaterialCount
+				} );
+				break;
+			}
+			case 'layer-peeling': {
+				const report = this.layerPeelingController.apply( state.layerPeelingValue, state.modelLayers );
+				console.info( '[LayerPeeling]', {
+					value: report.value,
+					totalLayerCount: report.totalLayerCount,
+					hiddenLayerCount: report.hiddenLayerCount,
+					visibleLayerCount: report.visibleLayerCount,
+					hiddenLayerIds: report.hiddenLayerIds,
+					visibleLayerIds: report.visibleLayerIds
+				} );
+				break;
+			}
+			case 'section-cut': {
+				this.sectionCutController.setPlaneMode( state.sectionCutPlaneMode );
+				const report = this.sectionCutController.apply( modelRoot, state.sectionCutValue );
+				console.info( '[SectionCut]', {
+					value: report.value,
+					planeMode: report.planeMode,
+					axis: report.axis,
+					modelMin: report.modelMin,
+					modelMax: report.modelMax,
+					cutPosition: report.cutPosition,
+					affectedMeshCount: report.affectedMeshCount,
+					affectedMaterialCount: report.affectedMaterialCount
+				} );
+				break;
+			}
+			default:
+				break;
 		}
 
 	}
@@ -1965,10 +2080,19 @@ export class ThreeEngine {
 
 	private rebuildModelLayers(): void {
 
-		const modelLayers = this.layerVisibility.rebuild( {
+		this.layerVisibility.rebuild( {
 			modelRoot: this.modelTemplate,
 			pipesByName: this.pipesByName
 		} );
+		if ( this.store.getState().displayMode === 'layer-peeling' ) {
+			this.layerVisibility.setHiddenLayerCount(
+				percentToHiddenLayerCount(
+					this.store.getState().layerPeelingValue,
+					this.layerVisibility.getState().length
+				)
+			);
+		}
+		const modelLayers = this.layerVisibility.getState();
 		this.store.patch( {
 			layerNames: modelLayers.length > 0
 				? modelLayers.map( ( layer ) => layer.label )
@@ -1995,7 +2119,38 @@ export class ThreeEngine {
 			modelLayers
 		} );
 		this.syncDisplayModeState();
-		this.syncStructureRevealState();
+		this.syncVisualizationState();
+
+	}
+
+	private syncLayerPeelingValueFromLayers(): void {
+
+		const layers = this.layerVisibility.getState();
+		const nextValue = hiddenLayerCountToPercent( countHiddenLayers( layers ), layers.length );
+		const patch: Partial<RegistrationStoreState> = {
+			layerPeelingValue: nextValue
+		};
+		if ( this.store.getState().displayMode === 'layer-peeling' ) {
+			patch.structureRevealValue = nextValue;
+		}
+		this.store.patch( patch );
+
+	}
+
+	private restoreVisualizationControllers(activeMode?: ArDisplayMode): void {
+
+		if ( activeMode !== 'transparent-xray' ) {
+			this.structureRevealController.restore();
+		}
+		if ( activeMode !== 'spatial-reveal' ) {
+			this.spatialRevealController.restore();
+		}
+		if ( activeMode !== 'layer-peeling' ) {
+			this.layerPeelingController.restore();
+		}
+		if ( activeMode !== 'section-cut' ) {
+			this.sectionCutController.restore();
+		}
 
 	}
 
@@ -2090,6 +2245,48 @@ function normalizeDegrees(value: number): number {
 function countHiddenLayers(layers: Array<{ visible: boolean }>): number {
 
 	return layers.reduce( ( count, layer ) => count + ( layer.visible ? 0 : 1 ), 0 );
+
+}
+
+function percentToHiddenLayerCount(value: number, totalLayerCount: number): number {
+
+	const maxHideCount = Math.max( 0, totalLayerCount - 1 );
+	if ( maxHideCount === 0 ) {
+		return 0;
+	}
+
+	return Math.round( THREE.MathUtils.clamp( value, 0, 100 ) / 100 * maxHideCount );
+
+}
+
+function hiddenLayerCountToPercent(hiddenLayerCount: number, totalLayerCount: number): number {
+
+	const maxHideCount = Math.max( 0, totalLayerCount - 1 );
+	if ( maxHideCount === 0 ) {
+		return 0;
+	}
+
+	return Math.round( THREE.MathUtils.clamp( hiddenLayerCount, 0, maxHideCount ) / maxHideCount * 100 );
+
+}
+
+function getDisplayModeSliderValue(
+	state: RegistrationStoreState,
+	mode: ArDisplayMode = state.displayMode
+): number {
+
+	switch ( mode ) {
+		case 'transparent-xray':
+			return state.transparentXrayValue;
+		case 'spatial-reveal':
+			return state.spatialRevealValue;
+		case 'layer-peeling':
+			return state.layerPeelingValue;
+		case 'section-cut':
+			return state.sectionCutValue;
+		default:
+			return 0;
+	}
 
 }
 

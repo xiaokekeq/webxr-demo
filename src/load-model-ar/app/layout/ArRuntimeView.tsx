@@ -33,8 +33,10 @@ export function ArRuntimeView(props: {
 	const canInspect = engine.arSessionPhase === 'placed';
 	const canOpenBrowse = engine.arSessionPhase === 'placed' || showPlacementUi;
 	const canOpenTools = true;
-	const placeActionLabel = engine.arSessionPhase === 'ready-to-place' ? '开始放置' : '继续扫描';
-	const drawerToggleLabel = state.ui.drawerOpen ? '收起面板' : `展开${getWorkspaceLabel( engine.workspaceMode )}`;
+	const placeActionLabel = engine.arSessionPhase === 'ready-to-place' ? '开始放置模型' : '继续扫描';
+	const drawerToggleLabel = state.ui.drawerOpen
+		? '收起面板'
+		: `展开${getWorkspaceLabel( engine.workspaceMode )}`;
 	const displayModeLabel = getDisplayModeLabel( engine.displayMode );
 	const subtitle = `${getWorkspaceLabel( engine.workspaceMode )} / ${getPhaseLabel( engine.arSessionPhase )} / ${displayModeLabel} / RMS ${engine.registrationMetrics.rmsText}`;
 	const showMeasurementCaptureOverlay = state.ui.measurementCaptureActive
@@ -54,10 +56,11 @@ export function ArRuntimeView(props: {
 		&& showTargetGuidance === false
 		&& engine.modelLayers.length > 1;
 	const cycleDirection = state.ui.layerCycleDirection;
-	const cycleLayerLabel = cycleDirection === 'restore' ? '恢复一层' : '隐藏上层';
+	const cycleLayerLabel = cycleDirection === 'restore' ? '恢复上一层' : '隐藏上一层';
 	const cycleLayerHint = cycleDirection === 'restore'
-		? '正在从下往上恢复，恢复到完整模型后会重新切回剥层'
-		: '继续从上往下剥离模型层，剥到最底层后会自动切到恢复';
+		? '当前正在逐层恢复模型显示，恢复完成后会回到继续剥离模式。'
+		: '当前正在从上到下隐藏模型层，隐藏到底后会自动切换到恢复模式。';
+	const showStructureReveal = showCaptureOverlay === false && showManualAdjustmentOverlay === false;
 
 	return (
 		<div className={ `mobile-ar-root${showPlacementUi ? ' mobile-ar-root--placement' : ''}` }>
@@ -89,7 +92,7 @@ export function ArRuntimeView(props: {
 
 				{showCaptureOverlay ? null : showTargetGuidance ? (
 					<div className={ `target-guidance-card target-guidance-card--${engine.targetGuidance.alignment}` }>
-						<div className="target-guidance-card__eyebrow">当前未看到模型</div>
+						<div className="target-guidance-card__eyebrow">当前暂未看到模型</div>
 						<div className="target-guidance-card__direction">{engine.targetGuidance.directionText}</div>
 						<div className="target-guidance-card__distance">{engine.targetGuidance.distanceText}</div>
 						<p>{engine.targetGuidance.detailText}</p>
@@ -126,7 +129,7 @@ export function ArRuntimeView(props: {
 						<ActionButton label="退出 AR" onClick={actions.exitAr} kind="secondary" />
 						<ActionButton
 							label={placeActionLabel}
-							onClick={ () => void actions.placeModel() }
+							onClick={() => void actions.placeModel()}
 							kind="primary"
 							disabled={engine.arSessionPhase !== 'ready-to-place'}
 						/>
@@ -147,12 +150,33 @@ export function ArRuntimeView(props: {
 					</BottomDrawer>
 				)}
 
+				{showStructureReveal ? (
+					<div className="ar-minimal-perspective">
+						<div className="ar-minimal-perspective__header">
+							<strong>结构显现</strong>
+							<span>{`结构显现 ${engine.structureRevealValue}%`}</span>
+						</div>
+						<input
+							className="ar-minimal-perspective__slider"
+							type="range"
+							min={0}
+							max={100}
+							step={1}
+							value={engine.structureRevealValue}
+							onChange={ ( event ) => {
+								actions.setStructureRevealValue( Number( event.currentTarget.value ) );
+							} }
+						/>
+						<div className="ar-minimal-perspective__hint">拖动查看虚拟结构</div>
+					</div>
+				) : null}
+
 				{showMeasurementCaptureOverlay ? (
 					<div className="precision-capture-bar">
 						<div className="precision-capture-bar__content">
-							<strong>当前模式：{engine.measurement.activeLabel}</strong>
-							<span>测点进度：{engine.measurement.capturedPointLabels.length} / {engine.measurement.requiredPointCount}</span>
-							<span>采样质量：{engine.measurement.targetQualityText}</span>
+							<strong>{`当前模式：${engine.measurement.activeLabel}`}</strong>
+							<span>{`测点进度：${engine.measurement.capturedPointLabels.length} / ${engine.measurement.requiredPointCount}`}</span>
+							<span>{`采样质量：${engine.measurement.targetQualityText}`}</span>
 							<span>{engine.measurement.feedbackText || engine.measurement.detailText}</span>
 						</div>
 						<div className="precision-capture-bar__actions">
@@ -184,7 +208,7 @@ export function ArRuntimeView(props: {
 								<span className="nav-button__icon">{item.short}</span>
 								<span>{item.label}</span>
 							</GuardedPressButton>
-						))}
+						) )}
 					</nav>
 				)}
 			</div>

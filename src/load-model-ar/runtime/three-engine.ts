@@ -71,6 +71,7 @@ import {
 } from '../registration/marker-localization-storage.js';
 import { createDisplayModeController, preserveRootTransform } from './display-mode.js';
 import { createLayerVisibilityController } from './layer-visibility.js';
+import { createStructureRevealController } from './visualization/ar-xray-visualization.js';
 import {
 	setAttachmentInfoBoardVisibility
 } from './attachment-info-board.js';
@@ -119,6 +120,7 @@ function createInitialState(): RegistrationStoreState {
 		arSessionPhase: 'scanning',
 		workspaceMode: 'browse',
 		displayMode: 'normal',
+		structureRevealValue: 100,
 		timelineStages: TIMELINE_STAGES,
 		currentTimelineStageIndex: 2,
 		layerNames: STATIC_LAYER_NAMES,
@@ -198,6 +200,7 @@ export class ThreeEngine {
 	private readonly manualOrientation = new THREE.Quaternion();
 	private readonly desktopAxesHelper = new THREE.AxesHelper( 0.8 );
 	private readonly displayModeController;
+	private readonly structureRevealController = createStructureRevealController();
 	private readonly layerVisibility = createLayerVisibilityController();
 	private readonly propertySelection;
 	private readonly placementSession;
@@ -229,6 +232,7 @@ export class ThreeEngine {
 	private currentModelDebugTargetGeodetic: GeodeticCoordinate | null = null;
 	private lastSyncedDisplayMode: DisplayMode | null = null;
 	private lastSyncedDisplayModeRoot: THREE.Group | null = null;
+	private lastStructureRevealSignature = '';
 	private pipesByName = new Map<string, PipeRecord>();
 	private coarseWarmupPromise: Promise<void> | null = null;
 	private coarseRegistration = createCoarseRegistrationController( {
@@ -378,6 +382,8 @@ export class ThreeEngine {
 				this.currentModelDebugTargetGeodetic = null;
 				this.pipesByName = new Map<string, PipeRecord>();
 				this.layerVisibility.reset();
+				this.structureRevealController.reset();
+				this.lastStructureRevealSignature = '';
 				this.store.patch( {
 					layerNames: STATIC_LAYER_NAMES,
 					modelLayers: []
@@ -469,10 +475,12 @@ export class ThreeEngine {
 
 		this.store.subscribe( () => {
 			this.syncDisplayModeState();
+			this.syncStructureRevealState();
 			this.emit();
 		} );
 
 		this.syncDisplayModeState();
+		this.syncStructureRevealState();
 
 	}
 
@@ -580,6 +588,7 @@ export class ThreeEngine {
 		this.sceneBundle.renderer.xr.removeEventListener( 'sessionstart', this.bindArSelectionSession );
 		this.sceneBundle.renderer.xr.removeEventListener( 'sessionend', this.unbindArSelectionSession );
 		this.displayModeController.dispose();
+		this.structureRevealController.dispose();
 		this.measurementController.dispose();
 		this.sceneBundle.controls.dispose();
 		this.sceneBundle.renderer.dispose();
@@ -623,6 +632,17 @@ export class ThreeEngine {
 
 		this.store.patch( { displayMode: mode } );
 		this.setStatus( `显示模式已切换为：${getDisplayModeLabel( mode )}` );
+
+	}
+
+	setStructureRevealValue(value: number): void {
+
+		const clampedValue = THREE.MathUtils.clamp( Math.round( value ), 0, 100 );
+		if ( this.store.getState().structureRevealValue === clampedValue ) {
+			return;
+		}
+
+		this.store.patch( { structureRevealValue: clampedValue } );
 
 	}
 
@@ -1807,6 +1827,30 @@ export class ThreeEngine {
 
 	}
 
+	private syncStructureRevealState(): void {
+
+		const state = this.store.getState();
+		const modelRoot = state.appMode === 'ar-session'
+			? this.placementSession.getArPlacedModel()
+			: null;
+		const report = this.structureRevealController.sync( modelRoot, state.structureRevealValue );
+		const signature = `${state.appMode}|${state.structureRevealValue}|${modelRoot?.uuid ?? 'none'}|${report.affectedMeshCount}|${report.affectedMaterialCount}|${report.hiddenAtZero}`;
+		if ( signature === this.lastStructureRevealSignature ) {
+			return;
+		}
+
+		this.lastStructureRevealSignature = signature;
+		console.info( '[StructureReveal]', {
+			value: report.value,
+			opacity: report.opacity,
+			affectedMeshCount: report.affectedMeshCount,
+			affectedMaterialCount: report.affectedMaterialCount,
+			hiddenAtZero: report.hiddenAtZero,
+			hasModelRoot: report.hasModelRoot
+		} );
+
+	}
+
 	private syncArSessionPhase(): void {
 
 		this.arSessionStateRuntime.syncPhase();
@@ -1912,6 +1956,10 @@ export class ThreeEngine {
 		this.layerVisibility.applyToRoot( this.placementSession.getPreviewPlacedModel() );
 		this.layerVisibility.applyToRoot( this.placementSession.getArPlacedModel() );
 		this.syncAttachmentInfoBoardVisibility();
+		this.displayModeController.captureMaterialBaseline();
+		this.structureRevealController.captureVisibilityBaseline( this.placementSession.getArPlacedModel() );
+		this.lastSyncedDisplayMode = null;
+		this.lastSyncedDisplayModeRoot = null;
 		const modelLayers = this.layerVisibility.getState();
 		this.store.patch( {
 			layerNames: modelLayers.length > 0
@@ -1919,10 +1967,8 @@ export class ThreeEngine {
 				: STATIC_LAYER_NAMES,
 			modelLayers
 		} );
-		this.displayModeController.captureMaterialBaseline();
-		this.lastSyncedDisplayMode = null;
-		this.lastSyncedDisplayModeRoot = null;
 		this.syncDisplayModeState();
+		this.syncStructureRevealState();
 
 	}
 

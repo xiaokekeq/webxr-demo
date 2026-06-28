@@ -45,6 +45,7 @@ export interface LoadModelArController {
 		closePropertyPanel(): void;
 		selectModel(modelId: string): void;
 		setDisplayMode(mode: DisplayMode): void;
+		setStructureRevealValue(value: number): void;
 		activatePanel(mode: WorkspaceMode): void;
 		toggleDrawer(): void;
 		setTimelineStage(index: number): void;
@@ -313,6 +314,12 @@ export function createLoadModelArController(): LoadModelArController {
 			setDisplayMode(mode) {
 
 				engine.setDisplayMode( mode );
+
+			},
+
+			setStructureRevealValue(value) {
+
+				engine.setStructureRevealValue( value );
 
 			},
 

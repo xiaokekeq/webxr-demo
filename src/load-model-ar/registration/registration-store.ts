@@ -138,6 +138,7 @@ export interface RegistrationStoreState {
 	arSessionPhase: ArSessionPhase;
 	workspaceMode: WorkspaceMode;
 	displayMode: DisplayMode;
+	structureRevealValue: number;
 	timelineStages: readonly string[];
 	currentTimelineStageIndex: number;
 	layerNames: readonly string[];

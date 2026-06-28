@@ -34,9 +34,7 @@ export function ArRuntimeView(props: {
 	const canOpenBrowse = engine.arSessionPhase === 'placed' || showPlacementUi;
 	const canOpenTools = true;
 	const placeActionLabel = engine.arSessionPhase === 'ready-to-place' ? '开始放置模型' : '继续扫描';
-	const drawerToggleLabel = state.ui.drawerOpen
-		? '收起面板'
-		: `展开${getWorkspaceLabel( engine.workspaceMode )}`;
+	const drawerToggleLabel = state.ui.drawerOpen ? '收起面板' : `展开${getWorkspaceLabel( engine.workspaceMode )}`;
 	const displayModeLabel = getDisplayModeLabel( engine.displayMode );
 	const subtitle = `${getWorkspaceLabel( engine.workspaceMode )} / ${getPhaseLabel( engine.arSessionPhase )} / ${displayModeLabel} / RMS ${engine.registrationMetrics.rmsText}`;
 	const showMeasurementCaptureOverlay = state.ui.measurementCaptureActive
@@ -60,7 +58,13 @@ export function ArRuntimeView(props: {
 	const cycleLayerHint = cycleDirection === 'restore'
 		? '当前正在逐层恢复模型显示，恢复完成后会回到继续剥离模式。'
 		: '当前正在从上到下隐藏模型层，隐藏到底后会自动切换到恢复模式。';
-	const showStructureReveal = showCaptureOverlay === false && showManualAdjustmentOverlay === false;
+	const showXraySlider = showCaptureOverlay === false
+		&& showManualAdjustmentOverlay === false
+		&& showPlacementUi === false
+		&& showGuidance === false
+		&& showTargetGuidance === false
+		&& showLayerQuickBar === false
+		&& state.ui.drawerOpen === false;
 
 	return (
 		<div className={ `mobile-ar-root${showPlacementUi ? ' mobile-ar-root--placement' : ''}` }>
@@ -150,15 +154,19 @@ export function ArRuntimeView(props: {
 					</BottomDrawer>
 				)}
 
-				{showStructureReveal ? (
+				{showXraySlider ? (
 					<div className="ar-minimal-perspective">
+						<div className="ar-minimal-perspective__readout">
+							<span className="ar-minimal-perspective__title">透视强度</span>
+							<span className="ar-minimal-perspective__value">{`${engine.structureRevealValue}%`}</span>
+						</div>
 						<input
 							className="ar-minimal-perspective__slider"
 							type="range"
 							min={0}
 							max={100}
 							step={1}
-							aria-label="结构显现"
+							aria-label="透视强度"
 							value={engine.structureRevealValue}
 							onChange={ ( event ) => {
 								actions.setStructureRevealValue( Number( event.currentTarget.value ) );

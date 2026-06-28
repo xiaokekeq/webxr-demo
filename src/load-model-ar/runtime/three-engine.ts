@@ -71,7 +71,7 @@ import {
 } from '../registration/marker-localization-storage.js';
 import { createDisplayModeController, preserveRootTransform } from './display-mode.js';
 import { createLayerVisibilityController } from './layer-visibility.js';
-import { createStructureRevealController } from './visualization/ar-xray-visualization.js';
+import { createArXrayVisualizationController } from './visualization/ar-xray-visualization.js';
 import {
 	setAttachmentInfoBoardVisibility
 } from './attachment-info-board.js';
@@ -200,7 +200,7 @@ export class ThreeEngine {
 	private readonly manualOrientation = new THREE.Quaternion();
 	private readonly desktopAxesHelper = new THREE.AxesHelper( 0.8 );
 	private readonly displayModeController;
-	private readonly structureRevealController = createStructureRevealController();
+	private readonly structureRevealController = createArXrayVisualizationController();
 	private readonly layerVisibility = createLayerVisibilityController();
 	private readonly propertySelection;
 	private readonly placementSession;
@@ -382,7 +382,7 @@ export class ThreeEngine {
 				this.currentModelDebugTargetGeodetic = null;
 				this.pipesByName = new Map<string, PipeRecord>();
 				this.layerVisibility.reset();
-				this.structureRevealController.reset();
+				this.structureRevealController.restore();
 				this.lastStructureRevealSignature = '';
 				this.store.patch( {
 					layerNames: STATIC_LAYER_NAMES,
@@ -1833,21 +1833,36 @@ export class ThreeEngine {
 		const modelRoot = state.appMode === 'ar-session'
 			? this.placementSession.getArPlacedModel()
 			: null;
-		const report = this.structureRevealController.sync( modelRoot, state.structureRevealValue );
-		const signature = `${state.appMode}|${state.structureRevealValue}|${modelRoot?.uuid ?? 'none'}|${report.affectedMeshCount}|${report.affectedMaterialCount}|${report.hiddenAtZero}`;
+		const report = this.structureRevealController.apply( {
+			modelRoot,
+			value: state.structureRevealValue,
+			modelLayers: state.modelLayers
+		} );
+		const signature = `${state.appMode}|${state.structureRevealValue}|${modelRoot?.uuid ?? 'none'}|${report.opacityMode}|${report.totalLayerCount}|${report.affectedMeshCount}|${report.affectedMaterialCount}`;
 		if ( signature === this.lastStructureRevealSignature ) {
 			return;
 		}
 
 		this.lastStructureRevealSignature = signature;
-		console.info( '[StructureReveal]', {
+		console.info( '[LayerXray]', {
 			value: report.value,
-			opacity: report.opacity,
+			opacityMode: report.opacityMode,
+			totalLayerCount: report.totalLayerCount,
 			affectedMeshCount: report.affectedMeshCount,
 			affectedMaterialCount: report.affectedMaterialCount,
-			hiddenAtZero: report.hiddenAtZero,
 			hasModelRoot: report.hasModelRoot
 		} );
+		if ( report.opacityMode === 'layered' ) {
+			for ( const layerReport of report.layerReports ) {
+				console.info( '[LayerXrayLayer]', {
+					layerId: layerReport.layerId,
+					layerIndex: layerReport.layerIndex,
+					layerName: layerReport.layerName,
+					opacity: layerReport.opacity,
+					visible: layerReport.visible
+				} );
+			}
+		}
 
 	}
 

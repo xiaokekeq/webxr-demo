@@ -17,8 +17,8 @@ import {
 
 const ARJS_SCRIPT_SELECTOR = 'script[data-arjs-runtime="true"]';
 const ARJS_RUNTIME_URL = 'https://raw.githack.com/AR-js-org/AR.js/master/three.js/build/ar-threex.js';
-const ARJS_CAMERA_PARAMETERS_URL = 'https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.7/three.js/data/camera_para.dat';
-const ARJS_HIRO_PATTERN_URL = 'https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.7/three.js/data/patt.hiro';
+const ARJS_CAMERA_PARAMETERS_URL = 'https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.7/data/data/camera_para.dat';
+const ARJS_HIRO_PATTERN_URL = 'https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.7/data/data/patt.hiro';
 const MARKER_LOCALIZATION_STORAGE_KEY = 'loadModelAR.markerLocalization.lastStableSolution';
 const DEFAULT_MARKER_ID = 'hiro';
 const LOG_INTERVAL_MS = 250;

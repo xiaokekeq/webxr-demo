@@ -14,6 +14,8 @@ export type MeasurementMode = 'distance-3d' | 'distance-horizontal' | 'depth';
 
 export interface PropertyPanelState {
 	name: string;
+	meshName?: string;
+	materialName?: string;
 	statusBadge: string;
 	type: string;
 	diameter: string;

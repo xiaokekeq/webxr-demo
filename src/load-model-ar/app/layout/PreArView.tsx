@@ -1,12 +1,11 @@
-﻿import type React from 'react';
+import type React from 'react';
 import type { AppActions, AppState } from '../store/ar-state.js';
 import { ArCanvas } from './ArCanvas.js';
 import { ModelSelector } from '../components/ModelSelector.js';
-import { DisplayModeSelector } from '../components/DisplayModeSelector.js';
 import { StageSelector } from '../components/StageSelector.js';
 import { ActionButton } from '../components/ActionButton.js';
 import { StatusBadge } from '../components/StatusBadge.js';
-import { getDisplayModeLabel, getSupportLabel } from '../store/selectors.js';
+import { getSupportLabel } from '../store/selectors.js';
 
 export function PreArView(props: {
 	state: AppState;
@@ -21,51 +20,57 @@ export function PreArView(props: {
 
 	return (
 		<div className="mobile-pre-ar">
-			<div className="page-card">
-				<h1>{engine.projectName}</h1>
-				<div className="meta-list">
-					<div><strong>模型</strong><span>{currentModelName}</span></div>
-					<div><strong>阶段</strong><span>{currentStage}</span></div>
-					<div><strong>显示</strong><span>{getDisplayModeLabel( engine.displayMode )}</span></div>
+			<section className="page-card page-card--hero">
+				<div className="page-card__eyebrow">{'WebXR \u73b0\u573a\u6838\u67e5'}</div>
+				<h1>{'\u5824\u9632\u73b0\u573a\u8f85\u52a9\u6838\u67e5'}</h1>
+				<p className="page-card__copy">
+					{'\u5148\u9009\u62e9\u6a21\u578b\u548c\u5f53\u524d\u751f\u547d\u5468\u671f\u9636\u6bb5\uff0c\u518d\u8fdb\u5165 AR \u8fdb\u884c\u73b0\u573a\u5bf9\u7167\u3002'}
+				</p>
+				<div className="chip-list">
+					<span className="chip">{currentModelName}</span>
+					<span className="chip">{currentStage}</span>
 				</div>
-			</div>
+			</section>
 
-			<div className="page-card">
+			<section className="page-card">
 				<div className="preview-header">
 					<div>
-						<h2>预览</h2>
+						<h2>{'3D \u6a21\u578b\u9884\u89c8'}</h2>
 						<p>{engine.desktopPreviewBadge}</p>
 					</div>
 					<StatusBadge label={getSupportLabel( engine.arSupportState )} tone={engine.arSupportState} />
 				</div>
 				<ArCanvas canvasRef={canvasRef} className="scene-host scene-host--preview" />
 				<p className="support-copy">{engine.arSupportMessage}</p>
-			</div>
+			</section>
 
-			<div className="page-card">
-				<div className="field-grid">
+			<section className="page-card">
+				<div className="field-grid field-grid--single">
 					<ModelSelector
+						label={'\u6a21\u578b\u9009\u62e9'}
 						models={engine.availableModels}
 						selectedModelId={engine.selectedModelId}
 						onChange={actions.selectModel}
 					/>
-					<DisplayModeSelector value={engine.displayMode} onChange={actions.setDisplayMode} label="默认显示模式" />
 				</div>
 
+				<div className="page-section-label">{'\u751f\u547d\u5468\u671f\u9636\u6bb5'}</div>
 				<StageSelector
 					stages={engine.timelineStages}
 					currentIndex={engine.currentTimelineStageIndex}
 					onSelect={actions.setTimelineStage}
 				/>
 
-				<ActionButton
-					label="进入 AR"
-					onClick={actions.enterAr}
-					kind="primary"
-					disabled={engine.arSupportState !== 'supported'}
-					activationBehavior="native-click"
-				/>
-			</div>
+				<div className="button-row">
+					<ActionButton
+						label={'\u8fdb\u5165 AR'}
+						onClick={actions.enterAr}
+						kind="primary"
+						disabled={engine.arSupportState !== 'supported'}
+						activationBehavior="native-click"
+					/>
+				</div>
+			</section>
 		</div>
 	);
 

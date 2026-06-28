@@ -11,11 +11,10 @@ import { PreArView } from './PreArView.js';
 import { ArRuntimeView } from './ArRuntimeView.js';
 import { ArCanvas } from './ArCanvas.js';
 import { StatusBadge } from '../components/StatusBadge.js';
+import { ActionButton } from '../components/ActionButton.js';
+import { ModelSelector } from '../components/ModelSelector.js';
+import { StageSelector } from '../components/StageSelector.js';
 import { getSupportLabel } from '../store/selectors.js';
-import { BrowsePanel } from '../panels/BrowsePanel.js';
-import { RegistrationPanel } from '../panels/RegistrationPanel.js';
-import { ToolsPanel } from '../panels/ToolsPanel.js';
-import { InspectionPanel } from '../panels/InspectionPanel.js';
 
 function useDesktopLayout(): boolean {
 
@@ -42,6 +41,9 @@ export function ArPage(): React.JSX.Element {
 	const preArCanvasRef = useRef<HTMLDivElement | null>( null );
 	const desktopCanvasRef = useRef<HTMLDivElement | null>( null );
 	const xrButtonRef = useRef<HTMLDivElement | null>( null );
+	const engine = state.engine;
+	const currentModelName = engine.availableModels.find( ( item ) => item.id === engine.selectedModelId )?.name ?? '-';
+	const currentStage = engine.timelineStages[ engine.currentTimelineStageIndex ] ?? '-';
 
 	useEffect( () => {
 		void initializeAppRuntime();
@@ -92,94 +94,83 @@ export function ArPage(): React.JSX.Element {
 	}, [ state.engine.appMode, isDesktopLayout ] );
 
 	if ( isDesktopLayout ) {
-		const engine = state.engine;
+		if ( engine.appMode === 'ar-session' ) {
+			return (
+				<>
+					<ArCanvas canvasRef={preArCanvasRef} className="scene-host scene-host--hidden" />
+					<ArCanvas canvasRef={desktopCanvasRef} className="scene-host scene-host--hidden" />
+					<div ref={xrButtonRef} className="xr-button-wrap" />
+					<ArRuntimeView
+						state={state}
+						actions={actions}
+						canvasRef={arCanvasRef}
+					/>
+				</>
+			);
+		}
+
 		return (
 			<>
 				<ArCanvas canvasRef={arCanvasRef} className="scene-host scene-host--hidden" />
 				<ArCanvas canvasRef={preArCanvasRef} className="scene-host scene-host--hidden" />
 				<div ref={xrButtonRef} className="xr-button-wrap" />
-				<div className="desktop-shell">
+				<div className="desktop-shell desktop-shell--simple">
 					<header className="desktop-header">
 						<div>
-							<h1>{engine.projectName}</h1>
-							<p>
-								{engine.availableModels.find( ( item ) => item.id === engine.selectedModelId )?.name ?? '-'}
-								{' / '}
-								{engine.timelineStages[ engine.currentTimelineStageIndex ] ?? '-'}
-							</p>
+							<h1>{'\u5824\u9632\u73b0\u573a\u8f85\u52a9\u6838\u67e5'}</h1>
+							<p>{'\u9009\u62e9\u6a21\u578b\u4e0e\u751f\u547d\u5468\u671f\u9636\u6bb5\u540e\uff0c\u518d\u8fdb\u5165 AR \u8fdb\u884c\u73b0\u573a\u6838\u67e5\u3002'}</p>
 						</div>
 						<div className="desktop-header__meta">
 							<StatusBadge label={getSupportLabel( engine.arSupportState )} tone={engine.arSupportState} />
-							<span className="status-pill status-pill--muted">桌面预览</span>
 						</div>
 					</header>
 
-					<div className="desktop-grid">
-						<div className="desktop-preview-stack">
-							<section className="desktop-preview">
-								<div className="desktop-preview__badge">{engine.desktopPreviewBadge}</div>
-								<div className="desktop-preview__canvas">
-									<ArCanvas canvasRef={desktopCanvasRef} className="scene-host scene-host--desktop" />
+					<div className="desktop-home-grid">
+						<section className="desktop-preview desktop-preview--simple">
+							<div className="desktop-preview__badge">{engine.desktopPreviewBadge}</div>
+							<div className="desktop-preview__canvas">
+								<ArCanvas canvasRef={desktopCanvasRef} className="scene-host scene-host--desktop" />
+							</div>
+						</section>
+
+						<aside className="desktop-home-panel">
+							<section className="panel-section">
+								<div className="panel-section__header">
+									<h3>{'\u5f53\u524d\u9009\u62e9'}</h3>
+									<p>{currentModelName} / {currentStage}</p>
+								</div>
+								<div className="field-grid field-grid--single">
+									<ModelSelector
+										label={'\u6a21\u578b\u9009\u62e9'}
+										models={engine.availableModels}
+										selectedModelId={engine.selectedModelId}
+										onChange={actions.selectModel}
+									/>
+								</div>
+								<div className="page-section-label">{'\u751f\u547d\u5468\u671f\u9636\u6bb5'}</div>
+								<StageSelector
+									stages={engine.timelineStages}
+									currentIndex={engine.currentTimelineStageIndex}
+									onSelect={actions.setTimelineStage}
+								/>
+								<div className="button-row">
+									<ActionButton
+										label={'\u8fdb\u5165 AR'}
+										onClick={actions.enterAr}
+										kind="primary"
+										disabled={engine.arSupportState !== 'supported'}
+										activationBehavior="native-click"
+									/>
 								</div>
 							</section>
 
-							<section className="desktop-log-panel">
-								<div className="desktop-preview__info">
-									<div className="desktop-info-card">
-										<strong>加载信息</strong>
-										<span>{engine.runtimeStatus}</span>
-									</div>
-									<div className="desktop-info-card">
-										<strong>配准状态</strong>
-										<span>{engine.registrationStatusDetail}</span>
-									</div>
+							<section className="panel-section">
+								<div className="panel-section__header">
+									<h3>{'\u8bf4\u660e'}</h3>
+									<p>{'\u4e3b\u9875\u4ec5\u4fdd\u7559\u6a21\u578b\u9884\u89c8\u3001\u6a21\u578b\u9009\u62e9\u4e0e\u751f\u547d\u5468\u671f\u9636\u6bb5\u5207\u6362\u3002'}</p>
 								</div>
-								<strong>运行日志</strong>
-								<div className="desktop-log-list">
-									{engine.logMessages.length > 0 ? engine.logMessages.slice( 0, 4 ).map( ( item ) => (
-										<div key={item} className="desktop-log-item">{item}</div>
-									) ) : <div className="desktop-log-item">正在等待模型与配准信息加载。</div>}
-								</div>
+								<p className="support-copy">{engine.arSupportMessage}</p>
 							</section>
-						</div>
-
-						<aside className="desktop-panel">
-							<div className="desktop-tabs">
-								<button
-									className={ `desktop-tab${engine.workspaceMode === 'browse' ? ' is-active' : ''}` }
-									type="button"
-									onClick={ () => actions.activatePanel( 'browse' ) }
-								>
-									浏览
-								</button>
-								<button
-									className={ `desktop-tab${engine.workspaceMode === 'registration' ? ' is-active' : ''}` }
-									type="button"
-									onClick={ () => actions.activatePanel( 'registration' ) }
-								>
-									配准
-								</button>
-								<button
-									className={ `desktop-tab${engine.workspaceMode === 'tools' ? ' is-active' : ''}` }
-									type="button"
-									onClick={ () => actions.activatePanel( 'tools' ) }
-								>
-									工具
-								</button>
-								<button
-									className={ `desktop-tab${engine.workspaceMode === 'inspection' ? ' is-active' : ''}` }
-									type="button"
-									onClick={ () => actions.activatePanel( 'inspection' ) }
-								>
-									核查
-								</button>
-							</div>
-							<div className="desktop-panel__body">
-								{engine.workspaceMode === 'browse' ? <BrowsePanel state={state} actions={actions} canInspect={true} /> : null}
-								{engine.workspaceMode === 'registration' ? <RegistrationPanel state={state} actions={actions} /> : null}
-								{engine.workspaceMode === 'tools' ? <ToolsPanel state={state} actions={actions} /> : null}
-								{engine.workspaceMode === 'inspection' ? <InspectionPanel state={state} actions={actions} /> : null}
-							</div>
 						</aside>
 					</div>
 				</div>

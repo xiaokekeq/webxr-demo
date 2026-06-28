@@ -76,6 +76,7 @@ export function createPropertySelectionController(
 			clearSelection();
 
 			const highlightRoot = highlightObject ?? businessObject;
+			const selectionMetadata = getSelectionMetadata( highlightRoot, businessObject );
 			highlightRoot.traverse( ( child ) => {
 				if ( child instanceof THREE.Mesh ) {
 					selectedMeshes.push( child );
@@ -99,6 +100,8 @@ export function createPropertySelectionController(
 			store.patch( {
 				propertyPanel: {
 					name: businessName,
+					meshName: selectionMetadata.meshName,
+					materialName: selectionMetadata.materialName,
 					statusBadge: properties?.status || '待核查',
 					type: properties?.type || '-',
 					diameter: properties?.diameter || '-',
@@ -178,6 +181,55 @@ export function createPropertySelectionController(
 		}
 
 		return object.name || 'UnnamedObject';
+
+	}
+
+	function getSelectionMetadata(
+		highlightRoot: THREE.Object3D,
+		businessObject: THREE.Object3D
+	): { meshName: string; materialName: string } {
+
+		const sourceMesh = resolveSelectionMesh( highlightRoot ) ?? resolveSelectionMesh( businessObject );
+		if ( sourceMesh === null ) {
+			return {
+				meshName: businessObject.name || 'UnnamedMesh',
+				materialName: '-'
+			};
+		}
+
+		return {
+			meshName: sourceMesh.name || businessObject.name || 'UnnamedMesh',
+			materialName: getMaterialName( sourceMesh.material )
+		};
+
+	}
+
+	function resolveSelectionMesh(object: THREE.Object3D): THREE.Mesh | null {
+
+		if ( object instanceof THREE.Mesh ) {
+			return object;
+		}
+
+		let resolvedMesh: THREE.Mesh | null = null;
+		object.traverse( ( child ) => {
+			if ( resolvedMesh === null && child instanceof THREE.Mesh ) {
+				resolvedMesh = child;
+			}
+		} );
+		return resolvedMesh;
+
+	}
+
+	function getMaterialName(material: THREE.Material | THREE.Material[]): string {
+
+		if ( Array.isArray( material ) ) {
+			const names = material
+				.map( ( item ) => item.name )
+				.filter( ( item ) => item.length > 0 );
+			return names.length > 0 ? names.join( ', ' ) : '-';
+		}
+
+		return material.name || '-';
 
 	}
 

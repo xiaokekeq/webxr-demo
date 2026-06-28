@@ -213,6 +213,7 @@ export function createPointerSelectionSession(
 			}
 
 			if ( sceneBundle.renderer.xr.isPresenting ) {
+				propertySelection.clearSelection();
 				setStatus( 'No model part hit. Center the model and tap again.' );
 				return;
 			}

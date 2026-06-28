@@ -14,6 +14,8 @@ import { getPlacementResidualScale, getPreviewPlacementPosition } from './camera
 
 const tempEuler = new THREE.Euler();
 const tempSiteOffset = new THREE.Vector3();
+const tempFrontPreviewQuaternion = new THREE.Quaternion();
+const tempFrontPreviewNorth = new THREE.Vector3();
 
 export function createAutoPlacementBase(options: {
 	camera: THREE.Camera;
@@ -83,6 +85,61 @@ export function createAutoPlacementBase(options: {
 			source: 'gps-imu',
 			timestamp: Date.now(),
 			accuracyMeters: estimate.accuracyMeters ?? undefined
+		}
+	};
+
+}
+
+export function createFrontPreviewPlacementBase(options: {
+	camera: THREE.Camera;
+	cameraWorldPosition: THREE.Vector3;
+	groundY: number;
+	modelTemplate: THREE.Group;
+	registrationSolution: EngineeringRegistrationSolution;
+	modelOrientationTarget: THREE.Quaternion;
+	previewDistanceMeters: number;
+}): ManualPlacementBase {
+
+	const {
+		camera,
+		cameraWorldPosition,
+		groundY,
+		modelTemplate,
+		registrationSolution,
+		modelOrientationTarget,
+		previewDistanceMeters
+	} = options;
+	const position = getPreviewPlacementPosition(
+		camera,
+		cameraWorldPosition,
+		groundY,
+		previewDistanceMeters
+	).clone();
+	const frontPreviewOrientation = flattenQuaternionToYaw(
+		camera.getWorldQuaternion( tempFrontPreviewQuaternion ),
+		modelOrientationTarget
+	).clone();
+	const baseScale = getPlacementResidualScale( modelTemplate, registrationSolution.modelToSite.scale );
+	const headingDeg = extractHeadingDegFromPreviewOrientation( frontPreviewOrientation );
+
+	return {
+		position,
+		orientation: flattenQuaternionToYaw(
+			composeModelQuaternionInAr(
+				frontPreviewOrientation,
+				registrationSolution,
+				modelOrientationTarget
+			),
+			modelOrientationTarget
+		).clone(),
+		scale: baseScale,
+		scaleAnchor: position.clone(),
+		siteContext: {
+			siteOriginArPosition: position.clone(),
+			headingDeg,
+			baseScale,
+			source: 'unknown',
+			timestamp: Date.now()
 		}
 	};
 
@@ -200,6 +257,21 @@ function flattenQuaternionToYaw(
 	tempEuler.setFromQuaternion( source, 'YXZ' );
 	target.setFromEuler( new THREE.Euler( 0, tempEuler.y, 0, 'YXZ' ) );
 	return target;
+
+}
+
+function extractHeadingDegFromPreviewOrientation(orientation: THREE.Quaternion): number {
+
+	tempFrontPreviewNorth.set( 0, 1, 0 ).applyQuaternion( orientation );
+	return normalizeDegrees(
+		THREE.MathUtils.radToDeg( Math.atan2( - tempFrontPreviewNorth.x, - tempFrontPreviewNorth.z ) )
+	);
+
+}
+
+function normalizeDegrees(value: number): number {
+
+	return ( ( value % 360 ) + 360 ) % 360;
 
 }
 

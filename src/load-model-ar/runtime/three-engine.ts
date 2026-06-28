@@ -637,11 +637,6 @@ export class ThreeEngine {
 			return;
 		}
 
-		if ( this.canMutatePlacedModelDisplayMode() === false ) {
-			this.setStatus( '请先完成模型放置，再切换显示模式。' );
-			return;
-		}
-
 		if ( this.store.getState().displayMode === mode ) {
 			return;
 		}
@@ -1134,8 +1129,10 @@ export class ThreeEngine {
 			return;
 		}
 
+		const previewPlacementRequested = this.store.getState().autoPreviewPlacementEnabled;
 		if (
-			this.activeMarkerArFromEnuSolution === null
+			previewPlacementRequested === false
+			&& this.activeMarkerArFromEnuSolution === null
 			&& this.coarseRegistration.canEstimate() === false
 		) {
 			try {
@@ -1153,7 +1150,11 @@ export class ThreeEngine {
 			}
 		}
 
-		if ( this.coarseRegistration.canEstimate() === false ) {
+		if (
+			previewPlacementRequested === false
+			&& this.activeMarkerArFromEnuSolution === null
+			&& this.coarseRegistration.canEstimate() === false
+		) {
 			this.setStatus( this.coarseRegistration.getMissingRequirementMessage() );
 			return;
 		}
@@ -1806,17 +1807,6 @@ export class ThreeEngine {
 	}
 
 	private canUseManualRegistration(): boolean {
-
-		return this.placementSession.getPlacedModel() !== null;
-
-	}
-
-	private canMutatePlacedModelDisplayMode(): boolean {
-
-		const state = this.store.getState();
-		if ( state.appMode !== 'ar-session' ) {
-			return true;
-		}
 
 		return this.placementSession.getPlacedModel() !== null;
 

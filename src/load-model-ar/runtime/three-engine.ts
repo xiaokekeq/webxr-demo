@@ -89,6 +89,10 @@ const MAX_LOG_ITEMS = 24;
 const DEFAULT_DESKTOP_PREVIEW_BADGE = '3D 预览区域';
 const DESKTOP_PREVIEW_BADGE = '3D 预览区域 / 可旋转、平移、缩放';
 const DESKTOP_PREVIEW_DIRECTION = new THREE.Vector3( 0.85, 0.48, 1 );
+const DEBUG_ANCHOR_CUBE_SIZE_METERS = 0.2;
+const WORLD_LOCK_POSITION_EPSILON_METERS = 0.002;
+const WORLD_LOCK_QUATERNION_EPSILON = 0.001;
+const WORLD_LOCK_SCALE_EPSILON = 0.0001;
 
 const PROJECT_NAME = '堤防现场辅助核查';
 const TIMELINE_STAGES = [ '施工前', '基础开挖', '堤身填筑', '护坡施工', '完工核查' ] as const;
@@ -105,6 +109,16 @@ export interface ThreeEngineHosts extends SceneHostRuntimeHosts {}
 export interface ThreeEngineSnapshot extends RegistrationStoreState {
 	hasSelection: boolean;
 	currentStatus: string;
+}
+
+interface WorldLockSnapshot {
+	position: THREE.Vector3;
+	quaternion: THREE.Quaternion;
+	scale: THREE.Vector3;
+	matrixWorld: THREE.Matrix4;
+	parentName: string;
+	matrixAutoUpdate: boolean;
+	timestamp: number;
 }
 
 function createInitialState(): RegistrationStoreState {
@@ -235,6 +249,11 @@ export class ThreeEngine {
 	private lastStructureRevealSignature = '';
 	private pipesByName = new Map<string, PipeRecord>();
 	private coarseWarmupPromise: Promise<void> | null = null;
+	private debugAnchorCube: THREE.Mesh | null = null;
+	private debugAnchorCubeSnapshot: WorldLockSnapshot | null = null;
+	private lastDebugCubeStableLogTime = 0;
+	private lastDebugCubeVisualDriftLogTime = 0;
+	private lastDebugCubeDriftWarningTime = 0;
 	private coarseRegistration = createCoarseRegistrationController( {
 		setStatus: ( message ) => {
 			this.setStatus( message );
@@ -462,6 +481,7 @@ export class ThreeEngine {
 				this.displayModeController.updateDepthState( frame );
 				this.updateTargetGuidance();
 				this.placementSession.verifyWorldLockedPlacement( 'xr-frame' );
+				this.verifyDebugAnchorCubePlacement( 'xr-frame' );
 			}
 		} );
 
@@ -590,6 +610,7 @@ export class ThreeEngine {
 		this.sceneBundle.renderer.xr.removeEventListener( 'sessionend', this.unbindArSelectionSession );
 		this.displayModeController.dispose();
 		this.structureRevealController.dispose();
+		this.clearDebugAnchorCube();
 		this.measurementController.dispose();
 		this.sceneBundle.controls.dispose();
 		this.sceneBundle.renderer.dispose();
@@ -735,6 +756,61 @@ export class ThreeEngine {
 		this.ensureDesktopPreviewPlacement();
 		this.placementSession.fitDesktopPreviewToCamera();
 		this.setStatus( '模型位置已重置。' );
+
+	}
+
+	placeDebugAnchorCube(): boolean {
+
+		if ( this.sceneBundle.renderer.xr.isPresenting === false ) {
+			this.setStatus( '请先进入 AR 会话，再执行小立方体稳定性测试。' );
+			return false;
+		}
+
+		const hitPosition = this.xrRuntime.getHitTestController().getHitPosition( new THREE.Vector3() );
+		if ( hitPosition === null ) {
+			this.setStatus( '请先扫描地面或桌面，拿到 hit-test 命中后再放置小立方体。' );
+			return false;
+		}
+
+		const cube = this.ensureDebugAnchorCube();
+		cube.position.copy( hitPosition );
+		cube.position.y += DEBUG_ANCHOR_CUBE_SIZE_METERS * 0.5;
+		cube.quaternion.identity();
+		cube.scale.setScalar( 1 );
+		cube.visible = true;
+		cube.updateMatrixWorld( true );
+
+		this.debugAnchorCubeSnapshot = captureWorldLockSnapshot( cube );
+		this.lastDebugCubeStableLogTime = 0;
+		this.lastDebugCubeVisualDriftLogTime = 0;
+		this.lastDebugCubeDriftWarningTime = 0;
+
+		console.info( '[DebugAnchorCubePlaced]', {
+			position: vector3ToObject( this.debugAnchorCubeSnapshot.position ),
+			quaternion: quaternionToObject( this.debugAnchorCubeSnapshot.quaternion ),
+			scale: vector3ToObject( this.debugAnchorCubeSnapshot.scale ),
+			parentName: this.debugAnchorCubeSnapshot.parentName
+		} );
+		this.setStatus( '小立方体稳定性测试已放置，可绕着它走动观察是否出现视觉漂移。' );
+		this.emit();
+		return true;
+
+	}
+
+	clearDebugAnchorCube(): void {
+
+		if ( this.debugAnchorCube !== null ) {
+			this.debugAnchorCube.parent?.remove( this.debugAnchorCube );
+			this.debugAnchorCube.geometry.dispose();
+			disposeMaterial( this.debugAnchorCube.material );
+		}
+
+		this.debugAnchorCube = null;
+		this.debugAnchorCubeSnapshot = null;
+		this.lastDebugCubeStableLogTime = 0;
+		this.lastDebugCubeVisualDriftLogTime = 0;
+		this.lastDebugCubeDriftWarningTime = 0;
+		this.emit();
 
 	}
 
@@ -1692,6 +1768,7 @@ export class ThreeEngine {
 	private handleXRSessionStart(): void {
 
 		this.resetMarkerLocalizationCorrection();
+		this.clearDebugAnchorCube();
 		this.measurementController.reset();
 		this.arSessionStateRuntime.handleSessionStart();
 		this.pointerSelection.suppressSelectionFor( 1200 );
@@ -1712,6 +1789,7 @@ export class ThreeEngine {
 	private handleXRSessionEnd(): void {
 
 		this.resetMarkerLocalizationCorrection();
+		this.clearDebugAnchorCube();
 		this.measurementController.reset();
 		this.arSessionStateRuntime.handleSessionEnd();
 		this.placementSession.resetPlacement();
@@ -2006,6 +2084,103 @@ export class ThreeEngine {
 
 	}
 
+	private ensureDebugAnchorCube(): THREE.Mesh {
+
+		if ( this.debugAnchorCube !== null ) {
+			if ( this.debugAnchorCube.parent !== this.sceneBundle.scene ) {
+				this.sceneBundle.scene.add( this.debugAnchorCube );
+			}
+			return this.debugAnchorCube;
+		}
+
+		const cube = new THREE.Mesh(
+			new THREE.BoxGeometry(
+				DEBUG_ANCHOR_CUBE_SIZE_METERS,
+				DEBUG_ANCHOR_CUBE_SIZE_METERS,
+				DEBUG_ANCHOR_CUBE_SIZE_METERS
+			),
+			new THREE.MeshStandardMaterial( {
+				color: 0x4ea2ff,
+				roughness: 0.36,
+				metalness: 0.08,
+				transparent: true,
+				opacity: 0.92
+			} )
+		);
+		cube.name = '__debug-anchor-cube';
+		this.sceneBundle.scene.add( cube );
+		this.debugAnchorCube = cube;
+		return cube;
+
+	}
+
+	private verifyDebugAnchorCubePlacement(caller: string): void {
+
+		if ( this.debugAnchorCube === null || this.debugAnchorCubeSnapshot === null ) {
+			return;
+		}
+
+		this.debugAnchorCube.updateMatrixWorld( true );
+		const currentPosition = this.debugAnchorCube.getWorldPosition( new THREE.Vector3() );
+		const currentQuaternion = this.debugAnchorCube.getWorldQuaternion( new THREE.Quaternion() );
+		const currentScale = this.debugAnchorCube.getWorldScale( new THREE.Vector3() );
+		const parentName = this.debugAnchorCube.parent?.name ?? this.debugAnchorCube.parent?.type ?? 'unknown';
+		const positionDelta = currentPosition.distanceTo( this.debugAnchorCubeSnapshot.position );
+		const quaternionDelta = getQuaternionDelta( currentQuaternion, this.debugAnchorCubeSnapshot.quaternion );
+		const scaleDelta = currentScale.distanceTo( this.debugAnchorCubeSnapshot.scale );
+		const now = Date.now();
+
+		if (
+			positionDelta <= WORLD_LOCK_POSITION_EPSILON_METERS
+			&& quaternionDelta <= WORLD_LOCK_QUATERNION_EPSILON
+			&& scaleDelta <= WORLD_LOCK_SCALE_EPSILON
+		) {
+			if ( now - this.lastDebugCubeStableLogTime >= 2000 ) {
+				console.info( '[PlacementTransformStable]', {
+					debugTarget: 'cube',
+					message: 'debug anchor cube transform unchanged after placement',
+					parentName,
+					likelyVisualDriftSource: 'depth mismatch / XR tracking / missing anchor'
+				} );
+				this.lastDebugCubeStableLogTime = now;
+			}
+
+			if ( now - this.lastDebugCubeVisualDriftLogTime >= 2000 ) {
+				console.info( '[PlacementStableButVisualDrift]', {
+					debugTarget: 'cube',
+					modelRootTransformStable: true,
+					likelyCause: 'XR tracking drift or missing anchor',
+					suggestion: 'use XRAnchor when available, or add marker/control-point correction'
+				} );
+				this.lastDebugCubeVisualDriftLogTime = now;
+			}
+
+			return;
+		}
+
+		if ( now - this.lastDebugCubeDriftWarningTime >= 200 ) {
+			console.warn( '[PlacementDriftWarning]', {
+				reason: 'debug anchor cube transform changed after placement',
+				caller,
+				debugTarget: 'cube',
+				positionDelta,
+				quaternionDelta,
+				scaleDelta,
+				previousPosition: vector3ToObject( this.debugAnchorCubeSnapshot.position ),
+				currentPosition: vector3ToObject( currentPosition ),
+				previousQuaternion: quaternionToObject( this.debugAnchorCubeSnapshot.quaternion ),
+				currentQuaternion: quaternionToObject( currentQuaternion ),
+				previousScale: vector3ToObject( this.debugAnchorCubeSnapshot.scale ),
+				currentScale: vector3ToObject( currentScale ),
+				parentName
+			} );
+			this.lastDebugCubeDriftWarningTime = now;
+		}
+
+		this.debugAnchorCubeSnapshot = captureWorldLockSnapshot( this.debugAnchorCube );
+
+	}
+
 }
 
 function cloneManualArSitePose(
@@ -2066,6 +2241,51 @@ function vector3ToObject(vector: THREE.Vector3): { x: number; y: number; z: numb
 		y: vector.y,
 		z: vector.z
 	};
+
+}
+
+function quaternionToObject(quaternion: THREE.Quaternion): { x: number; y: number; z: number; w: number } {
+
+	return {
+		x: quaternion.x,
+		y: quaternion.y,
+		z: quaternion.z,
+		w: quaternion.w
+	};
+
+}
+
+function captureWorldLockSnapshot(object: THREE.Object3D): WorldLockSnapshot {
+
+	object.updateMatrixWorld( true );
+	return {
+		position: object.getWorldPosition( new THREE.Vector3() ).clone(),
+		quaternion: object.getWorldQuaternion( new THREE.Quaternion() ).clone(),
+		scale: object.getWorldScale( new THREE.Vector3() ).clone(),
+		matrixWorld: object.matrixWorld.clone(),
+		parentName: object.parent?.name ?? object.parent?.type ?? 'unknown',
+		matrixAutoUpdate: object.matrixAutoUpdate,
+		timestamp: Date.now()
+	};
+
+}
+
+function getQuaternionDelta(a: THREE.Quaternion, b: THREE.Quaternion): number {
+
+	return 1 - Math.abs( a.dot( b ) );
+
+}
+
+function disposeMaterial(material: THREE.Material | THREE.Material[]): void {
+
+	if ( Array.isArray( material ) ) {
+		for ( const item of material ) {
+			item.dispose();
+		}
+		return;
+	}
+
+	material.dispose();
 
 }
 

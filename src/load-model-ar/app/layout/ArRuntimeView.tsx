@@ -183,10 +183,6 @@ export function ArRuntimeView(props: {
 
 				{showXraySlider ? (
 					<div className="ar-minimal-perspective">
-						<div className="ar-minimal-perspective__readout">
-							<span className="ar-minimal-perspective__title">透视强度</span>
-							<span className="ar-minimal-perspective__value">{`${engine.structureRevealValue}%`}</span>
-						</div>
 						<input
 							className="ar-minimal-perspective__slider"
 							type="range"

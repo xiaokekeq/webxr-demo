@@ -58,6 +58,8 @@ export interface LoadModelArController {
 		applyMarkerLocalizationCorrection(): void;
 		clearMarkerLocalizationCorrection(): void;
 		clearSavedMarkerLocalization(): void;
+		placeDebugAnchorCube(): void;
+		clearDebugAnchorCube(): void;
 		resetPlacement(): void;
 		hideTopModelLayer(): void;
 		restoreModelLayer(): void;
@@ -416,6 +418,18 @@ export function createLoadModelArController(): LoadModelArController {
 			clearSavedMarkerLocalization() {
 
 				engine.clearSavedMarkerLocalization();
+
+			},
+
+			placeDebugAnchorCube() {
+
+				engine.placeDebugAnchorCube();
+
+			},
+
+			clearDebugAnchorCube() {
+
+				engine.clearDebugAnchorCube();
 
 			},
 

@@ -343,7 +343,7 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 						&& estimate.accuracyMeters > maxReliableGpsAccuracyMeters
 					)
 				);
-				const usePreviewPlacement = false;
+				const usePreviewPlacement = previewPlacementRequested;
 
 				arPlacementBase = createAutoPlacementBase( {
 					camera: sceneBundle.camera,
@@ -382,8 +382,8 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 					const groundLockText = `groundY ${estimate.groundY.toFixed( 3 )}m / ENU 垂向偏移${estimate.enuVerticalOffsetApplied ? '已启用' : '已禁用'}`;
 					setStatus(
 						shouldUsePreviewPlacementFallback
-							? `目标距离约 ${Math.round( estimate.distanceMeters )}m，${accuracyText}，${groundLockText}。已切换到近距离预览放置。`
-							: `已按近距离预览放置模型，${accuracyText}，${groundLockText}。`
+							? `目标距离约 ${Math.round( estimate.distanceMeters )}m，${accuracyText}，${groundLockText}。已按当前面前预览位置固定放置。`
+							: `已按当前面前预览位置固定放置模型，${accuracyText}，${groundLockText}。`
 					);
 					trackArPlacement( 'front-preview' );
 					return;
@@ -428,7 +428,7 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 				: `GPS 精度约 ${Math.round( estimate.accuracyMeters )}m`;
 			const groundLockText = `groundY ${estimate.groundY.toFixed( 3 )}m / ENU 垂向偏移${estimate.enuVerticalOffsetApplied ? '已启用' : '已禁用'}`;
 			setStatus(
-				`${previewPlacementRequested ? '面前预览仅作为调试开关保留；' : ''}已完成 ${registrationSolution.modelId} 的粗配准。距离约 ${Math.round( estimate.distanceMeters )}m，RMS ${registrationSolution.modelToSite.rmsErrorMeters.toFixed( 3 )}m，${accuracyText}，${groundLockText}。`
+				`已完成 ${registrationSolution.modelId} 的粗配准。距离约 ${Math.round( estimate.distanceMeters )}m，RMS ${registrationSolution.modelToSite.rmsErrorMeters.toFixed( 3 )}m，${accuracyText}，${groundLockText}。`
 			);
 
 		},

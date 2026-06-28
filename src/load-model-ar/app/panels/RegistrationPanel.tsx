@@ -126,8 +126,8 @@ export function RegistrationPanel(props: {
 					value={engine.autoPreviewPlacementEnabled ? 'enabled' : 'disabled'}
 					onChange={ ( value ) => actions.setAutoPreviewPlacementEnabled( value === 'enabled' ) }
 					options={[
-						{ value: 'disabled', label: '关闭：正式放置固定到现场' },
-						{ value: 'enabled', label: '开启：仅保留面前预览调试标记，不改变正式固定放置' }
+						{ value: 'disabled', label: '关闭：按真实位置固定到现场' },
+						{ value: 'enabled', label: '开启：按当前面前预览位置固定放置' }
 					]}
 				/>
 

@@ -1047,8 +1047,8 @@ export class ThreeEngine {
 		this.store.patch( { autoPreviewPlacementEnabled: enabled } );
 		this.setStatus(
 			enabled
-				? '已开启面前预览调试标记。正式放置仍会固定到 AR 空间，不再跟随手机。'
-				: '已关闭面前预览调试标记。正式放置将按真实目标位置固定到 AR 空间。'
+				? '已开启面前预览。点击放置时会按当前手机前方预览位置固定到 AR 空间。'
+				: '已关闭面前预览。放置时将按真实目标位置固定到 AR 空间。'
 		);
 		this.emit();
 

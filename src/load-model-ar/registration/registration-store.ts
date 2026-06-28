@@ -13,6 +13,7 @@ export type ArDisplayMode =
 	| 'spatial-reveal'
 	| 'layer-peeling'
 	| 'section-cut';
+export type SectionCutPlaneMode = 'cross-section' | 'longitudinal-section' | 'horizontal-section';
 export type DepthSensingMode = 'disabled' | 'gpu' | 'cpu' | 'auto';
 export type PrecisionFeedbackTone = 'neutral' | 'info' | 'success' | 'error';
 export type MeasurementMode = 'distance-3d' | 'distance-horizontal' | 'depth';
@@ -144,6 +145,11 @@ export interface RegistrationStoreState {
 	workspaceMode: WorkspaceMode;
 	displayMode: ArDisplayMode;
 	structureRevealValue: number;
+	transparentXrayValue: number;
+	spatialRevealValue: number;
+	layerPeelingValue: number;
+	sectionCutValue: number;
+	sectionCutPlaneMode: SectionCutPlaneMode;
 	timelineStages: readonly string[];
 	currentTimelineStageIndex: number;
 	layerNames: readonly string[];

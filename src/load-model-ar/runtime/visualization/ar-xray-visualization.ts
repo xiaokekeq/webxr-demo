@@ -129,13 +129,13 @@ export function createArXrayVisualizationController(): ArXrayVisualizationContro
 			return;
 		}
 
-		modelRoot.traverse( ( child ) => {
-			if ( child instanceof THREE.Mesh ) {
-				meshSnapshots.set( child, {
-					mesh: child,
-					visible: child.visible
-				} );
-			}
+	modelRoot.traverse( ( child ) => {
+		if ( child instanceof THREE.Mesh && shouldAffectMesh( child ) ) {
+			meshSnapshots.set( child, {
+				mesh: child,
+				visible: child.visible
+			} );
+		}
 		} );
 
 	}
@@ -175,7 +175,7 @@ function applyXrayToRoot(options: {
 	tempLayerReports.clear();
 
 	modelRoot.traverse( ( child ) => {
-		if ( child instanceof THREE.Mesh === false ) {
+		if ( child instanceof THREE.Mesh === false || shouldAffectMesh( child ) === false ) {
 			return;
 		}
 
@@ -239,7 +239,7 @@ function restoreRoot(
 	let affectedMaterialCount = 0;
 
 	modelRoot.traverse( ( child ) => {
-		if ( child instanceof THREE.Mesh === false ) {
+		if ( child instanceof THREE.Mesh === false || shouldAffectMesh( child ) === false ) {
 			return;
 		}
 
@@ -356,6 +356,20 @@ function rememberMesh(
 		mesh,
 		visible: mesh.visible
 	} );
+
+}
+
+function shouldAffectMesh(mesh: THREE.Mesh): boolean {
+
+	if ( mesh.userData.__nonSelectableHelper === true || mesh.userData.__excludeFromLayerIndex === true ) {
+		return false;
+	}
+
+	const materialName = Array.isArray( mesh.material )
+		? mesh.material.map( ( material ) => material.name ).join( '|' )
+		: mesh.material.name;
+
+	return materialName !== '__boundary-plane-highlight';
 
 }
 

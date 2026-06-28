@@ -21,6 +21,7 @@ export interface LayerVisibilityController {
 		modelRoot: THREE.Object3D | null;
 		pipesByName: Map<string, PipeRecord>;
 	}): ModelLayerState[];
+	setHiddenLayerCount(count: number): ModelLayerState[];
 	hideTopLayer(): ModelLayerState[];
 	restoreLastHiddenLayer(): ModelLayerState[];
 	reset(): ModelLayerState[];
@@ -41,6 +42,17 @@ export function createLayerVisibilityController(): LayerVisibilityController {
 
 			layerDefinitions = buildLayerDefinitions( options.modelRoot, options.pipesByName );
 			hiddenLayerIds = [];
+			return getState();
+
+		},
+
+		setHiddenLayerCount(count) {
+
+			const maxHideCount = Math.max( 0, layerDefinitions.length - 1 );
+			const nextHiddenCount = THREE.MathUtils.clamp( Math.round( count ), 0, maxHideCount );
+			hiddenLayerIds = layerDefinitions
+				.slice( 0, nextHiddenCount )
+				.map( ( layer ) => layer.id );
 			return getState();
 
 		},

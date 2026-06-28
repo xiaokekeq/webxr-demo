@@ -22,6 +22,7 @@ const ARJS_HIRO_PATTERN_URL = 'https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.7
 const MARKER_LOCALIZATION_STORAGE_KEY = 'loadModelAR.markerLocalization.lastStableSolution';
 const DEFAULT_MARKER_ID = 'hiro';
 const LOG_INTERVAL_MS = 250;
+const MAIN_AR_PAGE_URL = '/loadModelAR.html';
 
 const MARKER_TEST_CONFIGS = {
 	dz1207: {
@@ -84,6 +85,7 @@ type SerializedStableMarkerLocalization = {
 const viewportElement = getRequiredElement<HTMLDivElement>( 'marker-test-viewport' );
 const statusElement = getRequiredElement<HTMLSpanElement>( 'marker-test-status' );
 const configModeElement = getRequiredElement<HTMLSpanElement>( 'marker-test-config-mode' );
+const configUrlElement = getRequiredElement<HTMLSpanElement>( 'marker-test-config-url' );
 const markerConfigIdElement = getRequiredElement<HTMLSpanElement>( 'marker-test-marker-config-id' );
 const markerIdElement = getRequiredElement<HTMLSpanElement>( 'marker-test-marker-id' );
 const visibleElement = getRequiredElement<HTMLSpanElement>( 'marker-test-visible' );
@@ -107,6 +109,7 @@ const stabilityAveragedPositionElement = getRequiredElement<HTMLSpanElement>( 'm
 const stabilityAveragedHeadingElement = getRequiredElement<HTMLSpanElement>( 'marker-test-stability-averaged-heading' );
 const stabilityReasonElement = getRequiredElement<HTMLSpanElement>( 'marker-test-stability-reason' );
 const saveStatusElement = getRequiredElement<HTMLSpanElement>( 'marker-test-save-status' );
+const backToArButton = getRequiredElement<HTMLButtonElement>( 'marker-test-back-to-ar' );
 const resetSamplesButton = getRequiredElement<HTMLButtonElement>( 'marker-test-reset-samples' );
 const saveStableButton = getRequiredElement<HTMLButtonElement>( 'marker-test-save-stable' );
 
@@ -155,6 +158,7 @@ const currentConfigDefinition = MARKER_TEST_CONFIGS[ currentConfigMode ];
 
 markerIdElement.textContent = DEFAULT_MARKER_ID;
 configModeElement.textContent = currentConfigMode;
+configUrlElement.textContent = currentConfigDefinition.configUrl;
 markerConfigIdElement.textContent = mapMarkerIdToConfigMarkerId( DEFAULT_MARKER_ID );
 setStatus( 'Loading AR.js runtime, marker config, and stabilizer...' );
 setPoseState( null, false );
@@ -162,6 +166,7 @@ setLocalizationState( null, false );
 setStabilityState( localizationStabilizer.getReport() );
 setSaveStatus( 'Current saved result is for debug only and is not connected to the main WebXR AR flow.' );
 
+backToArButton.addEventListener( 'click', handleBackToAr );
 resetSamplesButton.addEventListener( 'click', handleResetSamples );
 saveStableButton.addEventListener( 'click', handleSaveStableResult );
 
@@ -338,6 +343,12 @@ function handleResetSamples(): void {
 	setStabilityState( localizationStabilizer.getReport() );
 	setSaveStatus( 'Sampling reset. Current saved result is still debug-only and not connected to main WebXR.' );
 	setStatus( 'Marker localization samples reset.' );
+
+}
+
+function handleBackToAr(): void {
+
+	window.location.assign( MAIN_AR_PAGE_URL );
 
 }
 

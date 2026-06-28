@@ -6,6 +6,35 @@ import { PanelSection } from '../components/PanelCard.js';
 
 const MAX_MARKER_RESULT_AGE_SECONDS = 300;
 
+function resolveMarkerTestConfig(state: AppState): {
+	configMode: 'dz1207' | 'local-debug';
+	url: string;
+} {
+
+	const selectedModel = state.engine.availableModels.find(
+		( item ) => item.id === state.engine.selectedModelId
+	);
+	const configUrl = selectedModel?.configUrl ?? '';
+
+	if (
+		state.engine.selectedModelId === 'company_debug_site'
+		|| configUrl.endsWith( '/company_debug_site.config.json' )
+	) {
+		return {
+			configMode: 'local-debug',
+			url: '/marker-test/?config=local-debug'
+		};
+	}
+
+	// TODO: Derive this from a unified active model config identity contract
+	// once the AR runtime exposes configMode / configUrl / siteId directly.
+	return {
+		configMode: 'dz1207',
+		url: '/marker-test/?config=dz1207'
+	};
+
+}
+
 export function RegistrationPanel(props: {
 	state: AppState;
 	actions: AppActions;
@@ -21,6 +50,7 @@ export function RegistrationPanel(props: {
 	const chain = engine.registrationChainDebug;
 	const markerCorrectionActive = chain.arSessionLocalization.source === 'marker';
 	const markerResultTooOld = ( engine.savedMarkerLocalization.ageSeconds ?? 0 ) > MAX_MARKER_RESULT_AGE_SECONDS;
+	const markerTestConfig = resolveMarkerTestConfig( state );
 	const hasStableMarkerResult = engine.savedMarkerLocalization.available
 		&& engine.savedMarkerLocalization.stable !== false;
 	const canApplyMarkerCorrection = engine.appMode === 'ar-session'
@@ -55,6 +85,12 @@ export function RegistrationPanel(props: {
 		}
 
 		actions.clearSavedMarkerLocalization();
+
+	}
+
+	function handleOpenMarkerTest(): void {
+
+		window.location.assign( markerTestConfig.url );
 
 	}
 
@@ -215,6 +251,10 @@ export function RegistrationPanel(props: {
 					Marker results are passed through localStorage. `/marker-test/` and the main AR page must run on the same origin, protocol, and port.
 				</p>
 
+				<p className="note-block">
+					marker-test configMode: {markerTestConfig.configMode}
+				</p>
+
 				<div className="button-row">
 					<ActionButton
 						label="Apply marker correction"
@@ -231,6 +271,7 @@ export function RegistrationPanel(props: {
 				</div>
 
 				<div className="button-row">
+					<ActionButton label="Open marker test" onClick={handleOpenMarkerTest} kind="secondary" />
 					<ActionButton label="Refresh marker result" onClick={actions.refreshSavedMarkerLocalization} kind="secondary" />
 					<ActionButton label="Clear marker result" onClick={handleClearSavedMarkerLocalization} kind="secondary" />
 				</div>

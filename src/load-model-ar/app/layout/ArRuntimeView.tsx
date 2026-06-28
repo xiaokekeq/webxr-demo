@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import type { AppActions, AppState } from '../store/ar-state.js';
 import {
 	PANEL_OPTIONS,
@@ -65,15 +65,8 @@ export function ArRuntimeView(props: {
 		&& state.ui.drawerOpen === false
 		&& engine.displayMode === 'transparent-xray';
 	const [ targetGuidanceHidden, setTargetGuidanceHidden ] = useState( false );
-	const targetGuidanceKey = `${engine.targetGuidance.alignment}|${engine.targetGuidance.directionText}|${engine.targetGuidance.distanceText}|${engine.targetGuidance.detailText}`;
 	const showTargetGuidanceCard = showTargetGuidance && targetGuidanceHidden === false;
 	const showTargetGuidanceToggle = showTargetGuidance && targetGuidanceHidden;
-
-	useEffect( () => {
-		if ( showTargetGuidance ) {
-			setTargetGuidanceHidden( false );
-		}
-	}, [ showTargetGuidance, targetGuidanceKey ] );
 
 	return (
 		<div className={ `mobile-ar-root${showPlacementUi ? ' mobile-ar-root--placement' : ''}` }>

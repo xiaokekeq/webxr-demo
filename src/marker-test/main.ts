@@ -25,6 +25,7 @@ const LOG_INTERVAL_MS = 250;
 const MAIN_AR_PAGE_URL = '/loadModelAR.html';
 const THREEX_RUNTIME_POLL_INTERVAL_MS = 100;
 const THREEX_RUNTIME_TIMEOUT_MS = 8000;
+const LOOP_DEBUG_LOG_INTERVAL_MS = 1000;
 
 const MARKER_TEST_CONFIGS = {
 	dz1207: {
@@ -85,6 +86,8 @@ type ArjsRuntimeDiagnostic = {
 	hasArMarkerControls: boolean;
 };
 
+type AssetProbeState = 'idle' | 'loading' | 'loaded' | 'failed';
+
 type SerializedStableMarkerLocalization = {
 	markerId: string;
 	markerConfigId: string;
@@ -99,11 +102,25 @@ type SerializedStableMarkerLocalization = {
 };
 
 const viewportElement = getRequiredElement<HTMLDivElement>( 'marker-test-viewport' );
+const cameraPreviewElement = getRequiredElement<HTMLDivElement>( 'marker-camera-preview' );
 const statusElement = getRequiredElement<HTMLSpanElement>( 'marker-test-status' );
 const configModeElement = getRequiredElement<HTMLSpanElement>( 'marker-test-config-mode' );
 const configUrlElement = getRequiredElement<HTMLSpanElement>( 'marker-test-config-url' );
 const markerConfigIdElement = getRequiredElement<HTMLSpanElement>( 'marker-test-marker-config-id' );
 const markerIdElement = getRequiredElement<HTMLSpanElement>( 'marker-test-marker-id' );
+const cameraParamUrlElement = getRequiredElement<HTMLSpanElement>( 'marker-test-camera-param-url' );
+const patternUrlElement = getRequiredElement<HTMLSpanElement>( 'marker-test-pattern-url' );
+const cameraParamStatusElement = getRequiredElement<HTMLSpanElement>( 'marker-test-camera-param-status' );
+const patternStatusElement = getRequiredElement<HTMLSpanElement>( 'marker-test-pattern-status' );
+const hasVideoElementElement = getRequiredElement<HTMLSpanElement>( 'marker-test-has-video-element' );
+const videoReadyStateElement = getRequiredElement<HTMLSpanElement>( 'marker-test-video-ready-state' );
+const videoSizeElement = getRequiredElement<HTMLSpanElement>( 'marker-test-video-size' );
+const arToolkitSourceReadyElement = getRequiredElement<HTMLSpanElement>( 'marker-test-ar-source-ready' );
+const arToolkitContextReadyElement = getRequiredElement<HTMLSpanElement>( 'marker-test-ar-context-ready' );
+const markerControlsReadyElement = getRequiredElement<HTMLSpanElement>( 'marker-test-marker-controls-ready' );
+const renderLoopRunningElement = getRequiredElement<HTMLSpanElement>( 'marker-test-render-loop-running' );
+const lastFrameTimestampElement = getRequiredElement<HTMLSpanElement>( 'marker-test-last-frame-timestamp' );
+const markerRootVisibleElement = getRequiredElement<HTMLSpanElement>( 'marker-test-marker-root-visible' );
 const visibleElement = getRequiredElement<HTMLSpanElement>( 'marker-test-visible' );
 const positionElement = getRequiredElement<HTMLSpanElement>( 'marker-test-position' );
 const quaternionElement = getRequiredElement<HTMLSpanElement>( 'marker-test-quaternion' );
@@ -143,9 +160,18 @@ let arToolkitContext: ArToolkitContextInstance | null = null;
 let markerControls: ArMarkerControlsInstance | null = null;
 let lastVisible = false;
 let lastLoggedAt = 0;
+let lastLoopLogAt = 0;
 let animationFrameId = 0;
 let demoModelConfig: DemoModelConfig | null = null;
 let markerPoseInEnu: MarkerPoseInEnu | null = null;
+let arToolkitSourceReady = false;
+let arToolkitContextReady = false;
+let markerControlsReady = false;
+let renderLoopRunning = false;
+let lastFrameTimestamp: number | null = null;
+let markerRootVisible = false;
+let cameraParamStatus: AssetProbeState = 'idle';
+let patternStatus: AssetProbeState = 'idle';
 const currentConfigMode = resolveConfigMode();
 const currentConfigDefinition = MARKER_TEST_CONFIGS[ currentConfigMode ];
 
@@ -153,11 +179,14 @@ markerIdElement.textContent = DEFAULT_MARKER_ID;
 configModeElement.textContent = currentConfigMode;
 configUrlElement.textContent = currentConfigDefinition.configUrl;
 markerConfigIdElement.textContent = mapMarkerIdToConfigMarkerId( DEFAULT_MARKER_ID );
+cameraParamUrlElement.textContent = ARJS_CAMERA_PARAMETERS_URL;
+patternUrlElement.textContent = ARJS_HIRO_PATTERN_URL;
 setStatus( 'Loading AR.js runtime, marker config, and stabilizer...' );
 setPoseState( null, false );
 setLocalizationState( null, false );
 setStabilityState( localizationStabilizer.getReport() );
 setSaveStatus( 'Current saved result is for debug only and is not connected to the main WebXR AR flow.' );
+syncDebugState();
 
 backToArButton.addEventListener( 'click', handleBackToAr );
 resetSamplesButton.addEventListener( 'click', handleResetSamples );
@@ -175,6 +204,7 @@ async function boot(): Promise<void> {
 			loadDemoModelConfig( currentConfigDefinition.configUrl, () => undefined )
 		] );
 
+		await probeMarkerAssets();
 		demoModelConfig = config;
 		markerPoseInEnu = resolveMarkerPoseInEnu( config, mapMarkerIdToConfigMarkerId( DEFAULT_MARKER_ID ) );
 		initializeSceneRuntime();
@@ -197,17 +227,26 @@ function setupArjsScene(runtime: ArjsRuntime): void {
 	arToolkitSource = new runtime.ArToolkitSource( {
 		sourceType: 'webcam'
 	} );
+	attachCameraPreview( arToolkitSource.domElement );
 	arToolkitContext = new runtime.ArToolkitContext( {
 		cameraParametersUrl: ARJS_CAMERA_PARAMETERS_URL,
 		detectionMode: 'mono'
 	} );
+	logArjsMarkerAssets();
 
 	arToolkitSource.init( () => {
+		arToolkitSourceReady = true;
+		syncDebugState();
+		logArjsMarkerAssets();
+		logMarkerCameraPreview();
 		handleResize();
 		setStatus( 'Camera ready. Point the device at a Hiro marker.' );
 	} );
 
 	arToolkitContext.init( () => {
+		arToolkitContextReady = true;
+		syncDebugState();
+		logArjsMarkerAssets();
 		camera?.projectionMatrix.copy( arToolkitContext?.getProjectionMatrix() ?? new THREE.Matrix4() );
 	} );
 
@@ -219,6 +258,9 @@ function setupArjsScene(runtime: ArjsRuntime): void {
 			patternUrl: ARJS_HIRO_PATTERN_URL
 		}
 	);
+	markerControlsReady = markerControls !== null;
+	syncDebugState();
+	logArjsMarkerAssets();
 
 	window.addEventListener( 'resize', handleResize );
 
@@ -229,6 +271,9 @@ function startLoop(): void {
 	const tick = (): void => {
 
 		animationFrameId = window.requestAnimationFrame( tick );
+		renderLoopRunning = true;
+		lastFrameTimestamp = Date.now();
+		syncDebugState();
 
 		if ( renderer === null || scene === null || camera === null ) {
 			return;
@@ -245,6 +290,7 @@ function startLoop(): void {
 
 		renderMarkerPoseState();
 		renderer.render( scene, camera );
+		maybeLogArjsLoop();
 
 	};
 
@@ -260,6 +306,8 @@ function renderMarkerPoseState(): void {
 
 	markerRoot.updateMatrixWorld( true );
 	const visible = markerRoot.visible === true;
+	markerRootVisible = visible;
+	syncDebugState();
 
 	if ( visible === false ) {
 		if ( lastVisible ) {
@@ -474,6 +522,29 @@ function setSaveStatus(message: string): void {
 
 }
 
+function syncDebugState(): void {
+
+	const videoElement = getCurrentPreviewVideoElement();
+	hasVideoElementElement.textContent = videoElement === null ? 'no' : 'yes';
+	videoReadyStateElement.textContent = videoElement === null
+		? '-'
+		: `${videoElement.readyState}`;
+	videoSizeElement.textContent = videoElement === null
+		? '-'
+		: `${videoElement.videoWidth} / ${videoElement.videoHeight}`;
+	arToolkitSourceReadyElement.textContent = arToolkitSourceReady ? 'yes' : 'no';
+	arToolkitContextReadyElement.textContent = arToolkitContextReady ? 'yes' : 'no';
+	markerControlsReadyElement.textContent = markerControlsReady ? 'yes' : 'no';
+	cameraParamStatusElement.textContent = cameraParamStatus;
+	patternStatusElement.textContent = patternStatus;
+	renderLoopRunningElement.textContent = renderLoopRunning ? 'yes' : 'no';
+	lastFrameTimestampElement.textContent = lastFrameTimestamp === null
+		? '-'
+		: new Date( lastFrameTimestamp ).toLocaleTimeString( 'zh-CN', { hour12: false } );
+	markerRootVisibleElement.textContent = markerRootVisible ? 'yes' : 'no';
+
+}
+
 function logMarkerPose(markerPoseInArValue: MarkerPoseInAr): void {
 
 	markerPoseInArValue.matrix.decompose( tempPosition, tempQuaternion, tempScale );
@@ -485,6 +556,63 @@ function logMarkerPose(markerPoseInArValue: MarkerPoseInAr): void {
 		position: tempPosition.clone(),
 		quaternion: tempQuaternion.clone(),
 		timestamp: markerPoseInArValue.timestamp
+	} );
+
+}
+
+function logMarkerCameraPreview(): void {
+
+	const videoElement = getCurrentPreviewVideoElement();
+	const sourceElement = arToolkitSource?.domElement ?? null;
+	console.info( '[MarkerCameraPreview]', {
+		hasVideoElement: videoElement !== null,
+		videoParent: videoElement?.parentElement?.id ?? videoElement?.parentElement?.tagName ?? null,
+		videoWidth: videoElement?.videoWidth ?? 0,
+		videoHeight: videoElement?.videoHeight ?? 0,
+		videoReadyState: videoElement?.readyState ?? null,
+		videoStyle: videoElement === null
+			? null
+			: {
+				position: videoElement.style.position,
+				inset: videoElement.style.inset,
+				width: videoElement.style.width,
+				height: videoElement.style.height,
+				objectFit: videoElement.style.objectFit,
+				zIndex: videoElement.style.zIndex,
+				background: videoElement.style.background
+			},
+		rendererCanvasAttached: renderer?.domElement.parentElement === viewportElement,
+		sourceElementTag: sourceElement?.tagName ?? null
+	} );
+
+}
+
+function logArjsMarkerAssets(): void {
+
+	console.info( '[ArjsMarkerAssets]', {
+		cameraParamUrl: ARJS_CAMERA_PARAMETERS_URL,
+		patternUrl: ARJS_HIRO_PATTERN_URL,
+		arToolkitSourceReady,
+		arToolkitContextReady,
+		markerControlsReady,
+		cameraParamStatus,
+		patternStatus
+	} );
+
+}
+
+function maybeLogArjsLoop(): void {
+
+	const now = Date.now();
+	if ( now - lastLoopLogAt < LOOP_DEBUG_LOG_INTERVAL_MS ) {
+		return;
+	}
+
+	lastLoopLogAt = now;
+	console.info( '[ArjsMarkerLoop]', {
+		renderLoopRunning,
+		lastFrameTimestamp,
+		markerRootVisible
 	} );
 
 }
@@ -503,11 +631,29 @@ function handleResize(): void {
 
 	arToolkitSource.onResizeElement();
 	arToolkitSource.copyElementSizeTo( renderer.domElement );
+	attachCameraPreview( arToolkitSource.domElement );
+	syncDebugState();
+	logMarkerCameraPreview();
 
 	const canvas = renderer.domElement;
-	if ( canvas.style.position.length === 0 ) {
-		canvas.style.position = 'absolute';
+	canvas.style.position = 'fixed';
+	canvas.style.inset = '0';
+	canvas.style.width = '100vw';
+	canvas.style.height = '100vh';
+	canvas.style.zIndex = '1';
+	canvas.style.pointerEvents = 'none';
+
+}
+
+function getCurrentPreviewVideoElement(): HTMLVideoElement | null {
+
+	const sourceElement = arToolkitSource?.domElement;
+	if ( sourceElement instanceof HTMLVideoElement ) {
+		return sourceElement;
 	}
+
+	const previewVideo = cameraPreviewElement.querySelector( 'video' );
+	return previewVideo instanceof HTMLVideoElement ? previewVideo : null;
 
 }
 
@@ -621,6 +767,96 @@ function waitForScriptLoad(script: HTMLScriptElement): Promise<void> {
 
 }
 
+async function probeMarkerAssets(): Promise<void> {
+
+	cameraParamStatus = 'loading';
+	patternStatus = 'loading';
+	syncDebugState();
+	logArjsMarkerAssets();
+
+	const [ cameraParamResult, patternResult ] = await Promise.all( [
+		probeAssetUrl( ARJS_CAMERA_PARAMETERS_URL ),
+		probeAssetUrl( ARJS_HIRO_PATTERN_URL )
+	] );
+
+	cameraParamStatus = cameraParamResult.ok ? 'loaded' : 'failed';
+	patternStatus = patternResult.ok ? 'loaded' : 'failed';
+	syncDebugState();
+	logArjsMarkerAssets();
+
+	if ( cameraParamResult.ok === false ) {
+		throw new Error( `camera_para.dat load failed: ${cameraParamResult.message}` );
+	}
+
+	if ( patternResult.ok === false ) {
+		throw new Error( `patt.hiro load failed: ${patternResult.message}` );
+	}
+
+}
+
+async function probeAssetUrl(url: string): Promise<{
+	ok: boolean;
+	message: string;
+}> {
+
+	try {
+		const response = await fetch( url, {
+			method: 'GET',
+			cache: 'no-cache'
+		} );
+		if ( response.ok === false ) {
+			return {
+				ok: false,
+				message: `HTTP ${response.status}`
+			};
+		}
+
+		return {
+			ok: true,
+			message: 'loaded'
+		};
+	} catch ( error ) {
+		return {
+			ok: false,
+			message: error instanceof Error ? error.message : 'unknown fetch error'
+		};
+	}
+
+}
+
+function attachCameraPreview(sourceElement: HTMLVideoElement | HTMLCanvasElement): void {
+
+	if ( sourceElement.parentElement !== cameraPreviewElement ) {
+		cameraPreviewElement.replaceChildren( sourceElement );
+	}
+
+	sourceElement.style.position = 'fixed';
+	sourceElement.style.inset = '0';
+	sourceElement.style.width = '100vw';
+	sourceElement.style.height = '100vh';
+	sourceElement.style.objectFit = 'cover';
+	sourceElement.style.zIndex = '0';
+	sourceElement.style.background = '#000';
+
+	if ( sourceElement instanceof HTMLVideoElement ) {
+		sourceElement.setAttribute( 'playsinline', 'true' );
+		sourceElement.muted = true;
+		sourceElement.autoplay = true;
+		sourceElement.addEventListener( 'loadedmetadata', handleVideoMetadata, { passive: true } );
+		sourceElement.addEventListener( 'playing', handleVideoMetadata, { passive: true } );
+	}
+
+	syncDebugState();
+
+}
+
+function handleVideoMetadata(): void {
+
+	syncDebugState();
+	logMarkerCameraPreview();
+
+}
+
 function initializeSceneRuntime(): void {
 
 	if ( renderer !== null ) {
@@ -634,6 +870,12 @@ function initializeSceneRuntime(): void {
 	renderer.setPixelRatio( window.devicePixelRatio );
 	renderer.setSize( window.innerWidth, window.innerHeight );
 	renderer.domElement.className = 'marker-test__canvas';
+	renderer.domElement.style.position = 'fixed';
+	renderer.domElement.style.inset = '0';
+	renderer.domElement.style.width = '100vw';
+	renderer.domElement.style.height = '100vh';
+	renderer.domElement.style.zIndex = '1';
+	renderer.domElement.style.pointerEvents = 'none';
 	viewportElement.appendChild( renderer.domElement );
 
 	scene = new THREE.Scene();

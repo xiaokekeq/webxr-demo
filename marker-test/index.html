@@ -30,6 +30,7 @@
 				position: relative;
 			}
 
+			#marker-camera-preview,
 			#marker-test-viewport {
 				position: fixed;
 				inset: 0;
@@ -46,11 +47,11 @@
 				width: min(420px, calc(100vw - 32px));
 				padding: 16px 18px;
 				border-radius: 20px;
-				background: rgba(7, 15, 28, 0.78);
+				background: rgba(5, 12, 24, 0.72);
 				backdrop-filter: blur(18px);
 				border: 1px solid rgba(167, 204, 255, 0.22);
 				box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
-				z-index: 2;
+				z-index: 10;
 			}
 
 			.marker-test__title {
@@ -161,6 +162,7 @@
 		</style>
 	</head>
 	<body>
+		<div id="marker-camera-preview"></div>
 		<div id="marker-test-viewport"></div>
 		<section class="marker-test__hud">
 			<h1 class="marker-test__title">Marker Test</h1>
@@ -184,6 +186,32 @@
 				<div class="marker-test__value" id="marker-test-marker-config-id">-</div>
 				<div class="marker-test__label">markerId</div>
 				<div class="marker-test__value" id="marker-test-marker-id">-</div>
+				<div class="marker-test__label">cameraParamUrl</div>
+				<div class="marker-test__value" id="marker-test-camera-param-url">-</div>
+				<div class="marker-test__label">patternUrl</div>
+				<div class="marker-test__value" id="marker-test-pattern-url">-</div>
+				<div class="marker-test__label">cameraParamStatus</div>
+				<div class="marker-test__value" id="marker-test-camera-param-status">-</div>
+				<div class="marker-test__label">patternStatus</div>
+				<div class="marker-test__value" id="marker-test-pattern-status">-</div>
+				<div class="marker-test__label">hasVideoElement</div>
+				<div class="marker-test__value" id="marker-test-has-video-element">-</div>
+				<div class="marker-test__label">videoReadyState</div>
+				<div class="marker-test__value" id="marker-test-video-ready-state">-</div>
+				<div class="marker-test__label">videoWidth / Height</div>
+				<div class="marker-test__value" id="marker-test-video-size">-</div>
+				<div class="marker-test__label">arToolkitSourceReady</div>
+				<div class="marker-test__value" id="marker-test-ar-source-ready">-</div>
+				<div class="marker-test__label">arToolkitContextReady</div>
+				<div class="marker-test__value" id="marker-test-ar-context-ready">-</div>
+				<div class="marker-test__label">markerControlsReady</div>
+				<div class="marker-test__value" id="marker-test-marker-controls-ready">-</div>
+				<div class="marker-test__label">renderLoopRunning</div>
+				<div class="marker-test__value" id="marker-test-render-loop-running">-</div>
+				<div class="marker-test__label">lastFrameTimestamp</div>
+				<div class="marker-test__value" id="marker-test-last-frame-timestamp">-</div>
+				<div class="marker-test__label">markerRootVisible</div>
+				<div class="marker-test__value" id="marker-test-marker-root-visible">-</div>
 				<div class="marker-test__label">visible</div>
 				<div class="marker-test__value" id="marker-test-visible">-</div>
 				<div class="marker-test__label">position</div>

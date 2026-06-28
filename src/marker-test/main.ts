@@ -19,11 +19,22 @@ const ARJS_SCRIPT_SELECTOR = 'script[data-arjs-runtime="true"]';
 const ARJS_RUNTIME_URL = 'https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.7/three.js/build/ar-threex.js';
 const ARJS_CAMERA_PARAMETERS_URL = 'https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.7/three.js/data/data/camera_para.dat';
 const ARJS_HIRO_PATTERN_URL = 'https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.7/three.js/data/data/patt.hiro';
-const MARKER_CONFIG_URL = '/pipe-viewer/dz1207.config.json';
 const MARKER_LOCALIZATION_STORAGE_KEY = 'loadModelAR.markerLocalization.lastStableSolution';
 const DEFAULT_MARKER_ID = 'hiro';
-const DEBUG_MARKER_CONFIG_ID = 'dike-marker-001';
 const LOG_INTERVAL_MS = 250;
+
+const MARKER_TEST_CONFIGS = {
+	dz1207: {
+		configUrl: '/pipe-viewer/dz1207.config.json',
+		hiroMarkerConfigId: 'dike-marker-001'
+	},
+	'local-debug': {
+		configUrl: '/pipe-viewer/company_debug_site.config.json',
+		hiroMarkerConfigId: 'local-debug-marker-001'
+	}
+} as const;
+
+type MarkerTestConfigMode = keyof typeof MARKER_TEST_CONFIGS;
 
 type ArToolkitSourceInstance = {
 	readonly domElement: HTMLVideoElement | HTMLCanvasElement;
@@ -72,6 +83,8 @@ type SerializedStableMarkerLocalization = {
 
 const viewportElement = getRequiredElement<HTMLDivElement>( 'marker-test-viewport' );
 const statusElement = getRequiredElement<HTMLSpanElement>( 'marker-test-status' );
+const configModeElement = getRequiredElement<HTMLSpanElement>( 'marker-test-config-mode' );
+const markerConfigIdElement = getRequiredElement<HTMLSpanElement>( 'marker-test-marker-config-id' );
 const markerIdElement = getRequiredElement<HTMLSpanElement>( 'marker-test-marker-id' );
 const visibleElement = getRequiredElement<HTMLSpanElement>( 'marker-test-visible' );
 const positionElement = getRequiredElement<HTMLSpanElement>( 'marker-test-position' );
@@ -137,8 +150,12 @@ let lastLoggedAt = 0;
 let animationFrameId = 0;
 let demoModelConfig: DemoModelConfig | null = null;
 let markerPoseInEnu: MarkerPoseInEnu | null = null;
+const currentConfigMode = resolveConfigMode();
+const currentConfigDefinition = MARKER_TEST_CONFIGS[ currentConfigMode ];
 
 markerIdElement.textContent = DEFAULT_MARKER_ID;
+configModeElement.textContent = currentConfigMode;
+markerConfigIdElement.textContent = mapMarkerIdToConfigMarkerId( DEFAULT_MARKER_ID );
 setStatus( 'Loading AR.js runtime, marker config, and stabilizer...' );
 setPoseState( null, false );
 setLocalizationState( null, false );
@@ -155,7 +172,7 @@ async function boot(): Promise<void> {
 	try {
 		const [ runtime, config ] = await Promise.all( [
 			loadArjsRuntime(),
-			loadDemoModelConfig( MARKER_CONFIG_URL, () => undefined )
+			loadDemoModelConfig( currentConfigDefinition.configUrl, () => undefined )
 		] );
 		demoModelConfig = config;
 		markerPoseInEnu = resolveMarkerPoseInEnu( config, mapMarkerIdToConfigMarkerId( DEFAULT_MARKER_ID ) );
@@ -551,12 +568,25 @@ function waitForScriptLoad(script: HTMLScriptElement): Promise<void> {
 function mapMarkerIdToConfigMarkerId(markerId: string): string {
 
 	if ( markerId === DEFAULT_MARKER_ID ) {
-		// Debug-only mapping: Hiro is temporarily treated as dike-marker-001
-		// so marker-test can reuse dz1207 marker engineering config.
-		return DEBUG_MARKER_CONFIG_ID;
+		// Debug-only mapping: Hiro is temporarily treated as the current config's
+		// selected engineering marker so marker-test can reuse project config.
+		return currentConfigDefinition.hiroMarkerConfigId;
 	}
 
 	return markerId;
+
+}
+
+function resolveConfigMode(): MarkerTestConfigMode {
+
+	const searchParams = new URLSearchParams( window.location.search );
+	const requestedMode = searchParams.get( 'config' );
+
+	if ( requestedMode === 'local-debug' ) {
+		return 'local-debug';
+	}
+
+	return 'dz1207';
 
 }
 

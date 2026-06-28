@@ -44,6 +44,7 @@ export interface MarkerEngineeringConfig {
 		up?: number;
 	};
 	yawDeg?: number;
+	patternUrl?: string;
 }
 
 export type DemoModelRegistrationMode = 'rigid' | 'similarity';
@@ -105,6 +106,7 @@ interface LocalDebugModelConfig {
 	yawDeg?: number;
 	scale?: number;
 	controlPoints?: LocalDebugControlPointShape[];
+	markers?: MarkerEngineeringConfig[];
 }
 
 interface LegacyDemoModelConfig extends Omit<DemoModelConfig, 'siteFrame' | 'registration' | 'controlPoints'> {
@@ -114,17 +116,7 @@ interface LegacyDemoModelConfig extends Omit<DemoModelConfig, 'siteFrame' | 'reg
 		modelLocal: DemoModelLocalPoint;
 		world: RawGeodeticCoordinateShape;
 	} | LegacyControlPointShape>;
-	markers?: Array<{
-		id: string;
-		bindControlPointId?: string;
-		sizeMeters: number;
-		enu?: {
-			east: number;
-			north: number;
-			up?: number;
-		};
-		yawDeg?: number;
-	}>;
+	markers?: MarkerEngineeringConfig[];
 	attachments?: Array<{
 		assetId: string;
 		world: RawGeodeticCoordinateShape;
@@ -258,7 +250,7 @@ function normalizeLocalDebugModelConfig(config: LocalDebugModelConfig): DemoMode
 			minControlPoints: 3
 		},
 		controlPoints: normalizedControlPoints,
-		markers: [],
+		markers: loadMarkerEngineeringConfigs( config.markers ),
 		attachments: []
 	};
 
@@ -401,7 +393,7 @@ function validateDemoModelConfig(config: DemoModelConfig): void {
 }
 
 export function loadMarkerEngineeringConfigs(
-	markers: LegacyDemoModelConfig['markers'] | undefined
+	markers: MarkerEngineeringConfig[] | undefined
 ): MarkerEngineeringConfig[] {
 
 	if ( Array.isArray( markers ) === false ) {
@@ -436,13 +428,17 @@ export function loadMarkerEngineeringConfigs(
 		const yawDeg = typeof marker.yawDeg === 'number' && Number.isFinite( marker.yawDeg )
 			? marker.yawDeg
 			: 0;
+		const patternUrl = typeof marker.patternUrl === 'string' && marker.patternUrl.trim().length > 0
+			? marker.patternUrl.trim()
+			: undefined;
 
 		return {
 			id: marker.id.trim(),
 			bindControlPointId,
 			sizeMeters: marker.sizeMeters,
 			enu,
-			yawDeg
+			yawDeg,
+			patternUrl
 		};
 	} );
 

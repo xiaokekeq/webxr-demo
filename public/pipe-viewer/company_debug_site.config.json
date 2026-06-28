@@ -8,5 +8,35 @@
   },
   "anchorModelLocal": [0, 0, 0],
   "yawDeg": 0,
-  "scale": 1
+  "scale": 1,
+  "controlPoints": [
+    {
+      "id": "LOCAL_CP_01",
+      "modelLocal": [0, 0, 0],
+      "siteENU": [0, 0, 0]
+    },
+    {
+      "id": "LOCAL_CP_02",
+      "modelLocal": [1, 0, 0],
+      "siteENU": [1, 0, 0]
+    },
+    {
+      "id": "LOCAL_CP_03",
+      "modelLocal": [0, 0, -1],
+      "siteENU": [0, 0, 1]
+    },
+    {
+      "id": "LOCAL_CP_04",
+      "modelLocal": [0, 1, 0],
+      "siteENU": [0, 1, 0]
+    }
+  ],
+  "markers": [
+    {
+      "id": "local-debug-marker-001",
+      "bindControlPointId": "LOCAL_CP_01",
+      "sizeMeters": 0.2,
+      "yawDeg": 0
+    }
+  ]
 }

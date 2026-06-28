@@ -152,22 +152,18 @@ export function ArRuntimeView(props: {
 
 				{showStructureReveal ? (
 					<div className="ar-minimal-perspective">
-						<div className="ar-minimal-perspective__header">
-							<strong>结构显现</strong>
-							<span>{`结构显现 ${engine.structureRevealValue}%`}</span>
-						</div>
 						<input
 							className="ar-minimal-perspective__slider"
 							type="range"
 							min={0}
 							max={100}
 							step={1}
+							aria-label="结构显现"
 							value={engine.structureRevealValue}
 							onChange={ ( event ) => {
 								actions.setStructureRevealValue( Number( event.currentTarget.value ) );
 							} }
 						/>
-						<div className="ar-minimal-perspective__hint">拖动查看虚拟结构</div>
 					</div>
 				) : null}
 

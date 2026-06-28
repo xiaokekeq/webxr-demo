@@ -1295,39 +1295,28 @@ textarea {
 
 .ar-minimal-perspective {
 	position: fixed;
-	left: 16px;
-	right: 16px;
-	bottom: calc(max(18px, env(safe-area-inset-bottom, 0px)) + 150px);
+	top: 50%;
+	right: 12px;
+	transform: translateY(-50%);
+	width: 54px;
+	height: min(38vh, 260px);
 	z-index: 3;
-	padding: 12px 16px;
-	border-radius: 18px;
+	padding: 14px 10px;
+	border-radius: 999px;
 	background: rgba(8, 15, 30, 0.72);
 	backdrop-filter: blur(18px);
 	box-shadow: 0 18px 32px rgba(15, 23, 42, 0.2);
 	color: #fff;
-}
-
-.ar-minimal-perspective__header {
 	display: flex;
 	align-items: center;
-	justify-content: space-between;
-	gap: 12px;
-}
-
-.ar-minimal-perspective__header strong,
-.ar-minimal-perspective__header span {
-	font-size: 14px;
+	justify-content: center;
 }
 
 .ar-minimal-perspective__slider {
-	width: 100%;
-	margin-top: 10px;
-}
-
-.ar-minimal-perspective__hint {
-	margin-top: 8px;
-	font-size: 12px;
-	color: rgba(255, 255, 255, 0.68);
+	width: min(34vh, 220px);
+	margin: 0;
+	transform: rotate(-90deg);
+	transform-origin: center;
 }
 
 .ar-placement-bar {

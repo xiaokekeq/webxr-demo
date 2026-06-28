@@ -40,41 +40,129 @@
 				display: block;
 			}
 
-			.marker-test__hud {
+			.marker-test__topbar {
 				position: fixed;
-				left: 16px;
-				top: 16px;
-				width: min(420px, calc(100vw - 32px));
-				padding: 16px 18px;
-				border-radius: 20px;
-				background: rgba(5, 12, 24, 0.72);
+				top: max(env(safe-area-inset-top, 12px), 12px);
+				left: 12px;
+				right: 12px;
+				z-index: 20;
+				padding: 8px 10px;
+				border-radius: 12px;
+				background: rgba(5, 12, 24, 0.55);
 				backdrop-filter: blur(18px);
 				border: 1px solid rgba(167, 204, 255, 0.22);
-				box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
-				z-index: 10;
+				box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+			}
+
+			.marker-test__topbar-row {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 8px;
+				align-items: center;
 			}
 
 			.marker-test__title {
-				margin: 0 0 6px;
-				font-size: 22px;
+				font-size: 16px;
 				font-weight: 700;
 				letter-spacing: 0.02em;
+				margin-right: 4px;
 			}
 
-			.marker-test__subtitle {
-				margin: 0 0 14px;
-				font-size: 13px;
-				line-height: 1.5;
-				color: rgba(233, 241, 255, 0.74);
+			.marker-test__pill {
+				display: inline-flex;
+				align-items: center;
+				gap: 4px;
+				padding: 4px 8px;
+				border-radius: 999px;
+				background: rgba(255, 255, 255, 0.08);
+				font-size: 12px;
+				line-height: 1.2;
 			}
 
-			.marker-test__status {
-				margin-bottom: 14px;
-				padding: 10px 12px;
-				border-radius: 12px;
-				background: rgba(117, 189, 255, 0.1);
-				font-size: 13px;
-				line-height: 1.4;
+			.marker-test__pill-label {
+				color: rgba(233, 241, 255, 0.62);
+			}
+
+			.marker-test__actions {
+				display: inline-flex;
+				flex-wrap: wrap;
+				gap: 8px;
+				margin-left: auto;
+			}
+
+			.marker-test__button {
+				border: 0;
+				border-radius: 999px;
+				padding: 8px 12px;
+				font-size: 12px;
+				font-weight: 600;
+				cursor: pointer;
+				color: #06111f;
+				background: linear-gradient(135deg, #9ad3ff 0%, #d2f0ff 100%);
+			}
+
+			.marker-test__button:disabled {
+				cursor: not-allowed;
+				opacity: 0.45;
+			}
+
+			.marker-test__guide {
+				position: fixed;
+				left: 50%;
+				top: 50%;
+				width: min(58vw, 320px);
+				aspect-ratio: 1 / 1;
+				transform: translate(-50%, -50%);
+				border: 2px dashed rgba(255, 255, 255, 0.7);
+				border-radius: 8px;
+				z-index: 5;
+				pointer-events: none;
+				box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.08);
+				transition: border-color 160ms ease, box-shadow 160ms ease;
+			}
+
+			.marker-test__guide--detected {
+				border-color: rgba(88, 235, 126, 0.95);
+				box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.04);
+			}
+
+			.marker-test__guide-label {
+				position: absolute;
+				left: 50%;
+				bottom: -34px;
+				transform: translateX(-50%);
+				padding: 6px 10px;
+				border-radius: 999px;
+				background: rgba(5, 12, 24, 0.72);
+				color: #f5fbff;
+				font-size: 12px;
+				white-space: nowrap;
+			}
+
+			.marker-test__drawer {
+				position: fixed;
+				left: 8px;
+				right: 8px;
+				bottom: 8px;
+				max-height: 42vh;
+				overflow: auto;
+				z-index: 30;
+				padding: 14px;
+				border-radius: 16px;
+				background: rgba(5, 12, 24, 0.82);
+				backdrop-filter: blur(20px);
+				border: 1px solid rgba(167, 204, 255, 0.22);
+				box-shadow: 0 18px 40px rgba(0, 0, 0, 0.34);
+			}
+
+			.marker-test__drawer[hidden] {
+				display: none;
+			}
+
+			.marker-test__drawer-title {
+				margin: 0 0 10px;
+				font-size: 14px;
+				font-weight: 700;
 			}
 
 			.marker-test__notice {
@@ -115,27 +203,11 @@
 				white-space: pre-wrap;
 			}
 
-			.marker-test__actions {
+			.marker-test__drawer-actions {
 				display: flex;
 				flex-wrap: wrap;
 				gap: 10px;
 				margin-top: 14px;
-			}
-
-			.marker-test__button {
-				border: 0;
-				border-radius: 999px;
-				padding: 10px 16px;
-				font-size: 13px;
-				font-weight: 600;
-				cursor: pointer;
-				color: #06111f;
-				background: linear-gradient(135deg, #9ad3ff 0%, #d2f0ff 100%);
-			}
-
-			.marker-test__button:disabled {
-				cursor: not-allowed;
-				opacity: 0.45;
 			}
 
 			.marker-test__save-status {
@@ -146,17 +218,17 @@
 			}
 
 			@media (max-width: 640px) {
-				.marker-test__hud {
-					left: 12px;
-					right: 12px;
-					top: 12px;
-					width: auto;
-					padding: 14px;
+				.marker-test__topbar {
+					padding: 8px;
 				}
 
 				.marker-test__grid {
 					grid-template-columns: 1fr;
 					gap: 4px;
+				}
+
+				.marker-test__guide {
+					width: min(68vw, 300px);
 				}
 			}
 		</style>
@@ -164,11 +236,25 @@
 	<body>
 		<div id="marker-camera-preview"></div>
 		<div id="marker-test-viewport"></div>
-		<section class="marker-test__hud">
-			<h1 class="marker-test__title">Marker Test</h1>
-			<p class="marker-test__subtitle">
-				Independent AR.js marker-based tracking test page. This page only reads markerPoseInAr and does not change the main WebXR AR flow.
-			</p>
+		<div class="marker-test__guide" id="marker-test-guide-frame">
+			<div class="marker-test__guide-label" id="marker-test-guide-label">Place Hiro marker inside frame</div>
+		</div>
+		<section class="marker-test__topbar">
+			<div class="marker-test__topbar-row">
+				<div class="marker-test__title">Marker Test</div>
+				<div class="marker-test__pill"><span class="marker-test__pill-label">status</span><span id="marker-test-summary-status">Initializing...</span></div>
+				<div class="marker-test__pill"><span class="marker-test__pill-label">config</span><span id="marker-test-summary-config-mode">-</span></div>
+				<div class="marker-test__pill"><span class="marker-test__pill-label">marker</span><span id="marker-test-summary-marker-config-id">-</span></div>
+				<div class="marker-test__pill"><span class="marker-test__pill-label">visible</span><span id="marker-test-summary-visible">-</span></div>
+				<div class="marker-test__pill"><span class="marker-test__pill-label">stable</span><span id="marker-test-summary-stable">-</span></div>
+				<div class="marker-test__actions">
+					<button class="marker-test__button" id="marker-test-toggle-debug" type="button">Debug</button>
+					<button class="marker-test__button" id="marker-test-back-to-ar" type="button">Back to AR</button>
+				</div>
+			</div>
+		</section>
+		<section class="marker-test__drawer" id="marker-test-debug-drawer" hidden>
+			<h2 class="marker-test__drawer-title">Debug</h2>
 			<div class="marker-test__status">
 				Status:
 				<span id="marker-test-status">Initializing...</span>
@@ -253,8 +339,7 @@
 				<div class="marker-test__label">reason</div>
 				<div class="marker-test__value" id="marker-test-stability-reason">-</div>
 			</div>
-			<div class="marker-test__actions">
-				<button class="marker-test__button" id="marker-test-back-to-ar" type="button">Back to AR</button>
+			<div class="marker-test__drawer-actions">
 				<button class="marker-test__button" id="marker-test-reset-samples" type="button">Reset samples</button>
 				<button class="marker-test__button" id="marker-test-save-stable" type="button">Save stable marker result</button>
 			</div>

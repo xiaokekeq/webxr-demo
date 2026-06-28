@@ -104,6 +104,15 @@ type SerializedStableMarkerLocalization = {
 const viewportElement = getRequiredElement<HTMLDivElement>( 'marker-test-viewport' );
 const cameraPreviewElement = getRequiredElement<HTMLDivElement>( 'marker-camera-preview' );
 const statusElement = getRequiredElement<HTMLSpanElement>( 'marker-test-status' );
+const summaryStatusElement = getRequiredElement<HTMLSpanElement>( 'marker-test-summary-status' );
+const summaryConfigModeElement = getRequiredElement<HTMLSpanElement>( 'marker-test-summary-config-mode' );
+const summaryMarkerConfigIdElement = getRequiredElement<HTMLSpanElement>( 'marker-test-summary-marker-config-id' );
+const summaryVisibleElement = getRequiredElement<HTMLSpanElement>( 'marker-test-summary-visible' );
+const summaryStableElement = getRequiredElement<HTMLSpanElement>( 'marker-test-summary-stable' );
+const debugDrawerElement = getRequiredElement<HTMLElement>( 'marker-test-debug-drawer' );
+const toggleDebugButton = getRequiredElement<HTMLButtonElement>( 'marker-test-toggle-debug' );
+const guideFrameElement = getRequiredElement<HTMLDivElement>( 'marker-test-guide-frame' );
+const guideLabelElement = getRequiredElement<HTMLDivElement>( 'marker-test-guide-label' );
 const configModeElement = getRequiredElement<HTMLSpanElement>( 'marker-test-config-mode' );
 const configUrlElement = getRequiredElement<HTMLSpanElement>( 'marker-test-config-url' );
 const markerConfigIdElement = getRequiredElement<HTMLSpanElement>( 'marker-test-marker-config-id' );
@@ -172,13 +181,16 @@ let lastFrameTimestamp: number | null = null;
 let markerRootVisible = false;
 let cameraParamStatus: AssetProbeState = 'idle';
 let patternStatus: AssetProbeState = 'idle';
+let debugDrawerOpen = false;
 const currentConfigMode = resolveConfigMode();
 const currentConfigDefinition = MARKER_TEST_CONFIGS[ currentConfigMode ];
 
 markerIdElement.textContent = DEFAULT_MARKER_ID;
 configModeElement.textContent = currentConfigMode;
+summaryConfigModeElement.textContent = currentConfigMode;
 configUrlElement.textContent = currentConfigDefinition.configUrl;
 markerConfigIdElement.textContent = mapMarkerIdToConfigMarkerId( DEFAULT_MARKER_ID );
+summaryMarkerConfigIdElement.textContent = mapMarkerIdToConfigMarkerId( DEFAULT_MARKER_ID );
 cameraParamUrlElement.textContent = ARJS_CAMERA_PARAMETERS_URL;
 patternUrlElement.textContent = ARJS_HIRO_PATTERN_URL;
 setStatus( 'Loading AR.js runtime, marker config, and stabilizer...' );
@@ -189,6 +201,7 @@ setSaveStatus( 'Current saved result is for debug only and is not connected to t
 syncDebugState();
 
 backToArButton.addEventListener( 'click', handleBackToAr );
+toggleDebugButton.addEventListener( 'click', handleToggleDebugDrawer );
 resetSamplesButton.addEventListener( 'click', handleResetSamples );
 saveStableButton.addEventListener( 'click', handleSaveStableResult );
 
@@ -409,6 +422,14 @@ function handleBackToAr(): void {
 
 }
 
+function handleToggleDebugDrawer(): void {
+
+	debugDrawerOpen = !debugDrawerOpen;
+	debugDrawerElement.hidden = !debugDrawerOpen;
+	toggleDebugButton.textContent = debugDrawerOpen ? 'Hide Debug' : 'Debug';
+
+}
+
 function handleSaveStableResult(): void {
 
 	const report = localizationStabilizer.getReport();
@@ -454,6 +475,9 @@ function handleSaveStableResult(): void {
 function setPoseState(markerPoseInArValue: MarkerPoseInAr | null, visible: boolean): void {
 
 	visibleElement.textContent = visible ? 'visible' : 'lost';
+	summaryVisibleElement.textContent = visible ? 'visible' : 'lost';
+	guideFrameElement.classList.toggle( 'marker-test__guide--detected', visible );
+	guideLabelElement.textContent = visible ? 'Marker detected' : 'Place Hiro marker inside frame';
 
 	if ( markerPoseInArValue === null ) {
 		positionElement.textContent = '-';
@@ -504,6 +528,7 @@ function setStabilityState(report: MarkerLocalizationStabilityReport): void {
 
 	stabilitySampleCountElement.textContent = `${report.sampleCount}`;
 	stabilityStateElement.textContent = report.stable ? 'stable' : 'unstable';
+	summaryStableElement.textContent = report.stable ? 'stable' : 'unstable';
 	stabilityAverageRmsElement.textContent = formatOptionalNumber( report.averageRmsErrorMeters, 6 );
 	stabilityPositionStdElement.textContent = formatOptionalNumber( report.positionStdMeters, 6 );
 	stabilityHeadingStdElement.textContent = formatOptionalNumber( report.headingStdDeg, 4 );
@@ -1029,6 +1054,7 @@ function resolveConfigMode(): MarkerTestConfigMode {
 function setStatus(message: string): void {
 
 	statusElement.textContent = message;
+	summaryStatusElement.textContent = message;
 
 }
 

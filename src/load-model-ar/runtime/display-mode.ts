@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { DepthSensingMode, DisplayMode } from '../registration/registration-store.js';
+import type { ArDisplayMode, DepthSensingMode } from '../registration/registration-store.js';
 import {
 	createDepthAwareOverlayRuntime,
 	type DepthAwareOverlayKind
@@ -25,7 +25,7 @@ const DISPLAY_MODE_TAGS = {
 } as const;
 
 export interface DisplayModeController {
-	sync(mode: DisplayMode): void;
+	sync(mode: ArDisplayMode): void;
 	updateDepthState(frame?: XRFrame): void;
 	setDepthSensingMode(mode: DepthSensingMode): void;
 	captureMaterialBaseline(): void;
@@ -48,9 +48,9 @@ export function createDisplayModeController(
 		renderer: options.renderer
 	} );
 	let currentRoot: THREE.Group | null = null;
-	let currentMode: DisplayMode | null = null;
+	let currentMode: ArDisplayMode | null = null;
 
-	function sync(mode: DisplayMode): void {
+	function sync(mode: ArDisplayMode): void {
 
 		depthAwareOverlay.update();
 		const placedModel = options.getPlacedModel();
@@ -81,7 +81,7 @@ export function createDisplayModeController(
 			return;
 		}
 
-		if ( currentRoot === null || currentMode === null || currentMode === 'normal' ) {
+		if ( currentRoot === null || currentMode === null || currentMode === 'solid-overlay' ) {
 			return;
 		}
 
@@ -99,7 +99,7 @@ export function createDisplayModeController(
 			return;
 		}
 
-		if ( currentRoot === null || currentMode === null || currentMode === 'normal' ) {
+		if ( currentRoot === null || currentMode === null || currentMode === 'solid-overlay' ) {
 			return;
 		}
 
@@ -148,9 +148,9 @@ export function createDisplayModeController(
 
 	}
 
-	function applyMode(root: THREE.Group, mode: DisplayMode): void {
+	function applyMode(root: THREE.Group, mode: ArDisplayMode): void {
 
-		if ( mode === 'normal' ) {
+		if ( mode === 'solid-overlay' || mode === 'transparent-xray' || mode === 'spatial-reveal' || mode === 'layer-peeling' ) {
 			return;
 		}
 
@@ -160,15 +160,7 @@ export function createDisplayModeController(
 			}
 
 			if ( child instanceof THREE.Mesh ) {
-				if ( mode === 'xray' ) {
-					if ( depthAwareOverlay.isActive() ) {
-						ensureDepthOverlay( child, 'xray' );
-					} else {
-						applyXrayMaterial( child.material );
-					}
-				}
-
-				if ( mode === 'occlusion-outline' ) {
+				if ( mode === 'section-cut' ) {
 					if ( depthAwareOverlay.isActive() ) {
 						ensureDepthOverlay( child, 'wireframe' );
 					} else {

@@ -1,7 +1,7 @@
 import { createStore } from 'zustand/vanilla';
 import type {
 	DepthSensingMode,
-	DisplayMode,
+	ArDisplayMode,
 	MeasurementMode,
 	WorkspaceMode
 } from '../registration/registration-store.js';
@@ -44,7 +44,7 @@ export interface LoadModelArController {
 		handleArUiInteraction(): void;
 		closePropertyPanel(): void;
 		selectModel(modelId: string): void;
-		setDisplayMode(mode: DisplayMode): void;
+		setDisplayMode(mode: ArDisplayMode): void;
 		setStructureRevealValue(value: number): void;
 		activatePanel(mode: WorkspaceMode): void;
 		toggleDrawer(): void;

@@ -15,6 +15,21 @@ import {
 import { fitDesktopPreviewCamera } from './camera-fit.js';
 import type { PropertySelectionController } from '../interaction/property-selection.js';
 
+type ArPlacementSource =
+	| 'hit-test'
+	| 'coarse-registration'
+	| 'marker'
+	| 'manual'
+	| 'front-preview'
+	| 'unknown';
+
+interface TrackedArPlacementTransform {
+	source: ArPlacementSource;
+	position: THREE.Vector3;
+	quaternion: THREE.Quaternion;
+	scale: THREE.Vector3;
+}
+
 interface CreatePlacementSessionOptions {
 	store: {
 		getState(): {
@@ -105,6 +120,7 @@ export interface PlacementSession {
 	}): void;
 	fitDesktopPreviewToCamera(): void;
 	updateDesktopInteractionState(isDesktopLayout: boolean, isPresenting: boolean): void;
+	verifyWorldLockedPlacement(caller: string): void;
 }
 
 export function createPlacementSession(options: CreatePlacementSessionOptions): PlacementSession {
@@ -129,6 +145,7 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 	let previewPlacementBase: ManualPlacementBase | null = null;
 	let arPlacementBase: ManualPlacementBase | null = null;
 	let coarsePlacementPending = false;
+	let trackedArPlacementTransform: TrackedArPlacementTransform | null = null;
 
 	function getActivePlacedModel(): THREE.Group | null {
 
@@ -145,6 +162,58 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 	function updatePlacementSummary(): void {
 
 		store.patch( { placementSummary: createPlacementSummaryState( getActivePlacedModel() ) } );
+
+	}
+
+	function clearArPlacementTracking(): void {
+
+		trackedArPlacementTransform = null;
+
+	}
+
+	function resolvePlacementSourceFromArLocalization(
+		source: ArFromEnuSolution['source'] | undefined
+	): ArPlacementSource {
+
+		switch ( source ) {
+			case 'marker':
+				return 'marker';
+			case 'manual-site-pose':
+				return 'manual';
+			case 'gps-imu':
+				return 'coarse-registration';
+			default:
+				return 'unknown';
+		}
+
+	}
+
+	function trackArPlacement(source: ArPlacementSource): void {
+
+		if ( arPlacedModel === null ) {
+			clearArPlacementTracking();
+			return;
+		}
+
+		arPlacedModel.updateMatrixWorld( true );
+		const position = arPlacedModel.getWorldPosition( new THREE.Vector3() );
+		const quaternion = arPlacedModel.getWorldQuaternion( new THREE.Quaternion() );
+		const scale = arPlacedModel.getWorldScale( new THREE.Vector3() );
+		trackedArPlacementTransform = {
+			source,
+			position: position.clone(),
+			quaternion: quaternion.clone(),
+			scale: scale.clone()
+		};
+
+		console.info( '[WorldLockedPlacement]', {
+			placed: true,
+			source,
+			position: vector3ToObject( position ),
+			quaternion: quaternionToObject( quaternion ),
+			scale: vector3ToObject( scale ),
+			parentName: arPlacedModel.parent?.name ?? null
+		} );
 
 	}
 
@@ -192,6 +261,7 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 			coarsePlacementPending = false;
 			previewPlacementBase = null;
 			arPlacementBase = null;
+			clearArPlacementTracking();
 			propertySelection.clearSelection();
 			store.patch( { desktopPreviewBadge: defaultDesktopPreviewBadge } );
 			updatePlacementSummary();
@@ -243,6 +313,7 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 
 			let estimate: CoarsePlacementEstimate | null = null;
 			let usedMarkerOverride = false;
+			const previewPlacementRequested = store.getState().autoPreviewPlacementEnabled;
 
 			if ( arFromEnuSolutionOverride !== null && arFromEnuSolutionOverride !== undefined ) {
 				arPlacementBase = createPlacementBaseFromArLocalizationSolution( {
@@ -272,8 +343,7 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 						&& estimate.accuracyMeters > maxReliableGpsAccuracyMeters
 					)
 				);
-				const previewPlacementRequested = store.getState().autoPreviewPlacementEnabled;
-				const usePreviewPlacement = previewPlacementRequested;
+				const usePreviewPlacement = false;
 
 				arPlacementBase = createAutoPlacementBase( {
 					camera: sceneBundle.camera,
@@ -315,6 +385,7 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 							? `目标距离约 ${Math.round( estimate.distanceMeters )}m，${accuracyText}，${groundLockText}。已切换到近距离预览放置。`
 							: `已按近距离预览放置模型，${accuracyText}，${groundLockText}。`
 					);
+					trackArPlacement( 'front-preview' );
 					return;
 				}
 
@@ -333,6 +404,11 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 				modelAnchor: sceneBundle.arModelAnchor,
 				adjustedPlacement
 			} );
+			trackArPlacement(
+				usedMarkerOverride
+					? resolvePlacementSourceFromArLocalization( arFromEnuSolutionOverride?.source )
+					: 'coarse-registration'
+			);
 
 			coarsePlacementPending = false;
 			updateRegistrationStatusDetail( '状态：模型已放置' );
@@ -352,7 +428,7 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 				: `GPS 精度约 ${Math.round( estimate.accuracyMeters )}m`;
 			const groundLockText = `groundY ${estimate.groundY.toFixed( 3 )}m / ENU 垂向偏移${estimate.enuVerticalOffsetApplied ? '已启用' : '已禁用'}`;
 			setStatus(
-				`已完成 ${registrationSolution.modelId} 的粗配准。距离约 ${Math.round( estimate.distanceMeters )}m，RMS ${registrationSolution.modelToSite.rmsErrorMeters.toFixed( 3 )}m，${accuracyText}，${groundLockText}。`
+				`${previewPlacementRequested ? '面前预览仅作为调试开关保留；' : ''}已完成 ${registrationSolution.modelId} 的粗配准。距离约 ${Math.round( estimate.distanceMeters )}m，RMS ${registrationSolution.modelToSite.rmsErrorMeters.toFixed( 3 )}m，${accuracyText}，${groundLockText}。`
 			);
 
 		},
@@ -394,6 +470,7 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 				modelAnchor: sceneBundle.arModelAnchor,
 				adjustedPlacement
 			} );
+			trackArPlacement( resolvePlacementSourceFromArLocalization( arFromEnuSolution.source ) );
 			updatePlacementSummary();
 			return true;
 
@@ -437,6 +514,7 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 					modelAnchor: sceneBundle.arModelAnchor,
 					adjustedPlacement
 				} );
+				trackArPlacement( 'manual' );
 			} else {
 				previewPlacedModel = placeAdjustedModel( {
 					modelTemplate,
@@ -502,7 +580,66 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 
 			sceneBundle.controls.enabled = nextIsDesktopLayout && isPresenting === false;
 
+		},
+
+		verifyWorldLockedPlacement(caller) {
+
+			if (
+				sceneBundle.renderer.xr.isPresenting === false
+				|| arPlacedModel === null
+				|| trackedArPlacementTransform === null
+			) {
+				return;
+			}
+
+			arPlacedModel.updateMatrixWorld( true );
+			const currentPosition = arPlacedModel.getWorldPosition( new THREE.Vector3() );
+			const currentQuaternion = arPlacedModel.getWorldQuaternion( new THREE.Quaternion() );
+			const currentScale = arPlacedModel.getWorldScale( new THREE.Vector3() );
+			const previous = trackedArPlacementTransform;
+			const positionChanged = previous.position.distanceToSquared( currentPosition ) > 1e-8;
+			const rotationChanged = 1 - Math.abs( previous.quaternion.dot( currentQuaternion ) ) > 1e-6;
+			const scaleChanged = previous.scale.distanceToSquared( currentScale ) > 1e-8;
+
+			if ( positionChanged === false && rotationChanged === false && scaleChanged === false ) {
+				return;
+			}
+
+			console.warn( '[PlacementDriftWarning]', {
+				reason: 'placed model transform changed after world-locked placement',
+				caller,
+				previousPosition: vector3ToObject( previous.position ),
+				currentPosition: vector3ToObject( currentPosition )
+			} );
+			trackedArPlacementTransform = {
+				source: previous.source,
+				position: currentPosition.clone(),
+				quaternion: currentQuaternion.clone(),
+				scale: currentScale.clone()
+			};
+
 		}
+	};
+
+}
+
+function vector3ToObject(vector: THREE.Vector3): { x: number; y: number; z: number } {
+
+	return {
+		x: vector.x,
+		y: vector.y,
+		z: vector.z
+	};
+
+}
+
+function quaternionToObject(quaternion: THREE.Quaternion): { x: number; y: number; z: number; w: number } {
+
+	return {
+		x: quaternion.x,
+		y: quaternion.y,
+		z: quaternion.z,
+		w: quaternion.w
 	};
 
 }

@@ -25,8 +25,8 @@ import {
 	createDefaultSavedMarkerLocalizationState,
 	createDefaultTargetGuidanceState,
 	createRegistrationStore,
+	type ArDisplayMode,
 	type DepthSensingMode,
-	type DisplayMode,
 	type MeasurementMode,
 	type RegistrationStore,
 	type RegistrationStoreState,
@@ -119,7 +119,7 @@ function createInitialState(): RegistrationStoreState {
 		arSupportMessage: '正在检测当前设备是否支持 WebXR AR。',
 		arSessionPhase: 'scanning',
 		workspaceMode: 'browse',
-		displayMode: 'normal',
+		displayMode: 'solid-overlay',
 		structureRevealValue: 100,
 		timelineStages: TIMELINE_STAGES,
 		currentTimelineStageIndex: 2,
@@ -230,7 +230,7 @@ export class ThreeEngine {
 	private markerCorrectionFallbackArFromEnuSolution: ArFromEnuSolution | null = null;
 	private hasRestoredManualArSitePose = false;
 	private currentModelDebugTargetGeodetic: GeodeticCoordinate | null = null;
-	private lastSyncedDisplayMode: DisplayMode | null = null;
+	private lastSyncedDisplayMode: ArDisplayMode | null = null;
 	private lastSyncedDisplayModeRoot: THREE.Group | null = null;
 	private lastStructureRevealSignature = '';
 	private pipesByName = new Map<string, PipeRecord>();
@@ -461,6 +461,7 @@ export class ThreeEngine {
 			onFrameUpdate: ( frame ) => {
 				this.displayModeController.updateDepthState( frame );
 				this.updateTargetGuidance();
+				this.placementSession.verifyWorldLockedPlacement( 'xr-frame' );
 			}
 		} );
 
@@ -615,9 +616,24 @@ export class ThreeEngine {
 
 	}
 
-	setDisplayMode(mode: DisplayMode): void {
+	setDisplayMode(mode: ArDisplayMode): void {
 
-		if ( mode !== 'normal' && mode !== 'xray' && mode !== 'occlusion-outline' ) {
+		if (
+			mode !== 'solid-overlay'
+			&& mode !== 'transparent-xray'
+			&& mode !== 'spatial-reveal'
+			&& mode !== 'layer-peeling'
+			&& mode !== 'section-cut'
+		) {
+			return;
+		}
+
+		if (
+			mode === 'spatial-reveal'
+			|| mode === 'layer-peeling'
+			|| mode === 'section-cut'
+		) {
+			this.setStatus( `${getDisplayModeLabel( mode )} 暂未实现。` );
 			return;
 		}
 
@@ -1031,8 +1047,8 @@ export class ThreeEngine {
 		this.store.patch( { autoPreviewPlacementEnabled: enabled } );
 		this.setStatus(
 			enabled
-				? '已开启近距离预览放置，放置时会优先显示到手机前方。'
-				: '已关闭近距离预览放置，将按真实目标位置放置。'
+				? '已开启面前预览调试标记。正式放置仍会固定到 AR 空间，不再跟随手机。'
+				: '已关闭面前预览调试标记。正式放置将按真实目标位置固定到 AR 空间。'
 		);
 		this.emit();
 
@@ -1149,7 +1165,7 @@ export class ThreeEngine {
 
 		if ( this.placementSession.getPlacedModel() === null ) {
 			if ( this.placementSession.getCoarsePlacementPending() ) {
-				this.setStatus( '正在放置模型...' );
+				this.setStatus( '正在执行固定放置...' );
 				return;
 			}
 
@@ -1833,12 +1849,15 @@ export class ThreeEngine {
 		const modelRoot = state.appMode === 'ar-session'
 			? this.placementSession.getArPlacedModel()
 			: null;
+		const xrayValue = state.displayMode === 'transparent-xray'
+			? state.structureRevealValue
+			: 0;
 		const report = this.structureRevealController.apply( {
 			modelRoot,
-			value: state.structureRevealValue,
+			value: xrayValue,
 			modelLayers: state.modelLayers
 		} );
-		const signature = `${state.appMode}|${state.structureRevealValue}|${modelRoot?.uuid ?? 'none'}|${report.opacityMode}|${report.totalLayerCount}|${report.affectedMeshCount}|${report.affectedMaterialCount}`;
+		const signature = `${state.appMode}|${state.displayMode}|${xrayValue}|${modelRoot?.uuid ?? 'none'}|${report.opacityMode}|${report.totalLayerCount}|${report.affectedMeshCount}|${report.affectedMaterialCount}`;
 		if ( signature === this.lastStructureRevealSignature ) {
 			return;
 		}

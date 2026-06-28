@@ -122,12 +122,12 @@ export function RegistrationPanel(props: {
 				</p>
 
 				<SelectField
-					label="Near preview placement"
+					label="面前预览（仅调试）"
 					value={engine.autoPreviewPlacementEnabled ? 'enabled' : 'disabled'}
 					onChange={ ( value ) => actions.setAutoPreviewPlacementEnabled( value === 'enabled' ) }
 					options={[
-						{ value: 'disabled', label: 'Disabled: place at the real target position' },
-						{ value: 'enabled', label: 'Enabled: preview in front of the device first' }
+						{ value: 'disabled', label: '关闭：正式放置固定到现场' },
+						{ value: 'enabled', label: '开启：仅保留面前预览调试标记，不改变正式固定放置' }
 					]}
 				/>
 

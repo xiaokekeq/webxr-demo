@@ -1,4 +1,4 @@
-import type React from 'react';
+import React, { useEffect, useState } from 'react';
 import type { AppActions, AppState } from '../store/ar-state.js';
 import {
 	PANEL_OPTIONS,
@@ -7,16 +7,16 @@ import {
 	getPhaseLabel,
 	getWorkspaceLabel
 } from '../store/selectors.js';
+import { ActionButton } from '../components/ActionButton.js';
+import { GuardedPressButton } from '../components/GuardedPressButton.js';
+import { BrowsePanel } from '../panels/BrowsePanel.js';
+import { InspectionPanel } from '../panels/InspectionPanel.js';
+import { RegistrationPanel } from '../panels/RegistrationPanel.js';
+import { ToolsPanel } from '../panels/ToolsPanel.js';
 import { ArCanvas } from './ArCanvas.js';
 import { ArStatusBar } from './ArStatusBar.js';
 import { BottomDrawer } from './BottomDrawer.js';
 import { ManualAdjustmentOverlay } from './ManualAdjustmentOverlay.js';
-import { ActionButton } from '../components/ActionButton.js';
-import { GuardedPressButton } from '../components/GuardedPressButton.js';
-import { BrowsePanel } from '../panels/BrowsePanel.js';
-import { RegistrationPanel } from '../panels/RegistrationPanel.js';
-import { ToolsPanel } from '../panels/ToolsPanel.js';
-import { InspectionPanel } from '../panels/InspectionPanel.js';
 import { usePlacementGuidance } from './use-placement-guidance.js';
 
 export function ArRuntimeView(props: {
@@ -33,7 +33,7 @@ export function ArRuntimeView(props: {
 	const canInspect = engine.arSessionPhase === 'placed';
 	const canOpenBrowse = engine.arSessionPhase === 'placed' || showPlacementUi;
 	const canOpenTools = true;
-	const placeActionLabel = engine.arSessionPhase === 'ready-to-place' ? '开始放置模型' : '继续扫描';
+	const placeActionLabel = engine.arSessionPhase === 'ready-to-place' ? '固定放置' : '继续扫描';
 	const drawerToggleLabel = state.ui.drawerOpen ? '收起面板' : `展开${getWorkspaceLabel( engine.workspaceMode )}`;
 	const displayModeLabel = getDisplayModeLabel( engine.displayMode );
 	const subtitle = `${getWorkspaceLabel( engine.workspaceMode )} / ${getPhaseLabel( engine.arSessionPhase )} / ${displayModeLabel} / RMS ${engine.registrationMetrics.rmsText}`;
@@ -62,9 +62,18 @@ export function ArRuntimeView(props: {
 		&& showManualAdjustmentOverlay === false
 		&& showPlacementUi === false
 		&& showGuidance === false
-		&& showTargetGuidance === false
-		&& showLayerQuickBar === false
-		&& state.ui.drawerOpen === false;
+		&& state.ui.drawerOpen === false
+		&& engine.displayMode === 'transparent-xray';
+	const [ targetGuidanceHidden, setTargetGuidanceHidden ] = useState( false );
+	const targetGuidanceKey = `${engine.targetGuidance.alignment}|${engine.targetGuidance.directionText}|${engine.targetGuidance.distanceText}|${engine.targetGuidance.detailText}`;
+	const showTargetGuidanceCard = showTargetGuidance && targetGuidanceHidden === false;
+	const showTargetGuidanceToggle = showTargetGuidance && targetGuidanceHidden;
+
+	useEffect( () => {
+		if ( showTargetGuidance ) {
+			setTargetGuidanceHidden( false );
+		}
+	}, [ showTargetGuidance, targetGuidanceKey ] );
 
 	return (
 		<div className={ `mobile-ar-root${showPlacementUi ? ' mobile-ar-root--placement' : ''}` }>
@@ -80,7 +89,7 @@ export function ArRuntimeView(props: {
 					<ArStatusBar
 						title={engine.projectName}
 						subtitle={subtitle}
-						status={engine.arSessionPhase === 'ready-to-place' ? '点击放置' : getPhaseLabel( engine.arSessionPhase )}
+						status={engine.arSessionPhase === 'ready-to-place' ? '固定放置' : getPhaseLabel( engine.arSessionPhase )}
 						onStatusClick={showPlacementUi ? () => void actions.placeModel() : undefined}
 						statusDisabled={engine.arSessionPhase !== 'ready-to-place'}
 					/>
@@ -94,14 +103,39 @@ export function ArRuntimeView(props: {
 					</div>
 				) : null}
 
-				{showCaptureOverlay ? null : showTargetGuidance ? (
+				{showCaptureOverlay ? null : showTargetGuidanceCard ? (
 					<div className={ `target-guidance-card target-guidance-card--${engine.targetGuidance.alignment}` }>
-						<div className="target-guidance-card__eyebrow">当前暂未看到模型</div>
-						<div className="target-guidance-card__direction">{engine.targetGuidance.directionText}</div>
-						<div className="target-guidance-card__distance">{engine.targetGuidance.distanceText}</div>
+						<div className="target-guidance-card__header">
+							<div className="target-guidance-card__summary">
+								<div className="target-guidance-card__eyebrow">当前暂未看到模型</div>
+								<div className="target-guidance-card__direction">{engine.targetGuidance.directionText}</div>
+								<div className="target-guidance-card__distance">{engine.targetGuidance.distanceText}</div>
+							</div>
+							<button
+								type="button"
+								className="target-guidance-card__toggle"
+								onClick={ () => {
+									setTargetGuidanceHidden( true );
+								} }
+							>
+								隐藏提示
+							</button>
+						</div>
 						<p>{engine.targetGuidance.detailText}</p>
 						<div className="target-guidance-card__debug">{engine.coarseLocationDebugText}</div>
 					</div>
+				) : null}
+
+				{showCaptureOverlay ? null : showTargetGuidanceToggle ? (
+					<button
+						type="button"
+						className={ `target-guidance-toggle target-guidance-toggle--${engine.targetGuidance.alignment}` }
+						onClick={ () => {
+							setTargetGuidanceHidden( false );
+						} }
+					>
+						显示提示
+					</button>
 				) : null}
 
 				{showLayerQuickBar ? (

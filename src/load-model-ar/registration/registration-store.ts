@@ -7,7 +7,12 @@ export type WorkspaceMode = 'browse' | 'registration' | 'tools' | 'inspection';
 export type AppMode = 'pre-ar' | 'ar-session';
 export type ArSupportState = 'checking' | 'supported' | 'unsupported';
 export type ArSessionPhase = 'scanning' | 'ready-to-place' | 'placing' | 'placed';
-export type DisplayMode = 'normal' | 'xray' | 'occlusion-outline';
+export type ArDisplayMode =
+	| 'solid-overlay'
+	| 'transparent-xray'
+	| 'spatial-reveal'
+	| 'layer-peeling'
+	| 'section-cut';
 export type DepthSensingMode = 'disabled' | 'gpu' | 'cpu' | 'auto';
 export type PrecisionFeedbackTone = 'neutral' | 'info' | 'success' | 'error';
 export type MeasurementMode = 'distance-3d' | 'distance-horizontal' | 'depth';
@@ -137,7 +142,7 @@ export interface RegistrationStoreState {
 	arSupportMessage: string;
 	arSessionPhase: ArSessionPhase;
 	workspaceMode: WorkspaceMode;
-	displayMode: DisplayMode;
+	displayMode: ArDisplayMode;
 	structureRevealValue: number;
 	timelineStages: readonly string[];
 	currentTimelineStageIndex: number;

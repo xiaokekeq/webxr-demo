@@ -4,7 +4,7 @@ export function SelectField(props: {
 	label: string;
 	value: string;
 	onChange(value: string): void;
-	options: Array<{ value: string; label: string }>;
+	options: Array<{ value: string; label: string; disabled?: boolean }>;
 }): React.JSX.Element {
 
 	return (
@@ -12,7 +12,7 @@ export function SelectField(props: {
 			<span>{props.label}</span>
 			<select value={props.value} onChange={ ( event ) => props.onChange( event.target.value ) }>
 				{props.options.map( ( option ) => (
-					<option key={option.value} value={option.value}>{option.label}</option>
+					<option key={option.value} value={option.value} disabled={option.disabled === true}>{option.label}</option>
 				) )}
 			</select>
 		</label>

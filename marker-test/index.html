@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="zh-CN">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+		<title>Marker Test</title>
+		<style>
+			:root {
+				color-scheme: light;
+				font-family: "Segoe UI", "PingFang SC", sans-serif;
+				background: #06111f;
+				color: #e9f1ff;
+			}
+
+			* {
+				box-sizing: border-box;
+			}
+
+			html,
+			body {
+				margin: 0;
+				min-height: 100%;
+				overflow: hidden;
+				background:
+					radial-gradient(circle at top, rgba(96, 174, 255, 0.28), transparent 38%),
+					linear-gradient(180deg, #0a1322 0%, #04080f 100%);
+			}
+
+			body {
+				position: relative;
+			}
+
+			#marker-test-viewport {
+				position: fixed;
+				inset: 0;
+			}
+
+			.marker-test__canvas {
+				display: block;
+			}
+
+			.marker-test__hud {
+				position: fixed;
+				left: 16px;
+				top: 16px;
+				width: min(420px, calc(100vw - 32px));
+				padding: 16px 18px;
+				border-radius: 20px;
+				background: rgba(7, 15, 28, 0.78);
+				backdrop-filter: blur(18px);
+				border: 1px solid rgba(167, 204, 255, 0.22);
+				box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+				z-index: 2;
+			}
+
+			.marker-test__title {
+				margin: 0 0 6px;
+				font-size: 22px;
+				font-weight: 700;
+				letter-spacing: 0.02em;
+			}
+
+			.marker-test__subtitle {
+				margin: 0 0 14px;
+				font-size: 13px;
+				line-height: 1.5;
+				color: rgba(233, 241, 255, 0.74);
+			}
+
+			.marker-test__status {
+				margin-bottom: 14px;
+				padding: 10px 12px;
+				border-radius: 12px;
+				background: rgba(117, 189, 255, 0.1);
+				font-size: 13px;
+				line-height: 1.4;
+			}
+
+			.marker-test__notice {
+				margin: 0 0 14px;
+				padding: 10px 12px;
+				border-radius: 12px;
+				background: rgba(255, 194, 92, 0.12);
+				color: rgba(255, 232, 184, 0.94);
+				font-size: 12px;
+				line-height: 1.5;
+			}
+
+			.marker-test__grid {
+				display: grid;
+				grid-template-columns: 112px 1fr;
+				gap: 8px 12px;
+				align-items: start;
+				font-size: 13px;
+				line-height: 1.5;
+			}
+
+			.marker-test__label {
+				color: rgba(233, 241, 255, 0.62);
+			}
+
+			.marker-test__value {
+				word-break: break-word;
+			}
+
+			.marker-test__matrix {
+				margin: 0;
+				padding: 10px 12px;
+				border-radius: 12px;
+				background: rgba(255, 255, 255, 0.06);
+				font-family: "Cascadia Code", "SFMono-Regular", monospace;
+				font-size: 11px;
+				line-height: 1.45;
+				white-space: pre-wrap;
+			}
+
+			.marker-test__actions {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 10px;
+				margin-top: 14px;
+			}
+
+			.marker-test__button {
+				border: 0;
+				border-radius: 999px;
+				padding: 10px 16px;
+				font-size: 13px;
+				font-weight: 600;
+				cursor: pointer;
+				color: #06111f;
+				background: linear-gradient(135deg, #9ad3ff 0%, #d2f0ff 100%);
+			}
+
+			.marker-test__button:disabled {
+				cursor: not-allowed;
+				opacity: 0.45;
+			}
+
+			.marker-test__save-status {
+				margin-top: 12px;
+				font-size: 12px;
+				line-height: 1.5;
+				color: rgba(233, 241, 255, 0.78);
+			}
+
+			@media (max-width: 640px) {
+				.marker-test__hud {
+					left: 12px;
+					right: 12px;
+					top: 12px;
+					width: auto;
+					padding: 14px;
+				}
+
+				.marker-test__grid {
+					grid-template-columns: 1fr;
+					gap: 4px;
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<div id="marker-test-viewport"></div>
+		<section class="marker-test__hud">
+			<h1 class="marker-test__title">Marker Test</h1>
+			<p class="marker-test__subtitle">
+				Independent AR.js marker-based tracking test page. This page only reads markerPoseInAr and does not change the main WebXR AR flow.
+			</p>
+			<div class="marker-test__status">
+				Status:
+				<span id="marker-test-status">Initializing...</span>
+			</div>
+			<p class="marker-test__notice">
+				Current saved result is for debug only and is not connected to the main WebXR AR flow.
+			</p>
+			<div class="marker-test__grid">
+				<div class="marker-test__label">markerId</div>
+				<div class="marker-test__value" id="marker-test-marker-id">-</div>
+				<div class="marker-test__label">visible</div>
+				<div class="marker-test__value" id="marker-test-visible">-</div>
+				<div class="marker-test__label">position</div>
+				<div class="marker-test__value" id="marker-test-position">-</div>
+				<div class="marker-test__label">quaternion</div>
+				<div class="marker-test__value" id="marker-test-quaternion">-</div>
+				<div class="marker-test__label">timestamp</div>
+				<div class="marker-test__value" id="marker-test-timestamp">-</div>
+				<div class="marker-test__label">matrix</div>
+				<pre class="marker-test__matrix" id="marker-test-matrix">-</pre>
+				<div class="marker-test__label">localization</div>
+				<div class="marker-test__value" id="marker-test-localization-available">-</div>
+				<div class="marker-test__label">correspondenceCount</div>
+				<div class="marker-test__value" id="marker-test-correspondence-count">-</div>
+				<div class="marker-test__label">rmsErrorMeters</div>
+				<div class="marker-test__value" id="marker-test-rms-error">-</div>
+				<div class="marker-test__label">siteOriginArPosition</div>
+				<div class="marker-test__value" id="marker-test-site-origin-ar-position">-</div>
+				<div class="marker-test__label">headingDeg</div>
+				<div class="marker-test__value" id="marker-test-heading-deg">-</div>
+				<div class="marker-test__label">source</div>
+				<div class="marker-test__value" id="marker-test-localization-source">-</div>
+				<div class="marker-test__label">localization matrix</div>
+				<pre class="marker-test__matrix" id="marker-test-localization-matrix">-</pre>
+				<div class="marker-test__label">sampleCount</div>
+				<div class="marker-test__value" id="marker-test-stability-sample-count">-</div>
+				<div class="marker-test__label">stability</div>
+				<div class="marker-test__value" id="marker-test-stability-state">-</div>
+				<div class="marker-test__label">averageRmsErrorMeters</div>
+				<div class="marker-test__value" id="marker-test-stability-average-rms">-</div>
+				<div class="marker-test__label">positionStdMeters</div>
+				<div class="marker-test__value" id="marker-test-stability-position-std">-</div>
+				<div class="marker-test__label">headingStdDeg</div>
+				<div class="marker-test__value" id="marker-test-stability-heading-std">-</div>
+				<div class="marker-test__label">averagedSiteOriginArPosition</div>
+				<div class="marker-test__value" id="marker-test-stability-averaged-position">-</div>
+				<div class="marker-test__label">averagedHeadingDeg</div>
+				<div class="marker-test__value" id="marker-test-stability-averaged-heading">-</div>
+				<div class="marker-test__label">reason</div>
+				<div class="marker-test__value" id="marker-test-stability-reason">-</div>
+			</div>
+			<div class="marker-test__actions">
+				<button class="marker-test__button" id="marker-test-reset-samples" type="button">Reset samples</button>
+				<button class="marker-test__button" id="marker-test-save-stable" type="button">Save stable marker result</button>
+			</div>
+			<div class="marker-test__save-status">
+				<span id="marker-test-save-status">-</span>
+			</div>
+		</section>
+		<script type="module" src="../src/marker-test/main.ts"></script>
+	</body>
+</html>

@@ -34,6 +34,18 @@ export interface DemoModelAttachmentInfo {
 	remark?: string;
 }
 
+export interface MarkerEngineeringConfig {
+	id: string;
+	bindControlPointId?: string;
+	sizeMeters: number;
+	enu?: {
+		east: number;
+		north: number;
+		up?: number;
+	};
+	yawDeg?: number;
+}
+
 export type DemoModelRegistrationMode = 'rigid' | 'similarity';
 
 export interface DemoModelConfig {
@@ -50,6 +62,7 @@ export interface DemoModelConfig {
 		minControlPoints: number;
 	};
 	controlPoints: Record<string, DemoModelControlPointCorrespondence>;
+	markers: MarkerEngineeringConfig[];
 	attachments: DemoModelAttachment[];
 }
 
@@ -101,6 +114,17 @@ interface LegacyDemoModelConfig extends Omit<DemoModelConfig, 'siteFrame' | 'reg
 		modelLocal: DemoModelLocalPoint;
 		world: RawGeodeticCoordinateShape;
 	} | LegacyControlPointShape>;
+	markers?: Array<{
+		id: string;
+		bindControlPointId?: string;
+		sizeMeters: number;
+		enu?: {
+			east: number;
+			north: number;
+			up?: number;
+		};
+		yawDeg?: number;
+	}>;
 	attachments?: Array<{
 		assetId: string;
 		world: RawGeodeticCoordinateShape;
@@ -207,6 +231,7 @@ function normalizeDemoModelConfig(config: RawDemoModelConfig): DemoModelConfig {
 		scale: config.scale,
 		registration,
 		controlPoints: normalizedControlPoints,
+		markers: loadMarkerEngineeringConfigs( config.markers ),
 		attachments: normalizeAttachments( config.attachments )
 	};
 
@@ -233,6 +258,7 @@ function normalizeLocalDebugModelConfig(config: LocalDebugModelConfig): DemoMode
 			minControlPoints: 3
 		},
 		controlPoints: normalizedControlPoints,
+		markers: [],
 		attachments: []
 	};
 
@@ -364,9 +390,61 @@ function validateDemoModelConfig(config: DemoModelConfig): void {
 		throw new Error( 'Model config is missing valid controlPoints.' );
 	}
 
+	if ( Array.isArray( config.markers ) === false ) {
+		throw new Error( 'Model config markers must be an array.' );
+	}
+
 	if ( Array.isArray( config.attachments ) === false ) {
 		throw new Error( 'Model config attachments must be an array.' );
 	}
+
+}
+
+export function loadMarkerEngineeringConfigs(
+	markers: LegacyDemoModelConfig['markers'] | undefined
+): MarkerEngineeringConfig[] {
+
+	if ( Array.isArray( markers ) === false ) {
+		return [];
+	}
+
+	return markers.map( ( marker, index ) => {
+		if ( typeof marker?.id !== 'string' || marker.id.trim().length === 0 ) {
+			throw new Error( `markers[${index}] is missing a valid id.` );
+		}
+
+		if (
+			typeof marker.sizeMeters !== 'number'
+			|| Number.isFinite( marker.sizeMeters ) === false
+			|| marker.sizeMeters <= 0
+		) {
+			throw new Error( `markers[${index}] is missing a valid sizeMeters.` );
+		}
+
+		const bindControlPointId = typeof marker.bindControlPointId === 'string'
+			&& marker.bindControlPointId.trim().length > 0
+			? marker.bindControlPointId.trim()
+			: undefined;
+		const enu = normalizeMarkerEnu( marker.enu, `markers[${index}].enu` );
+
+		if ( bindControlPointId === undefined && enu === undefined ) {
+			throw new Error(
+				`markers[${index}] must provide bindControlPointId or enu.`
+			);
+		}
+
+		const yawDeg = typeof marker.yawDeg === 'number' && Number.isFinite( marker.yawDeg )
+			? marker.yawDeg
+			: 0;
+
+		return {
+			id: marker.id.trim(),
+			bindControlPointId,
+			sizeMeters: marker.sizeMeters,
+			enu,
+			yawDeg
+		};
+	} );
 
 }
 
@@ -456,6 +534,36 @@ function normalizeOptionalAttachmentText(value: string | undefined): string | un
 
 	const trimmed = value.trim();
 	return trimmed.length > 0 ? trimmed : undefined;
+
+}
+
+function normalizeMarkerEnu(
+	enu: MarkerEngineeringConfig['enu'] | undefined,
+	label: string
+): MarkerEngineeringConfig['enu'] | undefined {
+
+	if ( enu === undefined ) {
+		return undefined;
+	}
+
+	if (
+		typeof enu.east !== 'number'
+		|| Number.isFinite( enu.east ) === false
+		|| typeof enu.north !== 'number'
+		|| Number.isFinite( enu.north ) === false
+	) {
+		throw new Error( `${label} must include finite east/north values.` );
+	}
+
+	const up = typeof enu.up === 'number' && Number.isFinite( enu.up )
+		? enu.up
+		: 0;
+
+	return {
+		east: enu.east,
+		north: enu.north,
+		up
+	};
 
 }
 

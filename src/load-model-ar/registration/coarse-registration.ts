@@ -1,4 +1,8 @@
-﻿import * as THREE from 'three';
+import * as THREE from 'three';
+import {
+	createArFromEnuSolution,
+	type ArFromEnuSolution
+} from './ar-from-enu-solution.js';
 import { COARSE_REGISTRATION_TARGET, type CoarseRegistrationTarget } from './coarse-registration-config.js';
 import { createEnuFrame, geodeticToEnu } from './geodesy.js';
 import type { CoarsePlacementEstimate, SetStatus } from '../shared/types.js';
@@ -44,6 +48,7 @@ export function createCoarseRegistrationController(
 
 	let lastHeadingDeg: number | null = null;
 	let lastGeolocation: GeolocationPosition | null = null;
+	let lastArFromEnuSolution: ArFromEnuSolution | null = null;
 	let orientationListening = false;
 
 	async function prime(): Promise<void> {
@@ -133,12 +138,38 @@ export function createCoarseRegistrationController(
 		convertEnuOffsetToArOffset( enuOffset, lastHeadingDeg, tempArOffset );
 
 		// Use the current camera pose as the local AR reference. The horizontal ENU
-		// offset is rotated into AR space, while the vertical component is anchored
-		// to the hit-test ground height.
+		// offset is rotated into AR space, while Y is taken directly from the
+		// hit-test ground height so GPS/ENU altitude noise does not lift the model.
 		tempPosition.copy( cameraWorldPosition );
 		tempPosition.x += tempArOffset.x;
-		tempPosition.y = groundY + tempArOffset.y;
+		tempPosition.y = groundY;
 		tempPosition.z += tempArOffset.z;
+
+		console.info( '[Coarse Placement]', {
+			groundY,
+			enuVerticalOffsetDisabled: true,
+			ignoredEnuVerticalOffsetMeters: tempArOffset.y,
+			horizontalArOffset: {
+				x: tempArOffset.x,
+				z: tempArOffset.z
+			}
+		} );
+
+		const arFromEnuSolution = createArFromEnuSolution( {
+			position: tempPosition,
+			orientation: enuToArQuaternion,
+			headingDeg: lastHeadingDeg,
+			source: 'gps-imu',
+			accuracyMeters: lastGeolocation?.coords.accuracy ?? undefined
+		} );
+
+		console.info( '[ArFromEnuSolution]', {
+			source: arFromEnuSolution.source,
+			siteOriginArPosition: arFromEnuSolution.siteOriginArPosition,
+			headingDeg: arFromEnuSolution.headingDeg,
+			matrix: arFromEnuSolution.matrix
+		} );
+		lastArFromEnuSolution = arFromEnuSolution;
 
 		return {
 			position: tempPosition.clone(),
@@ -146,7 +177,9 @@ export function createCoarseRegistrationController(
 			distanceMeters: enuOffset.length(),
 			headingDeg: lastHeadingDeg,
 			accuracyMeters: lastGeolocation?.coords.accuracy ?? null,
-			sourceLabel: target.label
+			sourceLabel: target.label,
+			groundY,
+			enuVerticalOffsetApplied: false
 		};
 
 	}
@@ -319,6 +352,11 @@ export function createCoarseRegistrationController(
 		refreshGeolocation,
 		canEstimate,
 		estimatePlacement,
+		getLastArFromEnuSolution() {
+
+			return lastArFromEnuSolution;
+
+		},
 		getDebugSnapshot,
 		getReadyMessage,
 		getMissingRequirementMessage
@@ -376,4 +414,3 @@ function normalizeDegrees(value: number): number {
 	return ( ( value % 360 ) + 360 ) % 360;
 
 }
-

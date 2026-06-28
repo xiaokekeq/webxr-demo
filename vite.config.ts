@@ -10,7 +10,8 @@ export default defineConfig( {
 			input: {
 				index: 'index.html',
 				loadModel: 'loadModel.html',
-				loadModelAR: 'loadModelAR.html'
+				loadModelAR: 'loadModelAR.html',
+				markerTest: 'marker-test/index.html'
 			}
 		}
 	}

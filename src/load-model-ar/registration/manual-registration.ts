@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { SetStatus } from '../shared/types.js';
+import type { ArLocalizationSource } from './ar-from-enu-solution.js';
 
 export interface ManualRegistrationState {
 	offset: THREE.Vector3;
@@ -18,6 +19,9 @@ export interface ManualPlacementBase {
 		siteOriginArPosition: THREE.Vector3;
 		headingDeg: number;
 		baseScale: number;
+		source?: ArLocalizationSource;
+		timestamp?: number;
+		accuracyMeters?: number;
 	};
 }
 

@@ -15,7 +15,42 @@ import { MODEL_SCALE_CALIBRATION } from './model-scale-config.js';
 const templateBounds = new THREE.Box3();
 const templateSize = new THREE.Vector3();
 const templateCenter = new THREE.Vector3();
-const scaledSize = new THREE.Vector3();
+const pivotOffsetVector = new THREE.Vector3();
+const finalSizeVector = new THREE.Vector3();
+const finalBounds = new THREE.Box3();
+
+const PLACEABLE_TEMPLATE_REPORT_KEY = '__placeableTemplateReport';
+const PLACEABLE_TEMPLATE_TRANSFORM_KEY = '__placeableTemplateTransform';
+
+export interface PlaceableTemplateReport {
+	originalSize: THREE.Vector3;
+	originalLongestEdgeMeters: number;
+	appliedScaleFactor: number;
+	perModelScaleFactor: number;
+	finalSize: THREE.Vector3;
+	scaledSize: THREE.Vector3;
+	calibrationMode: string;
+	unitScale: number;
+	pivotOffset: THREE.Vector3;
+}
+
+interface SerializedVector3Like {
+	x: number;
+	y: number;
+	z: number;
+}
+
+interface SerializedPlaceableTemplateReport {
+	originalSize: SerializedVector3Like;
+	originalLongestEdgeMeters: number;
+	appliedScaleFactor: number;
+	perModelScaleFactor: number;
+	finalSize: SerializedVector3Like;
+	scaledSize: SerializedVector3Like;
+	calibrationMode: string;
+	unitScale: number;
+	pivotOffset: SerializedVector3Like;
+}
 
 export async function loadModelTemplate(
 	url: string,
@@ -54,24 +89,14 @@ async function loadGltfModelTemplate(
 			( gltf ) => {
 				const { template, report } = createPlaceableTemplate( gltf.scene, perModelScaleFactor, assetTransform );
 				attachModelSourceMetadata( template, extractModelSourceMetadata( gltf.scene, 'gltf' ) );
-
-				console.info(
-					'[Model Scale]',
-					{
-						originalSizeMeters: report.originalSize,
-						originalLongestEdgeMeters: report.originalLongestEdgeMeters,
-						appliedScaleFactor: report.appliedScaleFactor,
-						perModelScaleFactor: report.perModelScaleFactor,
-						scaledSizeMeters: report.scaledSize,
-						calibrationMode: report.calibrationMode,
-						note: MODEL_SCALE_CALIBRATION.note
-					}
-				);
+				logPlaceableTemplateReport( report );
+				setStatus( buildModelLoadStatusMessage( report ) );
 
 				setStatus(
 					`模型加载成功，原始包围盒 ${formatSize( report.originalSize )}，固定缩放 ${report.appliedScaleFactor.toFixed( 3 )}x`
 				);
 
+				setStatus( buildModelLoadStatusMessage( report ) );
 				resolve( template );
 			},
 			( event ) => {
@@ -105,6 +130,7 @@ async function loadFbxModelTemplate(
 			( object ) => {
 				const { template, report } = createPlaceableTemplate( object, perModelScaleFactor, assetTransform );
 				attachModelSourceMetadata( template, extractModelSourceMetadata( object, 'fbx' ) );
+				logPlaceableTemplateReport( report );
 
 				console.info(
 					'[Model Scale]',
@@ -123,6 +149,7 @@ async function loadFbxModelTemplate(
 					`FBX 模型加载成功，原始包围盒 ${formatSize( report.originalSize )}，缩放 ${report.appliedScaleFactor.toFixed( 3 )}x`
 				);
 
+				setStatus( buildModelLoadStatusMessage( report, 'FBX 模型加载成功' ) );
 				resolve( template );
 			},
 			( event ) => {
@@ -169,6 +196,7 @@ async function loadObjModelTemplate(
 					normalizeObjModelStructure( object );
 					const { template, report } = createPlaceableTemplate( object, perModelScaleFactor, assetTransform );
 					attachModelSourceMetadata( template, extractModelSourceMetadata( object, 'obj' ) );
+					logPlaceableTemplateReport( report );
 
 					console.info(
 						'[Model Scale]',
@@ -187,6 +215,7 @@ async function loadObjModelTemplate(
 						`模型加载成功，原始包围盒 ${formatSize( report.originalSize )}，缩放 ${report.appliedScaleFactor.toFixed( 3 )}x`
 					);
 
+					setStatus( buildModelLoadStatusMessage( report ) );
 					resolve( template );
 				},
 				( event ) => {
@@ -693,14 +722,7 @@ function createPlaceableTemplate(
 	assetTransform?: ModelAssetTransform
 ): {
 	template: THREE.Group;
-	report: {
-		originalSize: THREE.Vector3;
-		originalLongestEdgeMeters: number;
-		appliedScaleFactor: number;
-		perModelScaleFactor: number;
-		scaledSize: THREE.Vector3;
-		calibrationMode: string;
-	};
+	report: PlaceableTemplateReport;
 } {
 
 	const wrapper = new THREE.Group();
@@ -711,52 +733,69 @@ function createPlaceableTemplate(
 
 	if ( templateBounds.isEmpty() ) {
 		wrapper.add( content );
+		const emptyReport: PlaceableTemplateReport = {
+			originalSize: new THREE.Vector3(),
+			originalLongestEdgeMeters: 0,
+			appliedScaleFactor: 1,
+			perModelScaleFactor: 1,
+			finalSize: new THREE.Vector3(),
+			scaledSize: new THREE.Vector3(),
+			calibrationMode: 'empty-bounds',
+			unitScale: 1,
+			pivotOffset: new THREE.Vector3()
+		};
+		attachPlaceableTemplateMetadata( wrapper, emptyReport );
 		return {
 			template: wrapper,
-			report: {
-				originalSize: new THREE.Vector3(),
-				originalLongestEdgeMeters: 0,
-				appliedScaleFactor: 1,
-				perModelScaleFactor: 1,
-				scaledSize: new THREE.Vector3(),
-				calibrationMode: 'empty-bounds'
-			}
+			report: emptyReport
 		};
 	}
 
 	templateBounds.getCenter( templateCenter );
 	templateBounds.getSize( templateSize );
 
-	content.position.set(
+	pivotOffsetVector.set(
 		- templateCenter.x,
 		- templateBounds.min.y,
 		- templateCenter.z
+	);
+	content.position.set(
+		pivotOffsetVector.x,
+		pivotOffsetVector.y,
+		pivotOffsetVector.z
 	);
 
 	wrapper.add( content );
 
 	const originalLongestEdgeMeters = Math.max( templateSize.x, templateSize.y, templateSize.z );
-	const calibrationScaleFactor = getCalibrationScaleFactor( originalLongestEdgeMeters, assetTransform );
-	const appliedScaleFactor = calibrationScaleFactor
-		* perModelScaleFactor
-		* getAssetScaleFactor( assetTransform );
+	const unitScale = getUnitScaleFactor( assetTransform );
+	const appliedScaleFactor = unitScale * perModelScaleFactor;
 	wrapper.scale.setScalar( appliedScaleFactor );
 	wrapper.userData.__bakedScaleFactor = appliedScaleFactor;
 
-	scaledSize.copy( templateSize ).multiplyScalar( appliedScaleFactor );
+	wrapper.updateMatrixWorld( true );
+	finalBounds.setFromObject( wrapper );
+	finalSizeVector.copy(
+		finalBounds.isEmpty()
+			? templateSize
+			: finalBounds.getSize( new THREE.Vector3() )
+	);
+	const report: PlaceableTemplateReport = {
+		originalSize: templateSize.clone(),
+		originalLongestEdgeMeters,
+		appliedScaleFactor,
+		perModelScaleFactor,
+		finalSize: finalSizeVector.clone(),
+		scaledSize: finalSizeVector.clone(),
+		calibrationMode: MODEL_SCALE_CALIBRATION.mode,
+		unitScale,
+		pivotOffset: pivotOffsetVector.clone()
+	};
+	attachPlaceableTemplateMetadata( wrapper, report );
 
 	return {
 		template: wrapper,
-		report: {
-			originalSize: templateSize.clone(),
-			originalLongestEdgeMeters,
-			appliedScaleFactor,
-			perModelScaleFactor,
-			scaledSize: scaledSize.clone(),
-			calibrationMode: assetTransform?.disableAutoScale === true
-				? 'disabled-per-model'
-				: MODEL_SCALE_CALIBRATION.mode
-		}
+		report
 	};
 
 }
@@ -773,43 +812,165 @@ function applyAssetOrientation(
 
 }
 
-function getAssetScaleFactor(assetTransform?: ModelAssetTransform): number {
+function getUnitScaleFactor(assetTransform?: ModelAssetTransform): number {
 
 	if (
 		assetTransform === undefined
-		|| assetTransform.scaleFactor === undefined
-		|| assetTransform.scaleFactor <= 0
+		|| assetTransform.unitScale === undefined
+		|| assetTransform.unitScale <= 0
 	) {
 		return 1;
 	}
 
-	return assetTransform.scaleFactor;
-
-}
-
-function getCalibrationScaleFactor(
-	originalLongestEdgeMeters: number,
-	assetTransform?: ModelAssetTransform
-): number {
-
-	if ( assetTransform?.disableAutoScale === true ) {
-		return 1;
-	}
-
-	if ( originalLongestEdgeMeters <= 0 ) {
-		return 1;
-	}
-
-	if ( MODEL_SCALE_CALIBRATION.mode === 'fixed-factor' ) {
-		return MODEL_SCALE_CALIBRATION.factor;
-	}
-
-	return MODEL_SCALE_CALIBRATION.longestEdgeMeters / originalLongestEdgeMeters;
+	return assetTransform.unitScale;
 
 }
 
 function formatSize(size: THREE.Vector3): string {
 
 	return `${size.x.toFixed( 2 )} x ${size.y.toFixed( 2 )} x ${size.z.toFixed( 2 )}m`;
+
+}
+
+function buildModelLoadStatusMessage(
+	report: PlaceableTemplateReport,
+	prefix = '模型加载成功'
+): string {
+
+	return `${prefix}，原始包围盒 ${formatSize( report.originalSize )}，unitScale ${report.unitScale.toFixed( 3 )}，最终包围盒 ${formatSize( report.finalSize )}。`;
+
+}
+
+function logPlaceableTemplateReport(report: PlaceableTemplateReport): void {
+
+	console.info( '[Model Scale]', {
+		originalModelBoundsMeters: report.originalSize,
+		unitScale: report.unitScale,
+		finalModelBoundsMeters: report.finalSize,
+		pivotOffset: report.pivotOffset,
+		appliedScaleFactor: report.appliedScaleFactor,
+		perModelScaleFactor: report.perModelScaleFactor,
+		calibrationMode: report.calibrationMode,
+		note: MODEL_SCALE_CALIBRATION.note
+	} );
+
+}
+
+function attachPlaceableTemplateMetadata(
+	target: THREE.Object3D,
+	report: PlaceableTemplateReport
+): void {
+
+	const serializedReport: SerializedPlaceableTemplateReport = {
+		originalSize: serializeVector3( report.originalSize ),
+		originalLongestEdgeMeters: report.originalLongestEdgeMeters,
+		appliedScaleFactor: report.appliedScaleFactor,
+		perModelScaleFactor: report.perModelScaleFactor,
+		finalSize: serializeVector3( report.finalSize ),
+		scaledSize: serializeVector3( report.scaledSize ),
+		calibrationMode: report.calibrationMode,
+		unitScale: report.unitScale,
+		pivotOffset: serializeVector3( report.pivotOffset )
+	};
+
+	target.userData[ PLACEABLE_TEMPLATE_REPORT_KEY ] = serializedReport;
+	target.userData[ PLACEABLE_TEMPLATE_TRANSFORM_KEY ] = {
+		unitScale: report.unitScale,
+		pivotOffset: serializeVector3( report.pivotOffset )
+	};
+
+}
+
+export function readPlaceableTemplateReport(target: THREE.Object3D): PlaceableTemplateReport | null {
+
+	const serialized = target.userData[ PLACEABLE_TEMPLATE_REPORT_KEY ];
+	if ( isSerializedPlaceableTemplateReport( serialized ) === false ) {
+		return null;
+	}
+
+	return {
+		originalSize: deserializeVector3( serialized.originalSize ),
+		originalLongestEdgeMeters: serialized.originalLongestEdgeMeters,
+		appliedScaleFactor: serialized.appliedScaleFactor,
+		perModelScaleFactor: serialized.perModelScaleFactor,
+		finalSize: deserializeVector3( serialized.finalSize ),
+		scaledSize: deserializeVector3( serialized.scaledSize ),
+		calibrationMode: serialized.calibrationMode,
+		unitScale: serialized.unitScale,
+		pivotOffset: deserializeVector3( serialized.pivotOffset )
+	};
+
+}
+
+export function readPlaceableTemplateTransform(target: THREE.Object3D): {
+	unitScale: number;
+	pivotOffset: THREE.Vector3;
+} | null {
+
+	const serialized = target.userData[ PLACEABLE_TEMPLATE_TRANSFORM_KEY ] as {
+		unitScale?: unknown;
+		pivotOffset?: unknown;
+	} | undefined;
+	if (
+		serialized === undefined
+		|| typeof serialized.unitScale !== 'number'
+		|| Number.isFinite( serialized.unitScale ) === false
+		|| isSerializedVector3Like( serialized.pivotOffset ) === false
+	) {
+		return null;
+	}
+
+	return {
+		unitScale: serialized.unitScale,
+		pivotOffset: deserializeVector3( serialized.pivotOffset )
+	};
+
+}
+
+function serializeVector3(vector: THREE.Vector3): SerializedVector3Like {
+
+	return {
+		x: vector.x,
+		y: vector.y,
+		z: vector.z
+	};
+
+}
+
+function deserializeVector3(value: SerializedVector3Like): THREE.Vector3 {
+
+	return new THREE.Vector3( value.x, value.y, value.z );
+
+}
+
+function isSerializedPlaceableTemplateReport(value: unknown): value is SerializedPlaceableTemplateReport {
+
+	if ( typeof value !== 'object' || value === null ) {
+		return false;
+	}
+
+	const candidate = value as Partial<SerializedPlaceableTemplateReport>;
+	return isSerializedVector3Like( candidate.originalSize )
+		&& typeof candidate.originalLongestEdgeMeters === 'number'
+		&& typeof candidate.appliedScaleFactor === 'number'
+		&& typeof candidate.perModelScaleFactor === 'number'
+		&& isSerializedVector3Like( candidate.finalSize )
+		&& isSerializedVector3Like( candidate.scaledSize )
+		&& typeof candidate.calibrationMode === 'string'
+		&& typeof candidate.unitScale === 'number'
+		&& isSerializedVector3Like( candidate.pivotOffset );
+
+}
+
+function isSerializedVector3Like(value: unknown): value is SerializedVector3Like {
+
+	if ( typeof value !== 'object' || value === null ) {
+		return false;
+	}
+
+	const candidate = value as Partial<SerializedVector3Like>;
+	return typeof candidate.x === 'number'
+		&& typeof candidate.y === 'number'
+		&& typeof candidate.z === 'number';
 
 }

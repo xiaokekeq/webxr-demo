@@ -7,6 +7,10 @@ import type {
 } from './manual-registration.js';
 import type { SerializedResolvedManualRegistrationState } from './manual-registration-storage.js';
 
+// This file does not solve modelLocal -> engineering ENU again.
+// It only stores and restores the localized site pose in the current AR/world
+// frame, i.e. the ENU -> AR local layer that coarse placement and manual
+// adjustment are correcting.
 export interface ResolvedManualRegistrationSitePose {
 	rootSiteEnu: THREE.Vector3;
 	rootWorldGeodetic: GeodeticCoordinate;
@@ -14,6 +18,8 @@ export interface ResolvedManualRegistrationSitePose {
 	scaleMultiplier: number;
 	updatedAt: string;
 }
+
+export type ManualArSitePose = ResolvedManualRegistrationSitePose;
 
 export function serializeResolvedManualRegistrationSitePose(
 	sitePose: ResolvedManualRegistrationSitePose
@@ -34,6 +40,8 @@ export function serializeResolvedManualRegistrationSitePose(
 
 }
 
+export const serializeManualArSitePose = serializeResolvedManualRegistrationSitePose;
+
 export function deserializeResolvedManualRegistrationSitePose(
 	state: SerializedResolvedManualRegistrationState
 ): ResolvedManualRegistrationSitePose {
@@ -51,6 +59,8 @@ export function deserializeResolvedManualRegistrationSitePose(
 	};
 
 }
+
+export const deserializeManualArSitePose = deserializeResolvedManualRegistrationSitePose;
 
 const tempWorldPosition = new THREE.Vector3();
 const tempWorldQuaternion = new THREE.Quaternion();
@@ -76,6 +86,8 @@ export function deriveManualRegistrationStateFromSitePose(options: {
 	};
 
 }
+
+export const deriveManualRegistrationStateFromArSitePose = deriveManualRegistrationStateFromSitePose;
 
 export function createResolvedManualRegistrationSitePose(options: {
 	placedModel: THREE.Group;
@@ -111,11 +123,14 @@ export function createResolvedManualRegistrationSitePose(options: {
 
 }
 
+export const createManualArSitePoseFromPlacedModel = createResolvedManualRegistrationSitePose;
+
 export function convertSiteEnuToPlacementOffset(
 	siteOffset: THREE.Vector3,
 	headingDeg: number
 ): THREE.Vector3 {
 
+	// Convert a site-space ENU delta into the current AR-local placement delta.
 	const headingRad = THREE.MathUtils.degToRad( headingDeg );
 	const sinHeading = Math.sin( headingRad );
 	const cosHeading = Math.cos( headingRad );
@@ -133,6 +148,7 @@ export function convertPlacementOffsetToSiteEnu(
 	headingDeg: number
 ): THREE.Vector3 {
 
+	// Convert the current AR-local placement delta back into site-space ENU.
 	const headingRad = THREE.MathUtils.degToRad( headingDeg );
 	const sinHeading = Math.sin( headingRad );
 	const cosHeading = Math.cos( headingRad );

@@ -69,6 +69,14 @@
       }
     }
   },
+  "markers": [
+    {
+      "id": "dike-marker-001",
+      "bindControlPointId": "CP_01",
+      "sizeMeters": 0.2,
+      "yawDeg": 0
+    }
+  ],
   "attachments": [
     {
       "assetId": "stake-marker",
@@ -86,7 +94,7 @@
         "code": "STAKE-01",
         "type": "定位桩",
         "status": "正常",
-        "remark": "用于堤防边界定位与 AR 现场核查参考。"
+        "remark": "用于堤防边界定位与AR现场核查参考。"
       }
     }
   ]

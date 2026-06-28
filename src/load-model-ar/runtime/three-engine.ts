@@ -19,8 +19,10 @@ import {
 	type DemoModelConfig
 } from '../data/demo-model-config.js';
 import {
+	createDefaultRegistrationChainDebugState,
+	createDefaultModelScaleSummaryState,
 	createDefaultMeasurementState,
-	createDefaultPrecisionRegistrationState,
+	createDefaultSavedMarkerLocalizationState,
 	createDefaultTargetGuidanceState,
 	createRegistrationStore,
 	type DepthSensingMode,
@@ -31,28 +33,42 @@ import {
 	type WorkspaceMode
 } from '../registration/registration-store.js';
 import {
-	composeModelQuaternionInAr,
 	createCoarseTargetFromEngineeringSolution,
 	type EngineeringRegistrationSolution
 } from '../registration/engineering-registration.js';
 import { createCoarseRegistrationController } from '../registration/coarse-registration.js';
+import {
+	createArFromEnuSolution,
+	createArFromEnuSolutionFromSavedMarkerResult,
+	type ArFromEnuSolution,
+	type ArLocalizationSource
+} from '../registration/ar-from-enu-solution.js';
 import { createEnuFrame, geodeticToEnu, type GeodeticCoordinate } from '../registration/geodesy.js';
+import {
+	resolveMarkerPoseInEnu,
+	type MarkerPoseInEnu
+} from '../registration/marker-localization.js';
 import {
 	createManualRegistrationController,
 	type ManualAdjustmentPreset
 } from '../registration/manual-registration.js';
 import {
-	createResolvedManualRegistrationSitePose,
-	deriveManualRegistrationStateFromSitePose,
-	deserializeResolvedManualRegistrationSitePose,
-	serializeResolvedManualRegistrationSitePose,
-	type ResolvedManualRegistrationSitePose
+	createManualArSitePoseFromPlacedModel,
+	deriveManualRegistrationStateFromArSitePose,
+	deserializeManualArSitePose,
+	serializeManualArSitePose,
+	type ManualArSitePose
 } from '../registration/manual-registration-site-pose.js';
 import {
 	clearManualRegistrationState,
 	loadResolvedManualRegistrationState,
 	saveResolvedManualRegistrationState
 } from '../registration/manual-registration-storage.js';
+import {
+	clearLastStableMarkerLocalizationResult,
+	loadLastStableMarkerLocalizationResult,
+	type SavedMarkerLocalizationResult
+} from '../registration/marker-localization-storage.js';
 import { createDisplayModeController, preserveRootTransform } from './display-mode.js';
 import { createLayerVisibilityController } from './layer-visibility.js';
 import {
@@ -64,7 +80,6 @@ import { createXRSessionRuntime } from './xr.js';
 import { getDepthSensingModeLabel } from '../shared/depth-sensing-modes.js';
 import { getDisplayModeLabel } from '../shared/display-modes.js';
 import { formatGeodetic } from '../shared/formatters.js';
-import { clearPrecisionRegistrationResult } from '../registration/precision-registration-storage.js';
 
 const MAX_VISIBLE_AUTO_PLACEMENT_DISTANCE_METERS = 8;
 const MAX_RELIABLE_GPS_ACCURACY_METERS = 15;
@@ -77,6 +92,12 @@ const DESKTOP_PREVIEW_DIRECTION = new THREE.Vector3( 0.85, 0.48, 1 );
 const PROJECT_NAME = '堤防现场辅助核查';
 const TIMELINE_STAGES = [ '施工前', '基础开挖', '堤身填筑', '护坡施工', '完工核查' ] as const;
 const STATIC_LAYER_NAMES = [ '三维模型', '堤身结构', '防渗层', '排水设施', '控制点', '辅助标注' ] as const;
+const tempDerivedArPosition = new THREE.Vector3();
+const tempDerivedArOrientation = new THREE.Quaternion();
+const tempDerivedArScale = new THREE.Vector3();
+const tempInverseModelToSiteRotation = new THREE.Quaternion();
+const tempSiteTranslationInAr = new THREE.Vector3();
+const tempNorthVectorInAr = new THREE.Vector3();
 
 export interface ThreeEngineHosts extends SceneHostRuntimeHosts {}
 
@@ -126,31 +147,15 @@ function createInitialState(): RegistrationStoreState {
 			enuText: '-',
 			rmsText: '-'
 		},
+		modelScaleSummary: createDefaultModelScaleSummaryState(),
+		registrationChainDebug: createDefaultRegistrationChainDebugState(),
+		savedMarkerLocalization: createDefaultSavedMarkerLocalizationState(),
 		placementSummary: {
 			positionText: '-',
 			quaternionText: '-',
 			scaleText: '-'
 		},
 		targetGuidance: createDefaultTargetGuidanceState(),
-		precisionRegistration: {
-			availableSourcePoints: [],
-			selectedSourcePoint: '',
-			stagedSourcePoint: '未选择',
-			stagedTargetPoint: '未确认',
-			targetQualityText: '尚未采样',
-			lastCapturedSourcePoint: '暂无',
-			lastCapturedTargetPoint: '暂无',
-			lastCapturedQualityText: '暂无',
-			pairSummaries: [],
-			pairResidualSummaries: [],
-			rmsText: '--',
-			workflowStatusText: '完成粗配准后可继续采集控制点。',
-			feedbackText: '',
-			feedbackTone: 'neutral',
-			feedbackUpdatedAt: '',
-			isSourceLocked: false,
-			hasConfirmedTarget: false
-		},
 		measurement: createDefaultMeasurementState(),
 		registrationStatusDetail: '状态：等待识别平面',
 		runtimeStatus: '正在准备 AR 工作区。',
@@ -215,7 +220,12 @@ export class ThreeEngine {
 	private modelTemplate: THREE.Group | null = null;
 	private demoModelConfig: DemoModelConfig | null = null;
 	private registrationSolution: EngineeringRegistrationSolution | null = null;
-	private activeManualRegistrationSitePose: ResolvedManualRegistrationSitePose | null = null;
+	private resolvedMarkerPosesInEnu: MarkerPoseInEnu[] = [];
+	private activeManualArSitePose: ManualArSitePose | null = null;
+	private activeMarkerArFromEnuSolution: ArFromEnuSolution | null = null;
+	private activeMarkerLocalizationResult: SavedMarkerLocalizationResult | null = null;
+	private markerCorrectionFallbackArFromEnuSolution: ArFromEnuSolution | null = null;
+	private hasRestoredManualArSitePose = false;
 	private currentModelDebugTargetGeodetic: GeodeticCoordinate | null = null;
 	private lastSyncedDisplayMode: DisplayMode | null = null;
 	private lastSyncedDisplayModeRoot: THREE.Group | null = null;
@@ -361,7 +371,10 @@ export class ThreeEngine {
 				this.modelTemplate = null;
 				this.demoModelConfig = null;
 				this.registrationSolution = null;
-				this.activeManualRegistrationSitePose = null;
+				this.resolvedMarkerPosesInEnu = [];
+				this.activeManualArSitePose = null;
+				this.resetMarkerLocalizationCorrection();
+				this.hasRestoredManualArSitePose = false;
 				this.currentModelDebugTargetGeodetic = null;
 				this.pipesByName = new Map<string, PipeRecord>();
 				this.layerVisibility.reset();
@@ -370,15 +383,20 @@ export class ThreeEngine {
 					modelLayers: []
 				} );
 				this.updateCoarseLocationDebugText();
+				this.refreshSavedMarkerLocalizationResult( { silentStatus: true } );
+				this.syncRegistrationChainDebug();
 			},
 			onRuntimeBundleLoaded: ( bundle ) => {
 				this.pipesByName = bundle.pipesByName;
 				this.demoModelConfig = bundle.demoModelConfig;
 				this.modelTemplate = bundle.modelTemplate;
 				this.registrationSolution = bundle.registrationSolution;
+				this.resolvedMarkerPosesInEnu = this.resolveConfiguredMarkerPoses( bundle.demoModelConfig );
 				this.currentModelDebugTargetGeodetic = getFirstGeodeticPointFromDemoModelConfig( bundle.demoModelConfig );
 				this.rebuildModelLayers();
 				this.updateCoarseLocationDebugText();
+				this.refreshSavedMarkerLocalizationResult( { silentStatus: true } );
+				this.syncRegistrationChainDebug();
 			},
 			onAfterModelLoaded: () => {
 				this.ensureDesktopPreviewPlacement();
@@ -396,11 +414,18 @@ export class ThreeEngine {
 						target: createCoarseTargetFromEngineeringSolution( solution )
 				} );
 				this.updateCoarseLocationDebugText();
+				this.syncRegistrationChainDebug();
 			},
 			onLoadManualRegistration: ( modelId ) => {
 				this.loadManualRegistration( modelId );
 			},
-			canRequestAutoPlacement: () => this.sceneBundle.renderer.xr.isPresenting && this.coarseRegistration.canEstimate(),
+			canRequestAutoPlacement: () => (
+				this.sceneBundle.renderer.xr.isPresenting
+				&& (
+					this.activeMarkerArFromEnuSolution !== null
+					|| this.coarseRegistration.canEstimate()
+				)
+			),
 			requestAutoPlacement: () => {
 				this.requestAutoPlacement();
 			}
@@ -517,6 +542,7 @@ export class ThreeEngine {
 
 			await this.modelSession.initializeCatalog();
 			this.syncSceneHost();
+			this.refreshSavedMarkerLocalizationResult( { silentStatus: true } );
 
 			void this.coarseRegistration.prime()
 				.then( () => {
@@ -730,7 +756,7 @@ export class ThreeEngine {
 		}
 
 		this.refreshActiveManualRegistrationSitePose();
-		const sitePose = this.activeManualRegistrationSitePose;
+		const sitePose = this.activeManualArSitePose;
 		if ( sitePose === null ) {
 			this.setStatus( '当前放置结果缺少现场坐标上下文，暂时无法保存。' );
 			return;
@@ -738,7 +764,7 @@ export class ThreeEngine {
 
 		const saved = saveResolvedManualRegistrationState(
 			this.demoModelConfig.modelId,
-			serializeResolvedManualRegistrationSitePose( sitePose )
+			serializeManualArSitePose( sitePose )
 		);
 		if ( saved === false ) {
 			this.setStatus( '手动配准保存失败，请稍后重试。' );
@@ -746,6 +772,7 @@ export class ThreeEngine {
 		}
 
 		this.setStatus( '手动配准已保存。' );
+		this.syncRegistrationChainDebug();
 
 	}
 
@@ -760,7 +787,8 @@ export class ThreeEngine {
 			clearManualRegistrationState( this.demoModelConfig.modelId );
 		}
 
-		this.activeManualRegistrationSitePose = null;
+		this.activeManualArSitePose = null;
+		this.hasRestoredManualArSitePose = false;
 		this.manualRegistration.reset();
 		this.reapplyManualPlacement();
 		this.setStatus( '手动微调已重置。' );
@@ -775,15 +803,143 @@ export class ThreeEngine {
 		}
 
 		clearManualRegistrationState( this.demoModelConfig.modelId );
-		clearPrecisionRegistrationResult( this.demoModelConfig.modelId );
-		this.store.patch( {
-			precisionRegistration: createDefaultPrecisionRegistrationState()
-		} );
-		this.activeManualRegistrationSitePose = null;
+		this.activeManualArSitePose = null;
+		this.hasRestoredManualArSitePose = false;
 		this.manualRegistration.reset();
 		this.reapplyManualPlacement();
 		this.setStatus( '已清除保存的配准结果。' );
 		return true;
+
+	}
+
+	refreshSavedMarkerLocalization(): void {
+
+		this.refreshSavedMarkerLocalizationResult();
+
+	}
+
+	applySavedMarkerLocalizationCorrection(): boolean {
+
+		const savedResult = loadLastStableMarkerLocalizationResult();
+		if ( savedResult === null ) {
+			this.setStatus( '未找到可用的稳定 Marker 结果。' );
+			return false;
+		}
+
+		return this.applyMarkerLocalizationCorrection( savedResult );
+
+	}
+
+	applyMarkerLocalizationCorrection(savedResult: SavedMarkerLocalizationResult): boolean {
+
+		if ( this.sceneBundle.renderer.xr.isPresenting === false ) {
+			this.setStatus( '请先进入当前 AR 会话，再应用 Marker 校正。' );
+			return false;
+		}
+
+		if ( this.registrationSolution === null || this.modelTemplate === null ) {
+			this.setStatus( '模型工程配准尚未准备完成，暂时无法应用 Marker 校正。' );
+			return false;
+		}
+
+		const fallbackSolution = this.activeMarkerArFromEnuSolution === null
+			? this.getCurrentNonMarkerArFromEnuSolution()
+			: this.markerCorrectionFallbackArFromEnuSolution;
+		const markerSolution = createArFromEnuSolutionFromSavedMarkerResult( savedResult );
+
+		this.markerCorrectionFallbackArFromEnuSolution = fallbackSolution === null
+			? null
+			: cloneArFromEnuSolution( fallbackSolution );
+		this.activeMarkerArFromEnuSolution = cloneArFromEnuSolution( markerSolution );
+		this.activeMarkerLocalizationResult = cloneSavedMarkerLocalizationResult( savedResult );
+
+		const appliedToPlacedModel = this.placementSession.applyArLocalizationSolution( {
+			modelTemplate: this.modelTemplate,
+			registrationSolution: this.registrationSolution,
+			arFromEnuSolution: markerSolution,
+			manualApplyToPlacement: this.manualRegistration.applyToPlacement,
+			manualPositionTarget: this.manualPosition,
+			manualOrientationTarget: this.manualOrientation
+		} );
+
+		if ( appliedToPlacedModel ) {
+			this.applyModelLayerVisibility();
+			this.arSessionStateRuntime.markPlacementCommitted( true );
+		}
+
+		this.syncRegistrationChainDebug();
+		console.info( '[MarkerCorrectionApplied]', {
+			markerId: savedResult.markerId,
+			markerConfigId: savedResult.markerConfigId ?? null,
+			timestamp: savedResult.timestamp,
+			ageSeconds: Math.max( 0, ( Date.now() - savedResult.timestamp ) / 1000 ),
+			rmsErrorMeters: savedResult.rmsErrorMeters ?? null,
+			headingDeg: markerSolution.headingDeg,
+			siteOriginArPosition: vector3ToObject( markerSolution.siteOriginArPosition ),
+			matrix: markerSolution.matrix.toArray(),
+			appliedToPlacedModel
+		} );
+		this.logRegistrationFinal();
+		this.setStatus(
+			appliedToPlacedModel
+				? 'Marker 校正已应用到当前 AR 放置。'
+				: 'Marker 校正已保存，将在本次 AR 会话下一次放置时生效。'
+		);
+		this.emit();
+		return true;
+
+	}
+
+	clearMarkerLocalizationCorrection(): void {
+
+		if ( this.activeMarkerArFromEnuSolution === null ) {
+			this.setStatus( '当前没有已应用的 Marker 校正。' );
+			return;
+		}
+
+		const previousMarkerId = this.activeMarkerLocalizationResult?.markerId ?? null;
+		const fallbackSolution = this.getMarkerCorrectionFallbackSolution();
+		const fallbackSource = fallbackSolution?.source ?? 'gps-imu';
+
+		this.activeMarkerArFromEnuSolution = null;
+		this.activeMarkerLocalizationResult = null;
+		this.markerCorrectionFallbackArFromEnuSolution = null;
+
+		if ( fallbackSolution !== null ) {
+			const appliedToPlacedModel = this.placementSession.applyArLocalizationSolution( {
+				modelTemplate: this.modelTemplate,
+				registrationSolution: this.registrationSolution,
+				arFromEnuSolution: fallbackSolution,
+				manualApplyToPlacement: this.manualRegistration.applyToPlacement,
+				manualPositionTarget: this.manualPosition,
+				manualOrientationTarget: this.manualOrientation
+			} );
+			if ( appliedToPlacedModel ) {
+				this.applyModelLayerVisibility();
+				this.arSessionStateRuntime.markPlacementCommitted( true );
+			}
+		}
+
+		this.syncRegistrationChainDebug();
+		console.info( '[MarkerCorrectionCleared]', {
+			previousMarkerId,
+			fallbackSource
+		} );
+		this.logRegistrationFinal();
+		this.setStatus( `Marker 校正已清除，当前回退到 ${fallbackSource}。` );
+		this.emit();
+
+	}
+
+	clearSavedMarkerLocalization(): void {
+
+		const cleared = clearLastStableMarkerLocalizationResult();
+		this.refreshSavedMarkerLocalizationResult( { silentStatus: true } );
+		this.setStatus(
+			cleared
+				? 'Saved marker localization result cleared.'
+				: 'No saved marker localization result was available to clear.'
+		);
 
 	}
 
@@ -942,7 +1098,10 @@ export class ThreeEngine {
 			return;
 		}
 
-		if ( this.coarseRegistration.canEstimate() === false ) {
+		if (
+			this.activeMarkerArFromEnuSolution === null
+			&& this.coarseRegistration.canEstimate() === false
+		) {
 			try {
 				this.setStatus( '正在准备粗配准数据。' );
 				await this.warmupCoarseRegistration();
@@ -1063,30 +1222,34 @@ export class ThreeEngine {
 
 		const savedState = loadResolvedManualRegistrationState( modelId );
 		if ( savedState !== null ) {
-			const resolvedSitePose = deserializeResolvedManualRegistrationSitePose( savedState );
-			this.activeManualRegistrationSitePose = cloneResolvedManualRegistrationSitePose( resolvedSitePose );
+			const resolvedSitePose = deserializeManualArSitePose( savedState );
+			this.activeManualArSitePose = cloneManualArSitePose( resolvedSitePose );
+			this.hasRestoredManualArSitePose = true;
 			this.syncManualRegistrationForHeading( 0 );
+			this.syncRegistrationChainDebug();
 			return;
 		}
 
-		this.activeManualRegistrationSitePose = null;
+		this.activeManualArSitePose = null;
+		this.hasRestoredManualArSitePose = false;
 		this.manualRegistration.setState( {
 			offset: new THREE.Vector3(),
 			yawDeg: 0,
 			scaleMultiplier: 1
 		}, { silent: true } );
+		this.syncRegistrationChainDebug();
 
 	}
 
 	private syncManualRegistrationForHeading(headingDeg: number): void {
 
-		if ( this.registrationSolution === null || this.activeManualRegistrationSitePose === null ) {
+		if ( this.registrationSolution === null || this.activeManualArSitePose === null ) {
 			return;
 		}
 
 		this.manualRegistration.setState(
-			deriveManualRegistrationStateFromSitePose( {
-				sitePose: this.activeManualRegistrationSitePose,
+			deriveManualRegistrationStateFromArSitePose( {
+				sitePose: this.activeManualArSitePose,
 				registrationSolution: this.registrationSolution,
 				placementHeadingDeg: headingDeg
 			} ),
@@ -1107,16 +1270,18 @@ export class ThreeEngine {
 			return;
 		}
 
-		const sitePose = createResolvedManualRegistrationSitePose( {
+		const sitePose = createManualArSitePoseFromPlacedModel( {
 			placedModel,
 			placementBase,
 			registrationSolution: this.registrationSolution
 		} );
 		if ( sitePose === null ) {
+			this.syncRegistrationChainDebug();
 			return;
 		}
 
-		this.activeManualRegistrationSitePose = cloneResolvedManualRegistrationSitePose( sitePose );
+		this.activeManualArSitePose = cloneManualArSitePose( sitePose );
+		this.syncRegistrationChainDebug();
 
 	}
 
@@ -1132,6 +1297,210 @@ export class ThreeEngine {
 
 		this.currentStatus = message;
 		this.store.patch( { runtimeStatus: message } );
+
+	}
+
+	private syncRegistrationChainDebug(): void {
+
+		const arFromEnuSolution = this.getActiveArFromEnuSolution();
+		this.store.patch( {
+			registrationChainDebug: {
+				engineeringControlRegistration: {
+					available: this.registrationSolution !== null,
+					controlPointCount: this.registrationSolution?.controlPoints.length ?? 0,
+					rmsText: this.registrationSolution === null
+						? '-'
+						: `${this.registrationSolution.modelToSite.rmsErrorMeters.toFixed( 3 )}m`,
+					usesUnitScaleAndPivotOffset: this.registrationSolution !== null
+				},
+				arSessionLocalization: {
+					available: arFromEnuSolution !== null,
+					source: arFromEnuSolution?.source ?? 'unknown',
+					siteOriginArPositionText: arFromEnuSolution === null
+						? '-'
+						: formatVector3Text( arFromEnuSolution.siteOriginArPosition ),
+					headingDegText: arFromEnuSolution === null
+						? '-'
+						: `${arFromEnuSolution.headingDeg.toFixed( 3 )}deg`
+				},
+				manualArSitePose: {
+					exists: this.activeManualArSitePose !== null,
+					rootSiteEnuText: this.activeManualArSitePose === null
+						? '-'
+						: formatVector3Text( this.activeManualArSitePose.rootSiteEnu ),
+					restored: this.hasRestoredManualArSitePose
+				},
+				heightPolicy: {
+					hitTestGroundYEnabled: true,
+					enuGpsVerticalOffsetEnabled: false
+				},
+				markerEngineering: {
+					markerCount: this.demoModelConfig?.markers.length ?? 0,
+					markers: ( this.demoModelConfig?.markers ?? [] ).map( ( marker ) => ( {
+						markerId: marker.id,
+						bindControlPointId: marker.bindControlPointId ?? '-',
+						sizeMetersText: `${marker.sizeMeters.toFixed( 3 )}m`,
+						resolved: this.resolvedMarkerPosesInEnu.some(
+							( pose ) => pose.markerId === marker.id
+						)
+					} ) )
+				}
+			}
+		} );
+
+	}
+
+	private refreshSavedMarkerLocalizationResult(options?: {
+		silentStatus?: boolean;
+	}): void {
+
+		const saved = loadLastStableMarkerLocalizationResult();
+		if ( saved === null ) {
+			this.store.patch( {
+				savedMarkerLocalization: createDefaultSavedMarkerLocalizationState()
+			} );
+			if ( options?.silentStatus !== true ) {
+				this.setStatus( 'No saved marker localization result found.' );
+			}
+			return;
+		}
+
+		const stability = (
+			typeof saved.stabilityReport === 'object'
+			&& saved.stabilityReport !== null
+			&& 'stable' in saved.stabilityReport
+			&& typeof ( saved.stabilityReport as { stable?: unknown } ).stable === 'boolean'
+		)
+			? ( saved.stabilityReport as { stable: boolean } ).stable
+			: undefined;
+
+		this.store.patch( {
+			savedMarkerLocalization: {
+				available: true,
+				markerId: saved.markerId,
+				markerConfigId: saved.markerConfigId,
+				timestamp: saved.timestamp,
+				ageSeconds: Math.max( 0, Math.round( ( Date.now() - saved.timestamp ) / 1000 ) ),
+				rmsErrorMeters: saved.rmsErrorMeters,
+				sampleCount: saved.sampleCount,
+				headingDeg: saved.headingDeg,
+				siteOriginArPosition: saved.siteOriginArPosition,
+				stable: stability
+			}
+		} );
+
+		if ( options?.silentStatus !== true ) {
+			this.setStatus( 'Saved marker localization result refreshed.' );
+		}
+
+	}
+
+	private getCoarseArFromEnuSolution(): ArFromEnuSolution | null {
+
+		return this.coarseRegistration.getLastArFromEnuSolution?.() ?? null;
+
+	}
+
+	private getActiveArFromEnuSolution(): ArFromEnuSolution | null {
+
+		if ( this.activeMarkerArFromEnuSolution !== null ) {
+			return cloneArFromEnuSolution( this.activeMarkerArFromEnuSolution );
+		}
+
+		const placedModelSolution = this.deriveCurrentPlacedModelArFromEnuSolution();
+		if ( placedModelSolution !== null ) {
+			return placedModelSolution;
+		}
+
+		const coarseSolution = this.getCoarseArFromEnuSolution();
+		return coarseSolution === null ? null : cloneArFromEnuSolution( coarseSolution );
+
+	}
+
+	private getCurrentNonMarkerArFromEnuSolution(): ArFromEnuSolution | null {
+
+		const placedModelSolution = this.deriveCurrentPlacedModelArFromEnuSolution();
+		if ( placedModelSolution !== null ) {
+			return placedModelSolution;
+		}
+
+		const coarseSolution = this.getCoarseArFromEnuSolution();
+		return coarseSolution === null ? null : cloneArFromEnuSolution( coarseSolution );
+
+	}
+
+	private getMarkerCorrectionFallbackSolution(): ArFromEnuSolution | null {
+
+		if ( this.markerCorrectionFallbackArFromEnuSolution !== null ) {
+			return cloneArFromEnuSolution( this.markerCorrectionFallbackArFromEnuSolution );
+		}
+
+		const coarseSolution = this.getCoarseArFromEnuSolution();
+		return coarseSolution === null ? null : cloneArFromEnuSolution( coarseSolution );
+
+	}
+
+	private deriveCurrentPlacedModelArFromEnuSolution(): ArFromEnuSolution | null {
+
+		const placedModel = this.placementSession.getArPlacedModel();
+		const placementBase = this.placementSession.getPlacementBase();
+		if (
+			this.sceneBundle.renderer.xr.isPresenting === false
+			|| placedModel === null
+			|| placementBase?.siteContext === undefined
+			|| this.registrationSolution === null
+		) {
+			return null;
+		}
+
+		placedModel.updateMatrixWorld( true );
+		placedModel.getWorldPosition( tempDerivedArPosition );
+		placedModel.getWorldQuaternion( tempDerivedArOrientation );
+		placedModel.getWorldScale( tempDerivedArScale );
+
+		tempDerivedArOrientation.multiply(
+			tempInverseModelToSiteRotation.copy( this.registrationSolution.modelToSite.rotation ).invert()
+		);
+
+		const siteOriginArPosition = tempDerivedArPosition.clone().sub(
+			tempSiteTranslationInAr
+				.copy( this.registrationSolution.modelToSite.translation )
+				.applyQuaternion( tempDerivedArOrientation )
+		);
+		const hasManualSitePose = this.manualRegistration.hasAdjustments() || this.activeManualArSitePose !== null;
+		const fallbackSource = placementBase.siteContext.source
+			?? this.getCoarseArFromEnuSolution()?.source
+			?? 'gps-imu';
+
+		return createArFromEnuSolution( {
+			position: siteOriginArPosition,
+			orientation: tempDerivedArOrientation.clone(),
+			headingDeg: extractHeadingDegFromEnuOrientation( tempDerivedArOrientation ),
+			source: hasManualSitePose ? 'manual-site-pose' : fallbackSource,
+			accuracyMeters: placementBase.siteContext.accuracyMeters,
+			timestamp: placementBase.siteContext.timestamp ?? Date.now()
+		} );
+
+	}
+
+	private resetMarkerLocalizationCorrection(): void {
+
+		this.activeMarkerArFromEnuSolution = null;
+		this.activeMarkerLocalizationResult = null;
+		this.markerCorrectionFallbackArFromEnuSolution = null;
+
+	}
+
+	private logRegistrationFinal(): void {
+
+		const arFromEnuSolution = this.getActiveArFromEnuSolution();
+		const placedModel = this.placementSession.getArPlacedModel();
+		placedModel?.updateMatrixWorld( true );
+		console.info( '[RegistrationFinal]', {
+			currentArLocalizationSource: this.store.getState().registrationChainDebug.arSessionLocalization.source,
+			arFromEnuSource: arFromEnuSolution?.source ?? 'unknown',
+			modelRootMatrix: placedModel === null ? null : placedModel.matrixWorld.toArray()
+		} );
 
 	}
 
@@ -1166,6 +1535,22 @@ export class ThreeEngine {
 
 		this.store.patch( {
 			coarseLocationDebugText: `${currentText} / ${targetText} / ${accuracyText} / ${distanceText}`
+		} );
+
+	}
+
+	private resolveConfiguredMarkerPoses(config: DemoModelConfig): MarkerPoseInEnu[] {
+
+		return config.markers.flatMap( ( marker ) => {
+			try {
+				return [ resolveMarkerPoseInEnu( config, marker.id ) ];
+			} catch ( error ) {
+				console.warn(
+					`Failed to resolve marker engineering pose for ${marker.id}:`,
+					error
+				);
+				return [];
+			}
 		} );
 
 	}
@@ -1223,6 +1608,7 @@ export class ThreeEngine {
 			xrHitTest: this.xrRuntime.getHitTestController(),
 			modelTemplate: this.modelTemplate,
 			registrationSolution: this.registrationSolution,
+			arFromEnuSolutionOverride: this.activeMarkerArFromEnuSolution,
 			coarseRegistration: this.coarseRegistration,
 			manualApplyToPlacement: this.manualRegistration.applyToPlacement,
 			manualPositionTarget: this.manualPosition,
@@ -1235,6 +1621,7 @@ export class ThreeEngine {
 		} );
 		this.refreshActiveManualRegistrationSitePose();
 		this.applyModelLayerVisibility();
+		this.syncRegistrationChainDebug();
 
 		const placedModel = this.placementSession.getPlacedModel();
 		if ( hadPlacedModel === false && placedModel !== null ) {
@@ -1267,12 +1654,14 @@ export class ThreeEngine {
 
 	private handleXRSessionStart(): void {
 
+		this.resetMarkerLocalizationCorrection();
 		this.measurementController.reset();
 		this.arSessionStateRuntime.handleSessionStart();
 		this.pointerSelection.suppressSelectionFor( 1200 );
 		this.placementSession.resetPlacement();
 		this.refreshActiveManualRegistrationSitePose();
 		this.syncArSessionPhase();
+		this.syncRegistrationChainDebug();
 		this.syncSceneHost();
 		void this.warmupCoarseRegistration().catch( ( error ) => {
 			console.error( 'Coarse registration warmup after session start failed:', error );
@@ -1285,11 +1674,13 @@ export class ThreeEngine {
 
 	private handleXRSessionEnd(): void {
 
+		this.resetMarkerLocalizationCorrection();
 		this.measurementController.reset();
 		this.arSessionStateRuntime.handleSessionEnd();
 		this.placementSession.resetPlacement();
 		this.syncManualRegistrationForHeading( 0 );
 		this.ensureDesktopPreviewPlacement();
+		this.syncRegistrationChainDebug();
 		this.syncSceneHost();
 		this.placementSession.fitDesktopPreviewToCamera();
 		this.emit();
@@ -1547,9 +1938,9 @@ export class ThreeEngine {
 
 }
 
-function cloneResolvedManualRegistrationSitePose(
-	sitePose: ResolvedManualRegistrationSitePose
-): ResolvedManualRegistrationSitePose {
+function cloneManualArSitePose(
+	sitePose: ManualArSitePose
+): ManualArSitePose {
 
 	return {
 		rootSiteEnu: sitePose.rootSiteEnu.clone(),
@@ -1558,6 +1949,68 @@ function cloneResolvedManualRegistrationSitePose(
 		scaleMultiplier: sitePose.scaleMultiplier,
 		updatedAt: sitePose.updatedAt
 	};
+
+}
+
+function formatVector3Text(vector: THREE.Vector3): string {
+
+	return `${vector.x.toFixed( 3 )}, ${vector.y.toFixed( 3 )}, ${vector.z.toFixed( 3 )}`;
+
+}
+
+function cloneArFromEnuSolution(solution: ArFromEnuSolution): ArFromEnuSolution {
+
+	return {
+		matrix: solution.matrix.clone(),
+		siteOriginArPosition: solution.siteOriginArPosition.clone(),
+		orientation: solution.orientation.clone(),
+		headingDeg: solution.headingDeg,
+		source: solution.source,
+		accuracyMeters: solution.accuracyMeters,
+		yawAccuracyDegrees: solution.yawAccuracyDegrees,
+		timestamp: solution.timestamp
+	};
+
+}
+
+function cloneSavedMarkerLocalizationResult(
+	savedResult: SavedMarkerLocalizationResult
+): SavedMarkerLocalizationResult {
+
+	return {
+		...savedResult,
+		matrix: savedResult.matrix instanceof THREE.Matrix4
+			? savedResult.matrix.clone()
+			: [ ...savedResult.matrix ],
+		siteOriginArPosition: savedResult.siteOriginArPosition === undefined
+			? undefined
+			: { ...savedResult.siteOriginArPosition }
+	};
+
+}
+
+function vector3ToObject(vector: THREE.Vector3): { x: number; y: number; z: number } {
+
+	return {
+		x: vector.x,
+		y: vector.y,
+		z: vector.z
+	};
+
+}
+
+function extractHeadingDegFromEnuOrientation(orientation: THREE.Quaternion): number {
+
+	tempNorthVectorInAr.set( 0, 1, 0 ).applyQuaternion( orientation );
+	return normalizeDegrees(
+		THREE.MathUtils.radToDeg( Math.atan2( - tempNorthVectorInAr.x, - tempNorthVectorInAr.z ) )
+	);
+
+}
+
+function normalizeDegrees(value: number): number {
+
+	return ( ( value % 360 ) + 360 ) % 360;
 
 }
 

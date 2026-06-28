@@ -1,13 +1,14 @@
 ﻿import * as THREE from 'three';
 import type { ARSceneBundle, CoarsePlacementEstimate, XRHitTestController } from '../../../shared/types.js';
 import { clearPlacedModel } from '../../model.js';
+import type { ArFromEnuSolution } from '../../../registration/ar-from-enu-solution.js';
 import type { EngineeringRegistrationSolution } from '../../../registration/engineering-registration.js';
 import type { ManualPlacementBase } from '../../../registration/manual-registration.js';
-import type { PrecisionRegistrationResult } from '../../../registration/precision-registration-storage.js';
 import { createDefaultTargetGuidanceState } from '../../../registration/registration-store.js';
 import { createPlacementSummaryState } from '../runtime/view-state.js';
 import {
 	createAutoPlacementBase,
+	createPlacementBaseFromArLocalizationSolution,
 	createDesktopPreviewBase,
 	placeAdjustedModel
 } from './runtime.js';
@@ -51,6 +52,7 @@ export interface PlacementSession {
 		xrHitTest: XRHitTestController;
 		modelTemplate: THREE.Group | null;
 		registrationSolution: EngineeringRegistrationSolution | null;
+		arFromEnuSolutionOverride?: ArFromEnuSolution | null;
 		coarseRegistration: {
 			canEstimate(): boolean;
 			estimatePlacement(cameraWorldPosition: THREE.Vector3, groundY: number): CoarsePlacementEstimate | null;
@@ -67,7 +69,18 @@ export interface PlacementSession {
 		cameraWorldPosition: THREE.Vector3;
 		onPlacementBaseResolved?(base: ManualPlacementBase): void;
 	}): void;
-	applyPrecisionRegistrationResult(result: PrecisionRegistrationResult): void;
+	applyArLocalizationSolution(args: {
+		modelTemplate: THREE.Group | null;
+		registrationSolution: EngineeringRegistrationSolution | null;
+		arFromEnuSolution: ArFromEnuSolution;
+		manualApplyToPlacement(
+			base: ManualPlacementBase,
+			targetPosition: THREE.Vector3,
+			targetOrientation: THREE.Quaternion
+		): { position: THREE.Vector3; orientation: THREE.Quaternion; scale: number };
+		manualPositionTarget: THREE.Vector3;
+		manualOrientationTarget: THREE.Quaternion;
+	}): boolean;
 	reapplyManualRegistration(args: {
 		modelTemplate: THREE.Group | null;
 		manualApplyToPlacement(
@@ -203,6 +216,7 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 				xrHitTest,
 				modelTemplate,
 				registrationSolution,
+				arFromEnuSolutionOverride,
 				coarseRegistration,
 				manualApplyToPlacement,
 				manualPositionTarget,
@@ -216,7 +230,6 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 				coarsePlacementPending === false
 				|| modelTemplate === null
 				|| registrationSolution === null
-				|| coarseRegistration.canEstimate() === false
 				|| xrHitTest.hasGroundHit() === false
 			) {
 				return;
@@ -228,36 +241,85 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 				return;
 			}
 
-			sceneBundle.camera.getWorldPosition( cameraWorldPosition );
-			const estimate = coarseRegistration.estimatePlacement( cameraWorldPosition, groundPosition.y );
-			if ( estimate === null ) {
-				updateRegistrationStatusDetail( '状态：等待粗配准数据' );
-				setStatus( coarseRegistration.getMissingRequirementMessage() );
-				return;
+			let estimate: CoarsePlacementEstimate | null = null;
+			let usedMarkerOverride = false;
+
+			if ( arFromEnuSolutionOverride !== null && arFromEnuSolutionOverride !== undefined ) {
+				arPlacementBase = createPlacementBaseFromArLocalizationSolution( {
+					arFromEnuSolution: arFromEnuSolutionOverride,
+					modelTemplate,
+					registrationSolution,
+					modelOrientationTarget
+				} );
+				usedMarkerOverride = true;
+			} else {
+				if ( coarseRegistration.canEstimate() === false ) {
+					return;
+				}
+
+				sceneBundle.camera.getWorldPosition( cameraWorldPosition );
+				estimate = coarseRegistration.estimatePlacement( cameraWorldPosition, groundPosition.y );
+				if ( estimate === null ) {
+					updateRegistrationStatusDetail( '状态：等待粗配准数据' );
+					setStatus( coarseRegistration.getMissingRequirementMessage() );
+					return;
+				}
+
+				const shouldUsePreviewPlacementFallback = (
+					estimate.distanceMeters > maxVisibleAutoPlacementDistanceMeters
+					|| (
+						estimate.accuracyMeters !== null
+						&& estimate.accuracyMeters > maxReliableGpsAccuracyMeters
+					)
+				);
+				const previewPlacementRequested = store.getState().autoPreviewPlacementEnabled;
+				const usePreviewPlacement = previewPlacementRequested;
+
+				arPlacementBase = createAutoPlacementBase( {
+					camera: sceneBundle.camera,
+					cameraWorldPosition,
+					groundY: groundPosition.y,
+					groundPosition,
+					estimate,
+					modelTemplate,
+					registrationSolution,
+					modelOrientationTarget,
+					previewDistanceMeters: previewPlacementDistanceMeters,
+					usePreviewPlacement
+				} );
+
+				if ( usePreviewPlacement ) {
+					coarsePlacementPending = false;
+					onPlacementBaseResolved?.( arPlacementBase );
+					const adjustedPlacement = manualApplyToPlacement(
+						arPlacementBase,
+						manualPositionTarget,
+						manualOrientationTarget
+					);
+
+					arPlacedModel = placeAdjustedModel( {
+						modelTemplate,
+						placedModel: arPlacedModel,
+						modelAnchor: sceneBundle.arModelAnchor,
+						adjustedPlacement
+					} );
+					updateRegistrationStatusDetail( '状态：模型已放置' );
+					updatePlacementSummary();
+
+					const accuracyText = estimate.accuracyMeters === null
+						? 'GPS 精度未知'
+						: `GPS 精度约 ${Math.round( estimate.accuracyMeters )}m`;
+					const groundLockText = `groundY ${estimate.groundY.toFixed( 3 )}m / ENU 垂向偏移${estimate.enuVerticalOffsetApplied ? '已启用' : '已禁用'}`;
+					setStatus(
+						shouldUsePreviewPlacementFallback
+							? `目标距离约 ${Math.round( estimate.distanceMeters )}m，${accuracyText}，${groundLockText}。已切换到近距离预览放置。`
+							: `已按近距离预览放置模型，${accuracyText}，${groundLockText}。`
+					);
+					return;
+				}
+
 			}
 
-			const shouldUsePreviewPlacementFallback = (
-				estimate.distanceMeters > maxVisibleAutoPlacementDistanceMeters
-				|| (
-					estimate.accuracyMeters !== null
-					&& estimate.accuracyMeters > maxReliableGpsAccuracyMeters
-				)
-			);
-			const previewPlacementRequested = store.getState().autoPreviewPlacementEnabled;
-			const usePreviewPlacement = previewPlacementRequested;
-
-			arPlacementBase = createAutoPlacementBase( {
-				camera: sceneBundle.camera,
-				cameraWorldPosition,
-				groundY: groundPosition.y,
-				groundPosition,
-				estimate,
-				modelTemplate,
-				registrationSolution,
-				modelOrientationTarget,
-				previewDistanceMeters: previewPlacementDistanceMeters,
-				usePreviewPlacement
-			} );
 			onPlacementBaseResolved?.( arPlacementBase );
 			const adjustedPlacement = manualApplyToPlacement(
 				arPlacementBase,
@@ -276,40 +338,64 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 			updateRegistrationStatusDetail( '状态：模型已放置' );
 			updatePlacementSummary();
 
+			if ( usedMarkerOverride ) {
+				setStatus( '已使用 Marker 校正结果更新 AR 放置。' );
+				return;
+			}
+
+			if ( estimate === null ) {
+				return;
+			}
+
 			const accuracyText = estimate.accuracyMeters === null
 				? 'GPS 精度未知'
 				: `GPS 精度约 ${Math.round( estimate.accuracyMeters )}m`;
-
-			if ( usePreviewPlacement ) {
-				setStatus(
-					shouldUsePreviewPlacementFallback
-						? `目标距离约 ${Math.round( estimate.distanceMeters )}m，${accuracyText}。已切换到近距离预览放置。`
-						: `已按近距离预览放置模型，${accuracyText}。`
-				);
-				return;
-			}
-
-			if ( shouldUsePreviewPlacementFallback ) {
-				setStatus(
-					`目标距离约 ${Math.round( estimate.distanceMeters )}m，${accuracyText}。当前已关闭近距离预览放置，继续按真实目标位置放置。`
-				);
-				return;
-			}
-
+			const groundLockText = `groundY ${estimate.groundY.toFixed( 3 )}m / ENU 垂向偏移${estimate.enuVerticalOffsetApplied ? '已启用' : '已禁用'}`;
 			setStatus(
-				`已完成 ${registrationSolution.modelId} 的粗配准。距离约 ${Math.round( estimate.distanceMeters )}m，RMS ${registrationSolution.modelToSite.rmsErrorMeters.toFixed( 3 )}m，${accuracyText}。`
+				`已完成 ${registrationSolution.modelId} 的粗配准。距离约 ${Math.round( estimate.distanceMeters )}m，RMS ${registrationSolution.modelToSite.rmsErrorMeters.toFixed( 3 )}m，${accuracyText}，${groundLockText}。`
 			);
 
 		},
 
-		applyPrecisionRegistrationResult(result) {
+		applyArLocalizationSolution(args) {
 
-			if ( arPlacementBase === null ) {
-				return;
+			const {
+				modelTemplate,
+				registrationSolution,
+				arFromEnuSolution,
+				manualApplyToPlacement,
+				manualPositionTarget,
+				manualOrientationTarget
+			} = args;
+
+			if ( modelTemplate === null || registrationSolution === null ) {
+				return false;
 			}
 
-			arPlacementBase = transformPlacementBase( arPlacementBase, result );
+			arPlacementBase = createPlacementBaseFromArLocalizationSolution( {
+				arFromEnuSolution,
+				modelTemplate,
+				registrationSolution,
+				modelOrientationTarget: new THREE.Quaternion()
+			} );
+
+			if ( arPlacedModel === null ) {
+				return false;
+			}
+
+			const adjustedPlacement = manualApplyToPlacement(
+				arPlacementBase,
+				manualPositionTarget,
+				manualOrientationTarget
+			);
+			arPlacedModel = placeAdjustedModel( {
+				modelTemplate,
+				placedModel: arPlacedModel,
+				modelAnchor: sceneBundle.arModelAnchor,
+				adjustedPlacement
+			} );
 			updatePlacementSummary();
+			return true;
 
 		},
 
@@ -417,31 +503,6 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 			sceneBundle.controls.enabled = nextIsDesktopLayout && isPresenting === false;
 
 		}
-	};
-
-}
-
-function transformPlacementBase(
-	base: ManualPlacementBase,
-	result: Pick<PrecisionRegistrationResult, 'position' | 'quaternion' | 'scale'>
-): ManualPlacementBase {
-
-	const transformedPosition = base.position.clone()
-		.applyQuaternion( result.quaternion )
-		.multiplyScalar( result.scale )
-		.add( result.position );
-	const transformedOrientation = result.quaternion.clone().multiply( base.orientation );
-	const transformedScaleAnchor = base.scaleAnchor?.clone()
-		.applyQuaternion( result.quaternion )
-		.multiplyScalar( result.scale )
-		.add( result.position );
-
-	return {
-		position: transformedPosition,
-		orientation: transformedOrientation,
-		scale: base.scale * result.scale,
-		scaleAnchor: transformedScaleAnchor,
-		siteContext: base.siteContext
 	};
 
 }

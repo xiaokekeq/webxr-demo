@@ -35,6 +35,60 @@ export interface RegistrationMetricsState {
 	rmsText: string;
 }
 
+export interface ModelScaleSummaryState {
+	modeText: string;
+	unitScaleText: string;
+	originalBoundsText: string;
+	finalBoundsText: string;
+	pivotOffsetText: string;
+}
+
+export interface RegistrationChainDebugState {
+	engineeringControlRegistration: {
+		available: boolean;
+		controlPointCount: number;
+		rmsText: string;
+		usesUnitScaleAndPivotOffset: boolean;
+	};
+	arSessionLocalization: {
+		available: boolean;
+		source: string;
+		siteOriginArPositionText: string;
+		headingDegText: string;
+	};
+	manualArSitePose: {
+		exists: boolean;
+		rootSiteEnuText: string;
+		restored: boolean;
+	};
+	heightPolicy: {
+		hitTestGroundYEnabled: boolean;
+		enuGpsVerticalOffsetEnabled: boolean;
+	};
+	markerEngineering: {
+		markerCount: number;
+		markers: Array<{
+			markerId: string;
+			bindControlPointId: string;
+			sizeMetersText: string;
+			resolved: boolean;
+		}>;
+	};
+}
+
+export interface SavedMarkerLocalizationState {
+	available: boolean;
+	markerId?: string;
+	markerConfigId?: string;
+	timestamp?: number;
+	ageSeconds?: number;
+	rmsErrorMeters?: number;
+	sampleCount?: number;
+	headingDeg?: number;
+	siteOriginArPosition?: { x: number; y: number; z: number };
+	stable?: boolean;
+}
+
 export interface PlacementSummaryState {
 	positionText: string;
 	quaternionText: string;
@@ -55,26 +109,6 @@ export interface TargetGuidanceState {
 	distanceText: string;
 	detailText: string;
 	alignment: 'left' | 'center' | 'right';
-}
-
-export interface PrecisionRegistrationState {
-	availableSourcePoints: string[];
-	selectedSourcePoint: string;
-	stagedSourcePoint: string;
-	stagedTargetPoint: string;
-	targetQualityText: string;
-	lastCapturedSourcePoint: string;
-	lastCapturedTargetPoint: string;
-	lastCapturedQualityText: string;
-	pairSummaries: string[];
-	pairResidualSummaries: string[];
-	rmsText: string;
-	workflowStatusText: string;
-	feedbackText: string;
-	feedbackTone: PrecisionFeedbackTone;
-	feedbackUpdatedAt: string;
-	isSourceLocked: boolean;
-	hasConfirmedTarget: boolean;
 }
 
 export interface MeasurementState {
@@ -113,9 +147,11 @@ export interface RegistrationStoreState {
 	autoPreviewPlacementEnabled: boolean;
 	depthSensingMode: DepthSensingMode;
 	registrationMetrics: RegistrationMetricsState;
+	modelScaleSummary: ModelScaleSummaryState;
+	registrationChainDebug: RegistrationChainDebugState;
+	savedMarkerLocalization: SavedMarkerLocalizationState;
 	placementSummary: PlacementSummaryState;
 	targetGuidance: TargetGuidanceState;
-	precisionRegistration: PrecisionRegistrationState;
 	measurement: MeasurementState;
 	registrationStatusDetail: string;
 	runtimeStatus: string;
@@ -193,12 +229,64 @@ export function createDefaultRegistrationMetricsState(): RegistrationMetricsStat
 
 }
 
+export function createDefaultModelScaleSummaryState(): ModelScaleSummaryState {
+
+	return {
+		modeText: '真实米制',
+		unitScaleText: '1.000',
+		originalBoundsText: '-',
+		finalBoundsText: '-',
+		pivotOffsetText: '-'
+	};
+
+}
+
+export function createDefaultRegistrationChainDebugState(): RegistrationChainDebugState {
+
+	return {
+		engineeringControlRegistration: {
+			available: false,
+			controlPointCount: 0,
+			rmsText: '-',
+			usesUnitScaleAndPivotOffset: false
+		},
+		arSessionLocalization: {
+			available: false,
+			source: 'unknown',
+			siteOriginArPositionText: '-',
+			headingDegText: '-'
+		},
+		manualArSitePose: {
+			exists: false,
+			rootSiteEnuText: '-',
+			restored: false
+		},
+		heightPolicy: {
+			hitTestGroundYEnabled: true,
+			enuGpsVerticalOffsetEnabled: false
+		},
+		markerEngineering: {
+			markerCount: 0,
+			markers: []
+		}
+	};
+
+}
+
 export function createDefaultPlacementSummaryState(): PlacementSummaryState {
 
 	return {
 		positionText: '-',
 		quaternionText: '-',
 		scaleText: '-'
+	};
+
+}
+
+export function createDefaultSavedMarkerLocalizationState(): SavedMarkerLocalizationState {
+
+	return {
+		available: false
 	};
 
 }
@@ -211,30 +299,6 @@ export function createDefaultTargetGuidanceState(): TargetGuidanceState {
 		distanceText: '',
 		detailText: '',
 		alignment: 'center'
-	};
-
-}
-
-export function createDefaultPrecisionRegistrationState(): PrecisionRegistrationState {
-
-	return {
-		availableSourcePoints: [],
-		selectedSourcePoint: '',
-		stagedSourcePoint: '未选择',
-		stagedTargetPoint: '未确认',
-		targetQualityText: '尚未采样',
-		lastCapturedSourcePoint: '暂无',
-		lastCapturedTargetPoint: '暂无',
-		lastCapturedQualityText: '暂无',
-		pairSummaries: [],
-		pairResidualSummaries: [],
-		rmsText: '--',
-		workflowStatusText: '完成粗配准后可继续采集控制点。',
-		feedbackText: '',
-		feedbackTone: 'neutral',
-		feedbackUpdatedAt: '',
-		isSourceLocked: false,
-		hasConfirmedTarget: false
 	};
 
 }

@@ -28,19 +28,21 @@ export function attachInfoBoardToAttachment(
 	tempBounds.getCenter( tempCenter );
 	attachmentRoot.getWorldScale( tempWorldScale );
 
-	const worldWidth = clamp( tempSize.x * 1.2, 0.32, 0.72 );
-	const worldHeight = clamp( tempSize.y * 0.75, 0.2, 0.42 );
-	const worldStemHeight = clamp( tempSize.y * 0.65, 0.16, 0.42 );
+	const worldWidth = clamp( tempSize.x * 2.2, 0.85, 1.45 );
+	const worldHeight = clamp( tempSize.y * 1.45, 0.42, 0.76 );
+	const worldStemHeight = clamp( tempSize.y * 1.4, 0.55, 1.1 );
+	const boardRadius = worldWidth * 0.24;
 	const boardAnchor = new THREE.Vector3(
 		tempCenter.x,
-		tempBounds.max.y + Math.max( 0.08, tempSize.y * 0.12 ),
+		tempBounds.max.y + Math.max( 0.22, tempSize.y * 0.32 ),
 		tempCenter.z
 	);
 
 	const board = createInfoBoard( boardContent, {
 		width: worldWidth / safeScaleComponent( tempWorldScale.x ),
 		height: worldHeight / safeScaleComponent( tempWorldScale.y ),
-		stemHeight: worldStemHeight / safeScaleComponent( tempWorldScale.y )
+		stemHeight: worldStemHeight / safeScaleComponent( tempWorldScale.y ),
+		radius: boardRadius / safeScaleComponent( tempWorldScale.x )
 	} );
 
 	attachmentRoot.add( board );
@@ -71,6 +73,7 @@ function createInfoBoard(
 		width: number;
 		height: number;
 		stemHeight: number;
+		radius: number;
 	}
 ): THREE.Group {
 
@@ -78,18 +81,20 @@ function createInfoBoard(
 	markAsAttachmentInfoBoard( group );
 
 	const texture = createInfoBoardTexture( content );
-	const frontPlate = createInfoBoardPlate( texture, dimensions );
-	frontPlate.name = '__attachment-info-board-front-plate';
-	group.add( frontPlate );
+	const plateAngles = [ 0, Math.PI * 0.5, Math.PI, Math.PI * 1.5 ];
 
-	const backPlate = createInfoBoardPlate( texture, dimensions );
-	backPlate.name = '__attachment-info-board-back-plate';
-	backPlate.rotation.y = Math.PI;
-	group.add( backPlate );
+	for ( const angle of plateAngles ) {
+		const plate = createInfoBoardPlate( texture, dimensions );
+		plate.position.x = Math.sin( angle ) * dimensions.radius;
+		plate.position.z = Math.cos( angle ) * dimensions.radius;
+		plate.rotation.y = angle;
+		plate.rotation.x = THREE.MathUtils.degToRad( -8 );
+		group.add( plate );
+	}
 
-	const stemRadius = Math.max( dimensions.width * 0.015, 0.008 );
+	const stemRadius = Math.max( dimensions.width * 0.02, 0.012 );
 	const stem = new THREE.Mesh(
-		new THREE.CylinderGeometry( stemRadius, stemRadius, dimensions.stemHeight, 10 ),
+		new THREE.CylinderGeometry( stemRadius, stemRadius, dimensions.stemHeight, 12 ),
 		new THREE.MeshBasicMaterial( {
 			color: 0x6fd9ff,
 			transparent: true,
@@ -123,11 +128,13 @@ function createInfoBoardPlate(
 		new THREE.MeshBasicMaterial( {
 			map: texture,
 			transparent: true,
+			alphaTest: 0.04,
 			depthWrite: false,
 			toneMapped: false,
-			side: THREE.FrontSide
+			side: THREE.DoubleSide
 		} )
 	);
+
 	plate.position.y = dimensions.stemHeight + dimensions.height * 0.5;
 	plate.renderOrder = 120;
 	plate.raycast = () => {};
@@ -139,8 +146,8 @@ function createInfoBoardPlate(
 function createInfoBoardTexture(content: Required<DemoModelAttachmentInfo>): THREE.CanvasTexture {
 
 	const canvas = document.createElement( 'canvas' );
-	canvas.width = 640;
-	canvas.height = 360;
+	canvas.width = 1536;
+	canvas.height = 896;
 
 	const context = canvas.getContext( '2d' );
 	if ( context === null ) {
@@ -152,35 +159,38 @@ function createInfoBoardTexture(content: Required<DemoModelAttachmentInfo>): THR
 	const gradient = context.createLinearGradient( 0, 0, canvas.width, canvas.height );
 	gradient.addColorStop( 0, 'rgba(10, 27, 52, 0.94)' );
 	gradient.addColorStop( 1, 'rgba(12, 67, 92, 0.82)' );
-	drawRoundedRect( context, 12, 12, canvas.width - 24, canvas.height - 24, 28, gradient );
+	drawRoundedRect( context, 24, 24, canvas.width - 48, canvas.height - 48, 56, gradient );
 
 	context.strokeStyle = 'rgba(120, 229, 255, 0.95)';
-	context.lineWidth = 4;
-	roundRectPath( context, 12, 12, canvas.width - 24, canvas.height - 24, 28 );
+	context.lineWidth = 8;
+	roundRectPath( context, 24, 24, canvas.width - 48, canvas.height - 48, 56 );
 	context.stroke();
 
 	context.fillStyle = '#ffffff';
-	context.font = 'bold 44px "Microsoft YaHei", sans-serif';
-	context.fillText( content.title, 40, 76 );
+	context.font = 'bold 98px "Microsoft YaHei", sans-serif';
+	context.fillText( content.title, 92, 156 );
 
-	const statusWidth = Math.max( 116, context.measureText( content.status ).width + 40 );
-	const statusX = canvas.width - statusWidth - 40;
-	drawRoundedRect( context, statusX, 34, statusWidth, 46, 23, 'rgba(82, 228, 154, 0.92)' );
+	const statusWidth = Math.max( 240, context.measureText( content.status ).width + 84 );
+	const statusX = canvas.width - statusWidth - 88;
+	drawRoundedRect( context, statusX, 68, statusWidth, 94, 44, 'rgba(82, 228, 154, 0.92)' );
 	context.fillStyle = '#08341f';
-	context.font = 'bold 24px "Microsoft YaHei", sans-serif';
-	context.fillText( content.status, statusX + 20, 64 );
+	context.font = 'bold 52px "Microsoft YaHei", sans-serif';
+	context.fillText( content.status, statusX + 42, 129 );
 
 	context.fillStyle = 'rgba(220, 242, 255, 0.94)';
-	context.font = '24px "Microsoft YaHei", sans-serif';
-	context.fillText( `编号  ${content.code}`, 40, 142 );
-	context.fillText( `类型  ${content.type}`, 40, 186 );
+	context.font = '52px "Microsoft YaHei", sans-serif';
+	context.fillText( `编号  ${content.code}`, 92, 296 );
+	context.fillText( `类型  ${content.type}`, 92, 394 );
 
 	context.fillStyle = 'rgba(193, 233, 255, 0.92)';
-	context.font = '22px "Microsoft YaHei", sans-serif';
-	fillWrappedText( context, `说明  ${content.remark}`, 40, 244, canvas.width - 80, 34, 3 );
+	context.font = '46px "Microsoft YaHei", sans-serif';
+	fillWrappedText( context, `说明  ${content.remark}`, 92, 536, canvas.width - 184, 72, 3 );
 
 	const texture = new THREE.CanvasTexture( canvas );
 	texture.colorSpace = THREE.SRGBColorSpace;
+	texture.minFilter = THREE.LinearFilter;
+	texture.magFilter = THREE.LinearFilter;
+	texture.generateMipmaps = false;
 	texture.needsUpdate = true;
 	return texture;
 

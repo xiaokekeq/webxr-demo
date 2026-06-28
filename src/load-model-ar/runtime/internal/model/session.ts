@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import {
 	createDefaultPlacementSummaryState,
-	createDefaultPrecisionRegistrationState,
+	createDefaultModelScaleSummaryState,
 	createDefaultPropertyPanelState,
 	createDefaultRegistrationMetricsState,
 	type RegistrationStore
@@ -12,6 +12,7 @@ import {
 	findModelCatalogItem,
 	type ModelCatalogItem
 } from '../../../data/model-catalog.js';
+import type { PlaceableTemplateReport } from '../../model.js';
 import type { EngineeringRegistrationSolution } from '../../../registration/engineering-registration.js';
 import type { SetStatus } from '../../../shared/types.js';
 import { loadModelRuntimeBundle, type LoadedModelRuntimeBundle } from './runtime.js';
@@ -75,8 +76,8 @@ export function createModelSession(options: CreateModelSessionOptions): ModelSes
 			pipeList: [],
 			propertyPanel: createDefaultPropertyPanelState(),
 			registrationMetrics: createDefaultRegistrationMetricsState(),
+			modelScaleSummary: createDefaultModelScaleSummaryState(),
 			placementSummary: createDefaultPlacementSummaryState(),
-			precisionRegistration: createDefaultPrecisionRegistrationState(),
 			registrationStatusDetail: '状态：正在加载模型资源',
 			desktopPreviewBadge: defaultDesktopPreviewBadge
 		} );
@@ -98,7 +99,8 @@ export function createModelSession(options: CreateModelSessionOptions): ModelSes
 			registrationMetrics: createRegistrationMetricsState(
 				bundle.demoModelConfig,
 				bundle.registrationSolution
-			)
+			),
+			modelScaleSummary: createModelScaleSummaryState( bundle.modelPlacementReport )
 		} );
 
 		const controlPointDiagnostics = analyzeControlPointDiagnostics(
@@ -108,6 +110,7 @@ export function createModelSession(options: CreateModelSessionOptions): ModelSes
 
 		appendLog( `模型加载完成：${modelDefinition.name}` );
 		appendModelSourceMetadataLog( bundle, appendLog );
+		appendModelPlacementLog( bundle.modelPlacementReport, appendLog );
 		appendLog(
 			`工程配准求解完成，控制点数量：${bundle.registrationSolution.controlPoints.length}`
 		);
@@ -221,6 +224,38 @@ function appendModelSourceMetadataLog(
 
 }
 
+function appendModelPlacementLog(
+	report: PlaceableTemplateReport | null,
+	appendLog: (message: string) => void
+): void {
+
+	if ( report === null ) {
+		return;
+	}
+
+	appendLog( `模型尺度模式：${report.calibrationMode} / unitScale=${report.unitScale.toFixed( 3 )}` );
+	appendLog( `模型原始包围盒：${formatVector3AsMeters( report.originalSize )}` );
+	appendLog( `模型最终包围盒：${formatVector3AsMeters( report.finalSize )}` );
+	appendLog( `模型 pivot offset：${formatVector3( report.pivotOffset )}` );
+
+}
+
+function createModelScaleSummaryState(report: PlaceableTemplateReport | null) {
+
+	if ( report === null ) {
+		return createDefaultModelScaleSummaryState();
+	}
+
+	return {
+		modeText: report.calibrationMode,
+		unitScaleText: report.unitScale.toFixed( 3 ),
+		originalBoundsText: formatVector3AsMeters( report.originalSize ),
+		finalBoundsText: formatVector3AsMeters( report.finalSize ),
+		pivotOffsetText: formatVector3( report.pivotOffset )
+	};
+
+}
+
 function analyzeControlPointDiagnostics(
 	modelTemplate: THREE.Group,
 	controlPoints: EngineeringControlPoint[]
@@ -271,6 +306,18 @@ function analyzeControlPointDiagnostics(
 	}
 
 	return diagnostics;
+
+}
+
+function formatVector3AsMeters(vector: THREE.Vector3): string {
+
+	return `${vector.x.toFixed( 3 )} x ${vector.y.toFixed( 3 )} x ${vector.z.toFixed( 3 )}m`;
+
+}
+
+function formatVector3(vector: THREE.Vector3): string {
+
+	return `${vector.x.toFixed( 3 )}, ${vector.y.toFixed( 3 )}, ${vector.z.toFixed( 3 )}`;
 
 }
 

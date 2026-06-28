@@ -17,13 +17,18 @@ import {
 import { geodeticToEnu } from '../../../registration/geodesy.js';
 import type { SetStatus } from '../../../shared/types.js';
 import { attachInfoBoardToAttachment } from '../../attachment-info-board.js';
-import { loadModelTemplate } from '../../model.js';
+import {
+	loadModelTemplate,
+	readPlaceableTemplateReport,
+	readPlaceableTemplateTransform
+} from '../../model.js';
 
 export interface LoadedModelRuntimeBundle {
 	pipesByName: Map<string, PipeRecord>;
 	demoModelConfig: DemoModelConfig;
 	modelTemplate: Awaited<ReturnType<typeof loadModelTemplate>>;
 	modelSourceMetadata: ModelSourceMetadata | null;
+	modelPlacementReport: ReturnType<typeof readPlaceableTemplateReport>;
 	registrationSolution: EngineeringRegistrationSolution;
 	modelDefinition: ModelCatalogItem;
 }
@@ -38,19 +43,30 @@ export async function loadModelRuntimeBundle(
 		loadDemoModelConfig( modelDefinition.configUrl, setStatus ),
 		loadCatalogAssetTemplates( modelDefinition, setStatus )
 	] );
-	const registrationSolution = solveEngineeringRegistration( demoModelConfig );
+	const primaryTemplate = loadedAssetTemplates.get( modelDefinition.primaryAssetId );
+	if ( primaryTemplate === undefined ) {
+		throw new Error( `Primary asset template is missing: ${modelDefinition.primaryAssetId}` );
+	}
+
+	const primaryTemplateTransform = readPlaceableTemplateTransform( primaryTemplate );
+	const registrationSolution = solveEngineeringRegistration( demoModelConfig, {
+		modelPivotOffset: primaryTemplateTransform?.pivotOffset,
+		modelUnitScale: primaryTemplateTransform?.unitScale
+	} );
 	const modelTemplate = composeModelTemplate( {
 		modelDefinition,
 		demoModelConfig,
 		registrationSolution,
 		loadedAssetTemplates
 	} );
+	const modelPlacementReport = readPlaceableTemplateReport( modelTemplate ) ?? readPlaceableTemplateReport( primaryTemplate );
 
 	return {
 		pipesByName,
 		demoModelConfig,
 		modelTemplate,
 		modelSourceMetadata: readModelSourceMetadata( modelTemplate ),
+		modelPlacementReport,
 		registrationSolution,
 		modelDefinition
 	};
@@ -107,6 +123,11 @@ function composeModelTemplate(options: {
 	const primaryMetadata = readModelSourceMetadata( primaryTemplate );
 	if ( primaryMetadata !== null ) {
 		attachModelSourceMetadata( compositeRoot, primaryMetadata );
+	}
+	const primaryPlacementReport = readPlaceableTemplateReport( primaryTemplate );
+	if ( primaryPlacementReport !== null ) {
+		compositeRoot.userData.__placeableTemplateReport = primaryTemplate.userData.__placeableTemplateReport;
+		compositeRoot.userData.__placeableTemplateTransform = primaryTemplate.userData.__placeableTemplateTransform;
 	}
 
 	for ( const attachment of demoModelConfig.attachments ) {

@@ -1,7 +1,6 @@
 export interface ModelAssetTransform {
 	upAxis?: 'y' | 'z';
-	scaleFactor?: number;
-	disableAutoScale?: boolean;
+	unitScale?: number;
 }
 
 export interface ModelCatalogAssetItem {
@@ -152,15 +151,24 @@ function normalizeAssetTransform(value: unknown): ModelAssetTransform | undefine
 
 	const candidate = value as Partial<ModelAssetTransform>;
 	const upAxis = candidate.upAxis === 'z' ? 'z' : candidate.upAxis === 'y' ? 'y' : undefined;
-	const scaleFactor = typeof candidate.scaleFactor === 'number' && Number.isFinite( candidate.scaleFactor )
-		? candidate.scaleFactor
-		: undefined;
-	const disableAutoScale = candidate.disableAutoScale === true;
+	const legacyScaleFactor = ( candidate as Partial<{ scaleFactor: number }> ).scaleFactor;
+	const unitScale = typeof candidate.unitScale === 'number' && Number.isFinite( candidate.unitScale )
+		? candidate.unitScale
+		: typeof legacyScaleFactor === 'number' && Number.isFinite( legacyScaleFactor )
+			? legacyScaleFactor
+			: undefined;
 
-	if ( upAxis === undefined && scaleFactor === undefined && disableAutoScale === false ) {
+	if ( typeof legacyScaleFactor === 'number' && Number.isFinite( legacyScaleFactor ) ) {
+		console.warn( '[Model Catalog] assetTransform.scaleFactor is deprecated, please rename it to unitScale.' );
+	}
+
+	if ( upAxis === undefined && unitScale === undefined ) {
 		return undefined;
 	}
 
-	return { upAxis, scaleFactor, disableAutoScale };
+	return {
+		upAxis,
+		unitScale: unitScale !== undefined && unitScale > 0 ? unitScale : undefined
+	};
 
 }

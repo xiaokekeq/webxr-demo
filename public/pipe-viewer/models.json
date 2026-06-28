@@ -5,8 +5,7 @@
     "modelUrl": "/pipe-viewer/dz1207/dizhi1207.obj",
     "materialUrl": "/pipe-viewer/dz1207/dizhi1207.mtl",
     "assetTransform": {
-      "upAxis": "y",
-      "disableAutoScale": true
+      "upAxis": "y"
     },
     "configUrl": "/pipe-viewer/company_debug_site.config.json",
     "pipesUrl": "/pipe-viewer/dz1207.pipes.json"
@@ -24,7 +23,7 @@
     "modelUrl": "/pipe-viewer/tongma-74-76/model.fbx",
     "assetTransform": {
       "upAxis": "y",
-      "scaleFactor": 1.0
+      "unitScale": 1.0
     },
     "configUrl": "/pipe-viewer/tongma-74-76/model.config.json",
     "pipesUrl": "/pipe-viewer/tongma-74-76/model.pipes.json"
@@ -40,8 +39,7 @@
         "modelUrl": "/pipe-viewer/dz1207/dizhi1207.obj",
         "materialUrl": "/pipe-viewer/dz1207/dizhi1207.mtl",
         "assetTransform": {
-          "upAxis": "y",
-          "disableAutoScale": true
+          "upAxis": "y"
         }
       },
       {
@@ -49,8 +47,7 @@
         "name": "stake marker",
         "modelUrl": "/pipe-viewer/dz1207/stake-marker.glb",
         "assetTransform": {
-          "scaleFactor": 0.01,
-          "disableAutoScale": true
+          "unitScale": 0.01
         }
       }
     ],
@@ -61,9 +58,6 @@
     "id": "desk_model",
     "name": "三层抽屉柜（手工标定）",
     "modelUrl": "/pipe-viewer/desk_model.glb",
-    "assetTransform": {
-      "disableAutoScale": true
-    },
     "configUrl": "/pipe-viewer/desk_model.config.json",
     "pipesUrl": "/pipe-viewer/desk_model.pipes.json"
   }

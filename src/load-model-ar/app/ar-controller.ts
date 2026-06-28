@@ -53,6 +53,10 @@ export interface LoadModelArController {
 		timelinePlay(): void;
 		enableCoarseRegistration(): Promise<void>;
 		refreshGeoLocation(): Promise<void>;
+		refreshSavedMarkerLocalization(): void;
+		applyMarkerLocalizationCorrection(): void;
+		clearMarkerLocalizationCorrection(): void;
+		clearSavedMarkerLocalization(): void;
 		resetPlacement(): void;
 		hideTopModelLayer(): void;
 		restoreModelLayer(): void;
@@ -381,6 +385,30 @@ export function createLoadModelArController(): LoadModelArController {
 			refreshGeoLocation() {
 
 				return engine.refreshGeoLocation();
+
+			},
+
+			refreshSavedMarkerLocalization() {
+
+				engine.refreshSavedMarkerLocalization();
+
+			},
+
+			applyMarkerLocalizationCorrection() {
+
+				engine.applySavedMarkerLocalizationCorrection();
+
+			},
+
+			clearMarkerLocalizationCorrection() {
+
+				engine.clearMarkerLocalizationCorrection();
+
+			},
+
+			clearSavedMarkerLocalization() {
+
+				engine.clearSavedMarkerLocalization();
 
 			},
 

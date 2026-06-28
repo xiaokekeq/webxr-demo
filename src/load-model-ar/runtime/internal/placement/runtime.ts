@@ -2,6 +2,10 @@
 import type {
 	EngineeringRegistrationSolution
 } from '../../../registration/engineering-registration.js';
+import {
+	createArFromEnuSolution,
+	type ArFromEnuSolution
+} from '../../../registration/ar-from-enu-solution.js';
 import { composeModelQuaternionInAr } from '../../../registration/engineering-registration.js';
 import type { ManualPlacementBase } from '../../../registration/manual-registration.js';
 import { placeModelAt } from '../../model.js';
@@ -37,15 +41,28 @@ export function createAutoPlacementBase(options: {
 		usePreviewPlacement
 	} = options;
 
-	const position = ( usePreviewPlacement
-		? getPreviewPlacementPosition( camera, cameraWorldPosition, groundY, previewDistanceMeters )
-		: composeAnchoredPlacementPosition(
-			estimate.position,
-			estimate.orientation,
-			registrationSolution.modelToSite.translation,
-			tempSiteOffset
-		)
+	if ( usePreviewPlacement === false ) {
+		return createPlacementBaseFromArLocalizationSolution( {
+			arFromEnuSolution: createArFromEnuSolution( {
+				position: estimate.position,
+				orientation: estimate.orientation,
+				headingDeg: estimate.headingDeg,
+				source: 'gps-imu',
+				accuracyMeters: estimate.accuracyMeters ?? undefined
+			} ),
+			modelTemplate,
+			registrationSolution,
+			modelOrientationTarget
+		} );
+	}
+
+	const position = getPreviewPlacementPosition(
+		camera,
+		cameraWorldPosition,
+		groundY,
+		previewDistanceMeters
 	).clone();
+	const baseScale = getPlacementResidualScale( modelTemplate, registrationSolution.modelToSite.scale );
 
 	return {
 		position,
@@ -57,12 +74,60 @@ export function createAutoPlacementBase(options: {
 			),
 			modelOrientationTarget
 		).clone(),
-		scale: getPlacementResidualScale( modelTemplate, registrationSolution.modelToSite.scale ),
+		scale: baseScale,
 		scaleAnchor: position.clone(),
 		siteContext: {
 			siteOriginArPosition: estimate.position.clone(),
 			headingDeg: estimate.headingDeg,
-			baseScale: getPlacementResidualScale( modelTemplate, registrationSolution.modelToSite.scale )
+			baseScale,
+			source: 'gps-imu',
+			timestamp: Date.now(),
+			accuracyMeters: estimate.accuracyMeters ?? undefined
+		}
+	};
+
+}
+
+export function createPlacementBaseFromArLocalizationSolution(options: {
+	arFromEnuSolution: ArFromEnuSolution;
+	modelTemplate: THREE.Group;
+	registrationSolution: EngineeringRegistrationSolution;
+	modelOrientationTarget: THREE.Quaternion;
+}): ManualPlacementBase {
+
+	const {
+		arFromEnuSolution,
+		modelTemplate,
+		registrationSolution,
+		modelOrientationTarget
+	} = options;
+	const baseScale = getPlacementResidualScale( modelTemplate, registrationSolution.modelToSite.scale );
+	const position = composeAnchoredPlacementPosition(
+		arFromEnuSolution.siteOriginArPosition,
+		arFromEnuSolution.orientation,
+		registrationSolution.modelToSite.translation,
+		tempSiteOffset
+	).clone();
+
+	return {
+		position,
+		orientation: flattenQuaternionToYaw(
+			composeModelQuaternionInAr(
+				arFromEnuSolution.orientation,
+				registrationSolution,
+				modelOrientationTarget
+			),
+			modelOrientationTarget
+		).clone(),
+		scale: baseScale,
+		scaleAnchor: position.clone(),
+		siteContext: {
+			siteOriginArPosition: arFromEnuSolution.siteOriginArPosition.clone(),
+			headingDeg: arFromEnuSolution.headingDeg,
+			baseScale,
+			source: arFromEnuSolution.source,
+			timestamp: arFromEnuSolution.timestamp,
+			accuracyMeters: arFromEnuSolution.accuracyMeters
 		}
 	};
 
@@ -95,7 +160,9 @@ export function createDesktopPreviewBase(
 		siteContext: {
 			siteOriginArPosition: new THREE.Vector3(),
 			headingDeg: 0,
-			baseScale: getPlacementResidualScale( modelTemplate, registrationSolution.modelToSite.scale )
+			baseScale: getPlacementResidualScale( modelTemplate, registrationSolution.modelToSite.scale ),
+			source: 'unknown',
+			timestamp: 0
 		}
 	};
 

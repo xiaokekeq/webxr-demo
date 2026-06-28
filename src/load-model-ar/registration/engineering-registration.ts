@@ -38,22 +38,39 @@ export interface EngineeringRegistrationSolution {
 	rootSiteEnu: THREE.Vector3;
 	rootWorldGeodetic: GeodeticCoordinate;
 	rootHeadingDeg: number;
+	modelPivotOffset: THREE.Vector3;
+	modelUnitScale: number;
 }
 
 const tempRotated = new THREE.Vector3();
 const tempQuaternion = new THREE.Quaternion();
 const tempScale = new THREE.Vector3();
 const tempInverseQuaternion = new THREE.Quaternion();
+const tempModelLocal = new THREE.Vector3();
 
-export function solveEngineeringRegistration(config: DemoModelConfig): EngineeringRegistrationSolution {
+export function solveEngineeringRegistration(
+	config: DemoModelConfig,
+	options?: {
+		modelPivotOffset?: THREE.Vector3;
+		modelUnitScale?: number;
+	}
+): EngineeringRegistrationSolution {
 
 	// Build a stable site ENU frame from the configured project origin. All
 	// geodetic control points are converted into this local metric coordinate
 	// system before solving model -> site registration.
 	const siteEnuFrame = createEnuFrame( config.siteFrame.origin );
+	const modelPivotOffset = options?.modelPivotOffset?.clone() ?? new THREE.Vector3();
+	const modelUnitScale = options?.modelUnitScale !== undefined && options.modelUnitScale > 0
+		? options.modelUnitScale
+		: 1;
 
 	const controlPoints = Object.entries( config.controlPoints ).map( ( [ id, point ] ) => {
-		const modelLocal = new THREE.Vector3( point.modelLocal.x, point.modelLocal.y, point.modelLocal.z );
+		const modelLocal = tempModelLocal
+			.set( point.modelLocal.x, point.modelLocal.y, point.modelLocal.z )
+			.add( modelPivotOffset )
+			.multiplyScalar( modelUnitScale )
+			.clone();
 		const worldGeodetic = point.world;
 		const worldEnu = geodeticToEnu( worldGeodetic, siteEnuFrame );
 
@@ -92,7 +109,9 @@ export function solveEngineeringRegistration(config: DemoModelConfig): Engineeri
 		modelToSite,
 		rootSiteEnu,
 		rootWorldGeodetic,
-		rootHeadingDeg
+		rootHeadingDeg,
+		modelPivotOffset,
+		modelUnitScale
 	};
 
 }

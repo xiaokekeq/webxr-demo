@@ -41,7 +41,7 @@ const MARKER_TEST_CONFIGS = {
 type MarkerTestConfigMode = keyof typeof MARKER_TEST_CONFIGS;
 
 type ArToolkitSourceInstance = {
-	readonly domElement: HTMLVideoElement | HTMLCanvasElement;
+	readonly domElement: HTMLVideoElement | HTMLCanvasElement | null;
 	readonly ready: boolean;
 	init(onReady: () => void): void;
 	onResizeElement(): void;
@@ -227,7 +227,6 @@ function setupArjsScene(runtime: ArjsRuntime): void {
 	arToolkitSource = new runtime.ArToolkitSource( {
 		sourceType: 'webcam'
 	} );
-	attachCameraPreview( arToolkitSource.domElement );
 	arToolkitContext = new runtime.ArToolkitContext( {
 		cameraParametersUrl: ARJS_CAMERA_PARAMETERS_URL,
 		detectionMode: 'mono'
@@ -238,7 +237,7 @@ function setupArjsScene(runtime: ArjsRuntime): void {
 		arToolkitSourceReady = true;
 		syncDebugState();
 		logArjsMarkerAssets();
-		logMarkerCameraPreview();
+		ensureCameraPreviewAttached();
 		handleResize();
 		setStatus( 'Camera ready. Point the device at a Hiro marker.' );
 	} );
@@ -284,8 +283,9 @@ function startLoop(): void {
 			return;
 		}
 
-		if ( arToolkitSource.ready ) {
-			arToolkitContext.update( arToolkitSource.domElement );
+		const sourceElement = arToolkitSource.domElement;
+		if ( arToolkitSource.ready && sourceElement !== null ) {
+			arToolkitContext.update( sourceElement );
 		}
 
 		renderMarkerPoseState();
@@ -563,7 +563,7 @@ function logMarkerPose(markerPoseInArValue: MarkerPoseInAr): void {
 function logMarkerCameraPreview(): void {
 
 	const videoElement = getCurrentPreviewVideoElement();
-	const sourceElement = arToolkitSource?.domElement ?? null;
+	const sourceElement = resolveCameraPreviewElement();
 	console.info( '[MarkerCameraPreview]', {
 		hasVideoElement: videoElement !== null,
 		videoParent: videoElement?.parentElement?.id ?? videoElement?.parentElement?.tagName ?? null,
@@ -631,7 +631,7 @@ function handleResize(): void {
 
 	arToolkitSource.onResizeElement();
 	arToolkitSource.copyElementSizeTo( renderer.domElement );
-	attachCameraPreview( arToolkitSource.domElement );
+	ensureCameraPreviewAttached();
 	syncDebugState();
 	logMarkerCameraPreview();
 
@@ -647,13 +647,55 @@ function handleResize(): void {
 
 function getCurrentPreviewVideoElement(): HTMLVideoElement | null {
 
-	const sourceElement = arToolkitSource?.domElement;
+	const sourceElement = resolveCameraPreviewElement();
 	if ( sourceElement instanceof HTMLVideoElement ) {
 		return sourceElement;
 	}
 
 	const previewVideo = cameraPreviewElement.querySelector( 'video' );
 	return previewVideo instanceof HTMLVideoElement ? previewVideo : null;
+
+}
+
+function resolveCameraPreviewElement(): HTMLVideoElement | HTMLCanvasElement | null {
+
+	const sourceElement = arToolkitSource?.domElement ?? null;
+	if ( sourceElement instanceof HTMLVideoElement || sourceElement instanceof HTMLCanvasElement ) {
+		return sourceElement;
+	}
+
+	const previewVideo = cameraPreviewElement.querySelector( 'video' );
+	if ( previewVideo instanceof HTMLVideoElement ) {
+		return previewVideo;
+	}
+
+	const previewCanvas = cameraPreviewElement.querySelector( 'canvas' );
+	return previewCanvas instanceof HTMLCanvasElement ? previewCanvas : null;
+
+}
+
+function ensureCameraPreviewAttached(retryCount = 0): void {
+
+	const sourceElement = resolveCameraPreviewElement();
+	if ( sourceElement === null ) {
+		setStatus( 'Camera video element is not ready yet.' );
+		console.warn( '[MarkerCameraPreview]', {
+			hasVideoElement: false,
+			reason: 'arToolkitSource.domElement is null',
+			retryCount
+		} );
+
+		if ( retryCount < 10 ) {
+			window.setTimeout( () => {
+				ensureCameraPreviewAttached( retryCount + 1 );
+			}, 120 );
+		}
+
+		return;
+	}
+
+	attachCameraPreview( sourceElement );
+	logMarkerCameraPreview();
 
 }
 

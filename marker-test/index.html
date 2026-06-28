@@ -139,6 +139,25 @@
 				white-space: nowrap;
 			}
 
+			.marker-test__warning {
+				position: fixed;
+				top: calc(max(env(safe-area-inset-top, 12px), 12px) + 58px);
+				left: 12px;
+				right: 12px;
+				z-index: 21;
+				padding: 8px 10px;
+				border-radius: 12px;
+				background: rgba(255, 194, 92, 0.14);
+				color: rgba(255, 236, 196, 0.98);
+				font-size: 12px;
+				line-height: 1.4;
+				border: 1px solid rgba(255, 194, 92, 0.26);
+			}
+
+			.marker-test__warning[hidden] {
+				display: none;
+			}
+
 			.marker-test__drawer {
 				position: fixed;
 				left: 8px;
@@ -248,11 +267,15 @@
 				<div class="marker-test__pill"><span class="marker-test__pill-label">visible</span><span id="marker-test-summary-visible">-</span></div>
 				<div class="marker-test__pill"><span class="marker-test__pill-label">stable</span><span id="marker-test-summary-stable">-</span></div>
 				<div class="marker-test__actions">
+					<button class="marker-test__button" id="marker-test-show-hiro-marker" type="button">Show Hiro marker</button>
 					<button class="marker-test__button" id="marker-test-toggle-debug" type="button">Debug</button>
 					<button class="marker-test__button" id="marker-test-back-to-ar" type="button">Back to AR</button>
 				</div>
 			</div>
 		</section>
+		<div class="marker-test__warning" id="marker-test-warning" hidden>
+			Camera video stream is visible but not ready for marker tracking.
+		</div>
 		<section class="marker-test__drawer" id="marker-test-debug-drawer" hidden>
 			<h2 class="marker-test__drawer-title">Debug</h2>
 			<div class="marker-test__status">
@@ -262,6 +285,8 @@
 			<p class="marker-test__notice">
 				Current saved result is for debug only and is not connected to the main WebXR AR flow.
 				Marker test currently depends on AR.js CDN. If THREEx is unavailable, use local ar-threex.js runtime assets.
+				<br />
+				请扫描完整的 Hiro marker，包括黑色外框，不是只扫描 Hiro 文字。
 			</p>
 			<div class="marker-test__grid">
 				<div class="marker-test__label">configMode</div>
@@ -288,16 +313,24 @@
 				<div class="marker-test__value" id="marker-test-video-size">-</div>
 				<div class="marker-test__label">arToolkitSourceReady</div>
 				<div class="marker-test__value" id="marker-test-ar-source-ready">-</div>
+				<div class="marker-test__label">arToolkitSourceDomElementExists</div>
+				<div class="marker-test__value" id="marker-test-ar-source-dom-exists">-</div>
 				<div class="marker-test__label">arToolkitContextReady</div>
 				<div class="marker-test__value" id="marker-test-ar-context-ready">-</div>
 				<div class="marker-test__label">markerControlsReady</div>
 				<div class="marker-test__value" id="marker-test-marker-controls-ready">-</div>
 				<div class="marker-test__label">renderLoopRunning</div>
 				<div class="marker-test__value" id="marker-test-render-loop-running">-</div>
+				<div class="marker-test__label">frameCount</div>
+				<div class="marker-test__value" id="marker-test-frame-count">-</div>
 				<div class="marker-test__label">lastFrameTimestamp</div>
 				<div class="marker-test__value" id="marker-test-last-frame-timestamp">-</div>
+				<div class="marker-test__label">lastArToolkitUpdateTimestamp</div>
+				<div class="marker-test__value" id="marker-test-last-ar-update-timestamp">-</div>
 				<div class="marker-test__label">markerRootVisible</div>
 				<div class="marker-test__value" id="marker-test-marker-root-visible">-</div>
+				<div class="marker-test__label">markerRootMatrixWorld</div>
+				<pre class="marker-test__matrix" id="marker-test-marker-root-matrix-world">-</pre>
 				<div class="marker-test__label">visible</div>
 				<div class="marker-test__value" id="marker-test-visible">-</div>
 				<div class="marker-test__label">position</div>

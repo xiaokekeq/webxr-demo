@@ -23,9 +23,10 @@ const MARKER_LOCALIZATION_STORAGE_KEY = 'loadModelAR.markerLocalization.lastStab
 const DEFAULT_MARKER_ID = 'hiro';
 const LOG_INTERVAL_MS = 250;
 const MAIN_AR_PAGE_URL = '/loadModelAR.html';
+const HIRO_MARKER_REFERENCE_URL = '/markers/hiro-marker.png';
 const THREEX_RUNTIME_POLL_INTERVAL_MS = 100;
 const THREEX_RUNTIME_TIMEOUT_MS = 8000;
-const LOOP_DEBUG_LOG_INTERVAL_MS = 1000;
+const LOOP_DEBUG_LOG_INTERVAL_MS = 2000;
 
 const MARKER_TEST_CONFIGS = {
 	dz1207: {
@@ -121,15 +122,20 @@ const cameraParamUrlElement = getRequiredElement<HTMLSpanElement>( 'marker-test-
 const patternUrlElement = getRequiredElement<HTMLSpanElement>( 'marker-test-pattern-url' );
 const cameraParamStatusElement = getRequiredElement<HTMLSpanElement>( 'marker-test-camera-param-status' );
 const patternStatusElement = getRequiredElement<HTMLSpanElement>( 'marker-test-pattern-status' );
+const warningElement = getRequiredElement<HTMLDivElement>( 'marker-test-warning' );
 const hasVideoElementElement = getRequiredElement<HTMLSpanElement>( 'marker-test-has-video-element' );
 const videoReadyStateElement = getRequiredElement<HTMLSpanElement>( 'marker-test-video-ready-state' );
 const videoSizeElement = getRequiredElement<HTMLSpanElement>( 'marker-test-video-size' );
 const arToolkitSourceReadyElement = getRequiredElement<HTMLSpanElement>( 'marker-test-ar-source-ready' );
+const arToolkitSourceDomExistsElement = getRequiredElement<HTMLSpanElement>( 'marker-test-ar-source-dom-exists' );
 const arToolkitContextReadyElement = getRequiredElement<HTMLSpanElement>( 'marker-test-ar-context-ready' );
 const markerControlsReadyElement = getRequiredElement<HTMLSpanElement>( 'marker-test-marker-controls-ready' );
 const renderLoopRunningElement = getRequiredElement<HTMLSpanElement>( 'marker-test-render-loop-running' );
+const frameCountElement = getRequiredElement<HTMLSpanElement>( 'marker-test-frame-count' );
 const lastFrameTimestampElement = getRequiredElement<HTMLSpanElement>( 'marker-test-last-frame-timestamp' );
+const lastArToolkitUpdateTimestampElement = getRequiredElement<HTMLSpanElement>( 'marker-test-last-ar-update-timestamp' );
 const markerRootVisibleElement = getRequiredElement<HTMLSpanElement>( 'marker-test-marker-root-visible' );
+const markerRootMatrixWorldElement = getRequiredElement<HTMLPreElement>( 'marker-test-marker-root-matrix-world' );
 const visibleElement = getRequiredElement<HTMLSpanElement>( 'marker-test-visible' );
 const positionElement = getRequiredElement<HTMLSpanElement>( 'marker-test-position' );
 const quaternionElement = getRequiredElement<HTMLSpanElement>( 'marker-test-quaternion' );
@@ -152,6 +158,7 @@ const stabilityAveragedHeadingElement = getRequiredElement<HTMLSpanElement>( 'ma
 const stabilityReasonElement = getRequiredElement<HTMLSpanElement>( 'marker-test-stability-reason' );
 const saveStatusElement = getRequiredElement<HTMLSpanElement>( 'marker-test-save-status' );
 const backToArButton = getRequiredElement<HTMLButtonElement>( 'marker-test-back-to-ar' );
+const showHiroMarkerButton = getRequiredElement<HTMLButtonElement>( 'marker-test-show-hiro-marker' );
 const resetSamplesButton = getRequiredElement<HTMLButtonElement>( 'marker-test-reset-samples' );
 const saveStableButton = getRequiredElement<HTMLButtonElement>( 'marker-test-save-stable' );
 
@@ -177,7 +184,9 @@ let arToolkitSourceReady = false;
 let arToolkitContextReady = false;
 let markerControlsReady = false;
 let renderLoopRunning = false;
+let frameCount = 0;
 let lastFrameTimestamp: number | null = null;
+let lastArToolkitUpdateTimestamp: number | null = null;
 let markerRootVisible = false;
 let cameraParamStatus: AssetProbeState = 'idle';
 let patternStatus: AssetProbeState = 'idle';
@@ -201,6 +210,7 @@ setSaveStatus( 'Current saved result is for debug only and is not connected to t
 syncDebugState();
 
 backToArButton.addEventListener( 'click', handleBackToAr );
+showHiroMarkerButton.addEventListener( 'click', handleShowHiroMarker );
 toggleDebugButton.addEventListener( 'click', handleToggleDebugDrawer );
 resetSamplesButton.addEventListener( 'click', handleResetSamples );
 saveStableButton.addEventListener( 'click', handleSaveStableResult );
@@ -285,24 +295,26 @@ function startLoop(): void {
 		animationFrameId = window.requestAnimationFrame( tick );
 		renderLoopRunning = true;
 		lastFrameTimestamp = Date.now();
-		syncDebugState();
+		frameCount += 1;
 
 		if ( renderer === null || scene === null || camera === null ) {
+			syncDebugState();
 			return;
 		}
 
-		if ( arToolkitSource === null || arToolkitContext === null ) {
-			renderer.render( scene, camera );
-			return;
-		}
-
-		const sourceElement = arToolkitSource.domElement;
-		if ( arToolkitSource.ready && sourceElement !== null ) {
+		const sourceElement = arToolkitSource?.domElement ?? null;
+		if (
+			arToolkitSource?.ready
+			&& arToolkitContext !== null
+			&& sourceElement !== null
+		) {
 			arToolkitContext.update( sourceElement );
+			lastArToolkitUpdateTimestamp = Date.now();
 		}
 
 		renderMarkerPoseState();
 		renderer.render( scene, camera );
+		syncDebugState();
 		maybeLogArjsLoop();
 
 	};
@@ -343,7 +355,8 @@ function renderMarkerPoseState(): void {
 
 	const markerPoseInAr = createMarkerPoseInArFromArjsObject( {
 		markerId: DEFAULT_MARKER_ID,
-		object3D: markerRoot
+		object3D: markerRoot,
+		timestamp: Date.now()
 	} );
 	const shouldLog = lastVisible === false || markerPoseInAr.timestamp - lastLoggedAt >= LOG_INTERVAL_MS;
 
@@ -419,6 +432,12 @@ function handleResetSamples(): void {
 function handleBackToAr(): void {
 
 	window.location.assign( MAIN_AR_PAGE_URL );
+
+}
+
+function handleShowHiroMarker(): void {
+
+	window.open( HIRO_MARKER_REFERENCE_URL, '_blank', 'noopener,noreferrer' );
 
 }
 
@@ -550,23 +569,37 @@ function setSaveStatus(message: string): void {
 function syncDebugState(): void {
 
 	const videoElement = getCurrentPreviewVideoElement();
+	const sourceDomElementExists = arToolkitSource?.domElement !== null && arToolkitSource?.domElement !== undefined;
+	const videoReadyState = videoElement?.readyState ?? null;
+	const videoWidth = videoElement?.videoWidth ?? 0;
+	const videoHeight = videoElement?.videoHeight ?? 0;
+	const showVideoWarning = videoElement !== null && ( videoReadyState < 2 || videoWidth === 0 || videoHeight === 0 );
 	hasVideoElementElement.textContent = videoElement === null ? 'no' : 'yes';
 	videoReadyStateElement.textContent = videoElement === null
 		? '-'
-		: `${videoElement.readyState}`;
+		: `${videoReadyState}`;
 	videoSizeElement.textContent = videoElement === null
 		? '-'
-		: `${videoElement.videoWidth} / ${videoElement.videoHeight}`;
+		: `${videoWidth} / ${videoHeight}`;
 	arToolkitSourceReadyElement.textContent = arToolkitSourceReady ? 'yes' : 'no';
+	arToolkitSourceDomExistsElement.textContent = sourceDomElementExists ? 'yes' : 'no';
 	arToolkitContextReadyElement.textContent = arToolkitContextReady ? 'yes' : 'no';
 	markerControlsReadyElement.textContent = markerControlsReady ? 'yes' : 'no';
 	cameraParamStatusElement.textContent = cameraParamStatus;
 	patternStatusElement.textContent = patternStatus;
 	renderLoopRunningElement.textContent = renderLoopRunning ? 'yes' : 'no';
+	frameCountElement.textContent = `${frameCount}`;
 	lastFrameTimestampElement.textContent = lastFrameTimestamp === null
 		? '-'
 		: new Date( lastFrameTimestamp ).toLocaleTimeString( 'zh-CN', { hour12: false } );
+	lastArToolkitUpdateTimestampElement.textContent = lastArToolkitUpdateTimestamp === null
+		? '-'
+		: new Date( lastArToolkitUpdateTimestamp ).toLocaleTimeString( 'zh-CN', { hour12: false } );
 	markerRootVisibleElement.textContent = markerRootVisible ? 'yes' : 'no';
+	markerRootMatrixWorldElement.textContent = markerRoot === null
+		? '-'
+		: formatMatrix4( markerRoot.matrixWorld );
+	warningElement.hidden = !showVideoWarning;
 
 }
 
@@ -634,10 +667,18 @@ function maybeLogArjsLoop(): void {
 	}
 
 	lastLoopLogAt = now;
-	console.info( '[ArjsMarkerLoop]', {
-		renderLoopRunning,
-		lastFrameTimestamp,
-		markerRootVisible
+	const videoElement = getCurrentPreviewVideoElement();
+	console.info( '[ArjsTrackingLoop]', {
+		frameCount,
+		arToolkitSourceReady,
+		hasSourceDomElement: arToolkitSource?.domElement !== null && arToolkitSource?.domElement !== undefined,
+		videoReadyState: videoElement?.readyState ?? null,
+		videoWidth: videoElement?.videoWidth ?? 0,
+		videoHeight: videoElement?.videoHeight ?? 0,
+		arToolkitContextReady,
+		markerControlsReady,
+		markerRootVisible,
+		lastArToolkitUpdateTimestamp
 	} );
 
 }

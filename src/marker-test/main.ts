@@ -16,13 +16,15 @@ import {
 } from '../load-model-ar/registration/marker-localization-stabilizer.js';
 
 const ARJS_SCRIPT_SELECTOR = 'script[data-arjs-runtime="true"]';
-const ARJS_RUNTIME_URL = 'https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.7/three.js/build/ar-threex.js';
+const ARJS_RUNTIME_URL = 'https://raw.githack.com/AR-js-org/AR.js/master/three.js/build/ar-threex.js';
 const ARJS_CAMERA_PARAMETERS_URL = 'https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.7/three.js/data/data/camera_para.dat';
 const ARJS_HIRO_PATTERN_URL = 'https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.7/three.js/data/data/patt.hiro';
 const MARKER_LOCALIZATION_STORAGE_KEY = 'loadModelAR.markerLocalization.lastStableSolution';
 const DEFAULT_MARKER_ID = 'hiro';
 const LOG_INTERVAL_MS = 250;
 const MAIN_AR_PAGE_URL = '/loadModelAR.html';
+const THREEX_RUNTIME_POLL_INTERVAL_MS = 100;
+const THREEX_RUNTIME_TIMEOUT_MS = 8000;
 
 const MARKER_TEST_CONFIGS = {
 	dz1207: {
@@ -69,6 +71,20 @@ type ArjsRuntime = {
 	) => ArMarkerControlsInstance;
 };
 
+type MarkerTestWindow = Window & typeof globalThis & {
+	THREE?: typeof THREE;
+	THREEx?: Partial<ArjsRuntime>;
+};
+
+type ArjsRuntimeDiagnostic = {
+	scriptUrl: string;
+	scriptLoaded: boolean;
+	hasTHREEx: boolean;
+	hasArToolkitSource: boolean;
+	hasArToolkitContext: boolean;
+	hasArMarkerControls: boolean;
+};
+
 type SerializedStableMarkerLocalization = {
 	markerId: string;
 	markerConfigId: string;
@@ -113,38 +129,15 @@ const backToArButton = getRequiredElement<HTMLButtonElement>( 'marker-test-back-
 const resetSamplesButton = getRequiredElement<HTMLButtonElement>( 'marker-test-reset-samples' );
 const saveStableButton = getRequiredElement<HTMLButtonElement>( 'marker-test-save-stable' );
 
-const renderer = new THREE.WebGLRenderer( {
-	antialias: true,
-	alpha: true
-} );
-renderer.setPixelRatio( window.devicePixelRatio );
-renderer.setSize( window.innerWidth, window.innerHeight );
-renderer.domElement.className = 'marker-test__canvas';
-viewportElement.appendChild( renderer.domElement );
-
-const scene = new THREE.Scene();
-const camera = new THREE.Camera();
-scene.add( camera );
-
-const markerRoot = new THREE.Group();
-markerRoot.name = 'marker-root-hiro';
-scene.add( markerRoot );
-
-const markerAxes = new THREE.AxesHelper( 0.3 );
-markerRoot.add( markerAxes );
-
-const markerCube = new THREE.Mesh(
-	new THREE.BoxGeometry( 0.2, 0.2, 0.2 ),
-	new THREE.MeshNormalMaterial( { transparent: true, opacity: 0.85 } )
-);
-markerCube.position.y = 0.1;
-markerRoot.add( markerCube );
-
 const tempPosition = new THREE.Vector3();
 const tempQuaternion = new THREE.Quaternion();
 const tempScale = new THREE.Vector3();
 const localizationStabilizer = new MarkerLocalizationStabilizer();
 
+let renderer: THREE.WebGLRenderer | null = null;
+let scene: THREE.Scene | null = null;
+let camera: THREE.Camera | null = null;
+let markerRoot: THREE.Group | null = null;
 let arToolkitSource: ArToolkitSourceInstance | null = null;
 let arToolkitContext: ArToolkitContextInstance | null = null;
 let markerControls: ArMarkerControlsInstance | null = null;
@@ -175,12 +168,16 @@ void boot();
 async function boot(): Promise<void> {
 
 	try {
+		exposeThreeGlobal();
+
 		const [ runtime, config ] = await Promise.all( [
 			loadArjsRuntime(),
 			loadDemoModelConfig( currentConfigDefinition.configUrl, () => undefined )
 		] );
+
 		demoModelConfig = config;
 		markerPoseInEnu = resolveMarkerPoseInEnu( config, mapMarkerIdToConfigMarkerId( DEFAULT_MARKER_ID ) );
+		initializeSceneRuntime();
 		setStatus( 'Opening camera...' );
 		setupArjsScene( runtime );
 		startLoop();
@@ -192,6 +189,10 @@ async function boot(): Promise<void> {
 }
 
 function setupArjsScene(runtime: ArjsRuntime): void {
+
+	if ( camera === null || markerRoot === null ) {
+		throw new Error( 'Scene runtime is not initialized.' );
+	}
 
 	arToolkitSource = new runtime.ArToolkitSource( {
 		sourceType: 'webcam'
@@ -207,7 +208,7 @@ function setupArjsScene(runtime: ArjsRuntime): void {
 	} );
 
 	arToolkitContext.init( () => {
-		camera.projectionMatrix.copy( arToolkitContext?.getProjectionMatrix() ?? new THREE.Matrix4() );
+		camera?.projectionMatrix.copy( arToolkitContext?.getProjectionMatrix() ?? new THREE.Matrix4() );
 	} );
 
 	markerControls = new runtime.ArMarkerControls(
@@ -229,6 +230,10 @@ function startLoop(): void {
 
 		animationFrameId = window.requestAnimationFrame( tick );
 
+		if ( renderer === null || scene === null || camera === null ) {
+			return;
+		}
+
 		if ( arToolkitSource === null || arToolkitContext === null ) {
 			renderer.render( scene, camera );
 			return;
@@ -248,6 +253,10 @@ function startLoop(): void {
 }
 
 function renderMarkerPoseState(): void {
+
+	if ( markerRoot === null ) {
+		return;
+	}
 
 	markerRoot.updateMatrixWorld( true );
 	const visible = markerRoot.visible === true;
@@ -452,7 +461,7 @@ function setStabilityState(report: MarkerLocalizationStabilityReport): void {
 	stabilityHeadingStdElement.textContent = formatOptionalNumber( report.headingStdDeg, 4 );
 	stabilityAveragedPositionElement.textContent = report.averagedSiteOriginArPosition === undefined
 		? '-'
-		: `${report.averagedSiteOriginArPosition.x.toFixed( 4)}, ${report.averagedSiteOriginArPosition.y.toFixed( 4)}, ${report.averagedSiteOriginArPosition.z.toFixed( 4 )}`;
+		: `${report.averagedSiteOriginArPosition.x.toFixed( 4 )}, ${report.averagedSiteOriginArPosition.y.toFixed( 4 )}, ${report.averagedSiteOriginArPosition.z.toFixed( 4 )}`;
 	stabilityAveragedHeadingElement.textContent = formatOptionalNumber( report.averagedHeadingDeg, 4 );
 	stabilityReasonElement.textContent = report.reason ?? '-';
 	saveStableButton.disabled = report.stable === false;
@@ -482,6 +491,10 @@ function logMarkerPose(markerPoseInArValue: MarkerPoseInAr): void {
 
 function handleResize(): void {
 
+	if ( renderer === null ) {
+		return;
+	}
+
 	renderer.setSize( window.innerWidth, window.innerHeight );
 
 	if ( arToolkitSource === null ) {
@@ -500,18 +513,26 @@ function handleResize(): void {
 
 async function loadArjsRuntime(): Promise<ArjsRuntime> {
 
+	exposeThreeGlobal();
+
 	const existingRuntime = readArjsRuntime();
 	if ( existingRuntime !== null ) {
+		logArjsRuntime( readArjsRuntimeDiagnostic( true ) );
 		return existingRuntime;
 	}
 
 	const existingScript = document.querySelector<HTMLScriptElement>( ARJS_SCRIPT_SELECTOR );
 	if ( existingScript !== null ) {
-		await waitForScriptLoad( existingScript );
-		const loadedRuntime = readArjsRuntime();
-		if ( loadedRuntime !== null ) {
-			return loadedRuntime;
+		if ( existingScript.dataset.loaded !== 'true' ) {
+			await waitForScriptLoad( existingScript );
 		}
+
+		const existingRuntimeAfterLoad = await waitForThreexRuntime( 600 );
+		if ( existingRuntimeAfterLoad !== null ) {
+			return existingRuntimeAfterLoad;
+		}
+
+		existingScript.remove();
 	}
 
 	const script = document.createElement( 'script' );
@@ -521,9 +542,9 @@ async function loadArjsRuntime(): Promise<ArjsRuntime> {
 	document.head.appendChild( script );
 	await waitForScriptLoad( script );
 
-	const runtime = readArjsRuntime();
+	const runtime = await waitForThreexRuntime();
 	if ( runtime === null ) {
-		throw new Error( 'AR.js runtime loaded, but THREEx is still unavailable.' );
+		throw createThreexUnavailableError( readArjsRuntimeDiagnostic( true ) );
 	}
 
 	return runtime;
@@ -532,7 +553,7 @@ async function loadArjsRuntime(): Promise<ArjsRuntime> {
 
 function readArjsRuntime(): ArjsRuntime | null {
 
-	const candidate = ( window as Window & { THREEx?: ArjsRuntime } ).THREEx;
+	const candidate = ( window as MarkerTestWindow ).THREEx;
 	if ( candidate === undefined ) {
 		return null;
 	}
@@ -545,25 +566,49 @@ function readArjsRuntime(): ArjsRuntime | null {
 		return null;
 	}
 
-	return candidate;
+	return candidate as ArjsRuntime;
+
+}
+
+async function waitForThreexRuntime(timeoutMs = THREEX_RUNTIME_TIMEOUT_MS): Promise<ArjsRuntime | null> {
+
+	const startedAt = Date.now();
+
+	while ( Date.now() - startedAt <= timeoutMs ) {
+		const runtime = readArjsRuntime();
+		if ( runtime !== null ) {
+			logArjsRuntime( readArjsRuntimeDiagnostic( true ) );
+			return runtime;
+		}
+
+		await delay( THREEX_RUNTIME_POLL_INTERVAL_MS );
+	}
+
+	const diagnostic = readArjsRuntimeDiagnostic( true );
+	logArjsRuntime( diagnostic );
+	return null;
 
 }
 
 function waitForScriptLoad(script: HTMLScriptElement): Promise<void> {
 
 	if ( script.dataset.loaded === 'true' ) {
+		logArjsRuntime( readArjsRuntimeDiagnostic( true ) );
 		return Promise.resolve();
 	}
 
 	return new Promise<void>( ( resolve, reject ) => {
 		const handleLoad = () => {
 			script.dataset.loaded = 'true';
+			logArjsRuntime( readArjsRuntimeDiagnostic( true ) );
 			cleanup();
 			resolve();
 		};
 		const handleError = () => {
+			const diagnostic = readArjsRuntimeDiagnostic( false );
+			logArjsRuntime( diagnostic );
 			cleanup();
-			reject( new Error( 'Failed to load AR.js runtime script.' ) );
+			reject( new Error( `AR.js runtime script load failed: ${script.src}` ) );
 		};
 		const cleanup = () => {
 			script.removeEventListener( 'load', handleLoad );
@@ -572,6 +617,102 @@ function waitForScriptLoad(script: HTMLScriptElement): Promise<void> {
 
 		script.addEventListener( 'load', handleLoad );
 		script.addEventListener( 'error', handleError );
+	} );
+
+}
+
+function initializeSceneRuntime(): void {
+
+	if ( renderer !== null ) {
+		return;
+	}
+
+	renderer = new THREE.WebGLRenderer( {
+		antialias: true,
+		alpha: true
+	} );
+	renderer.setPixelRatio( window.devicePixelRatio );
+	renderer.setSize( window.innerWidth, window.innerHeight );
+	renderer.domElement.className = 'marker-test__canvas';
+	viewportElement.appendChild( renderer.domElement );
+
+	scene = new THREE.Scene();
+	camera = new THREE.Camera();
+	scene.add( camera );
+
+	markerRoot = new THREE.Group();
+	markerRoot.name = 'marker-root-hiro';
+	scene.add( markerRoot );
+
+	const markerAxes = new THREE.AxesHelper( 0.3 );
+	markerRoot.add( markerAxes );
+
+	const markerCube = new THREE.Mesh(
+		new THREE.BoxGeometry( 0.2, 0.2, 0.2 ),
+		new THREE.MeshNormalMaterial( { transparent: true, opacity: 0.85 } )
+	);
+	markerCube.position.y = 0.1;
+	markerRoot.add( markerCube );
+
+}
+
+function exposeThreeGlobal(): void {
+
+	( window as MarkerTestWindow ).THREE = THREE;
+
+}
+
+function readArjsRuntimeDiagnostic(scriptLoaded: boolean): ArjsRuntimeDiagnostic {
+
+	const runtime = ( window as MarkerTestWindow ).THREEx;
+
+	return {
+		scriptUrl: ARJS_RUNTIME_URL,
+		scriptLoaded,
+		hasTHREEx: runtime !== undefined,
+		hasArToolkitSource: typeof runtime?.ArToolkitSource === 'function',
+		hasArToolkitContext: typeof runtime?.ArToolkitContext === 'function',
+		hasArMarkerControls: typeof runtime?.ArMarkerControls === 'function'
+	};
+
+}
+
+function logArjsRuntime(diagnostic: ArjsRuntimeDiagnostic): void {
+
+	console.info( '[ArjsRuntime]', diagnostic );
+
+}
+
+function createThreexUnavailableError(diagnostic: ArjsRuntimeDiagnostic): Error {
+
+	if ( diagnostic.hasTHREEx === false ) {
+		return new Error(
+			'AR.js THREEx runtime unavailable. Please check ar-threex.js CDN or local runtime file.'
+		);
+	}
+
+	if ( diagnostic.hasArToolkitSource === false ) {
+		return new Error( 'AR.js THREEx runtime unavailable: ArToolkitSource missing.' );
+	}
+
+	if ( diagnostic.hasArToolkitContext === false ) {
+		return new Error( 'AR.js THREEx runtime unavailable: ArToolkitContext missing.' );
+	}
+
+	if ( diagnostic.hasArMarkerControls === false ) {
+		return new Error( 'AR.js THREEx runtime unavailable: ArMarkerControls missing.' );
+	}
+
+	return new Error(
+		'AR.js THREEx runtime unavailable. Please check ar-threex.js CDN or local runtime file.'
+	);
+
+}
+
+function delay(timeoutMs: number): Promise<void> {
+
+	return new Promise( ( resolve ) => {
+		window.setTimeout( resolve, timeoutMs );
 	} );
 
 }
@@ -703,5 +844,5 @@ function serializeStabilityReport(report: MarkerLocalizationStabilityReport): {
 window.addEventListener( 'beforeunload', () => {
 	window.cancelAnimationFrame( animationFrameId );
 	window.removeEventListener( 'resize', handleResize );
-	renderer.dispose();
+	renderer?.dispose();
 } );

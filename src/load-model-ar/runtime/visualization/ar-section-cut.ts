@@ -48,10 +48,18 @@ const SECTION_CUT_CAP_COLOR = 0xb6a48b;
 const SECTION_CUT_CAP_OPACITY = 0.96;
 const SECTION_CUT_CAP_PADDING = 0.02;
 const tempBounds = new THREE.Box3();
+const tempLocalBounds = new THREE.Box3();
+const tempGeometryBounds = new THREE.Box3();
 const tempBoundsSize = new THREE.Vector3();
 const tempPoint = new THREE.Vector3();
 const tempPlaneNormal = new THREE.Vector3();
+const tempLocalPlaneNormal = new THREE.Vector3();
+const tempWorldQuaternion = new THREE.Quaternion();
+const tempInverseRootMatrixWorld = new THREE.Matrix4();
+const tempRelativeMatrix = new THREE.Matrix4();
+const tempPlaneQuaternion = new THREE.Quaternion();
 const unitPlaneGeometry = new THREE.PlaneGeometry( 1, 1 );
+const unitPlaneNormal = new THREE.Vector3( 0, 0, 1 );
 
 export function createArSectionCutController(renderer: THREE.WebGLRenderer): ArSectionCutController {
 
@@ -101,14 +109,12 @@ export function createArSectionCutController(renderer: THREE.WebGLRenderer): ArS
 		}
 
 		tempBounds.setFromObject( modelRoot );
-		const axis = resolvePlaneAxis( tempBounds, currentPlaneMode );
-		const axisMin = tempBounds.min[ axis ];
-		const axisMax = tempBounds.max[ axis ];
+		const localBounds = resolveModelLocalBounds( modelRoot );
+		const axis = resolvePlaneAxis( localBounds, currentPlaneMode );
+		const axisMin = localBounds.min[ axis ];
+		const axisMax = localBounds.max[ axis ];
 		const cutPosition = THREE.MathUtils.lerp( axisMin, axisMax, nextValue / 100 );
-		const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(
-			tempPlaneNormal.setScalar( 0 ).setComponent( axisToIndex( axis ), -1 ),
-			tempPoint.setScalar( 0 ).setComponent( axisToIndex( axis ), cutPosition )
-		);
+		const plane = createWorldSectionPlane( modelRoot, localBounds, axis, cutPosition );
 
 		renderer.localClippingEnabled = true;
 		let affectedMeshCount = 0;
@@ -137,7 +143,7 @@ export function createArSectionCutController(renderer: THREE.WebGLRenderer): ArS
 			applyPlaneToStencilHelpers( helpers, plane );
 		} );
 
-		ensureCapPlane( modelRoot, axis, cutPosition, tempBounds );
+		ensureCapPlane( modelRoot, axis, cutPosition, localBounds );
 
 		return {
 			value: nextValue,
@@ -235,13 +241,12 @@ export function createArSectionCutController(renderer: THREE.WebGLRenderer): ArS
 		capPlane.scale.set( width + SECTION_CUT_CAP_PADDING, height + SECTION_CUT_CAP_PADDING, 1 );
 		capPlane.position.copy( bounds.getCenter( tempPoint ) );
 		capPlane.position[ axis ] = cutPosition;
-		capPlane.rotation.set( 0, 0, 0 );
-
-		if ( axis === 'x' ) {
-			capPlane.rotation.y = Math.PI / 2;
-		} else if ( axis === 'y' ) {
-			capPlane.rotation.x = - Math.PI / 2;
-		}
+		capPlane.quaternion.copy(
+			tempPlaneQuaternion.setFromUnitVectors(
+				unitPlaneNormal,
+				tempLocalPlaneNormal.set( 0, 0, 0 ).setComponent( axisToIndex( axis ), 1 )
+			)
+		);
 	}
 
 	function restoreRoot(modelRoot: THREE.Object3D): ArSectionCutRestoreResult {
@@ -386,6 +391,56 @@ function createCapPlaneMesh(renderer: THREE.WebGLRenderer): THREE.Mesh {
 		renderer.clear( false, false, true );
 	};
 	return mesh;
+
+}
+
+function createWorldSectionPlane(
+	modelRoot: THREE.Object3D,
+	localBounds: THREE.Box3,
+	axis: 'x' | 'y' | 'z',
+	cutPosition: number
+): THREE.Plane {
+
+	modelRoot.updateWorldMatrix( true, true );
+	const localPoint = localBounds.getCenter( tempPoint );
+	localPoint[ axis ] = cutPosition;
+	const worldPoint = modelRoot.localToWorld( localPoint.clone() );
+	const worldNormal = tempPlaneNormal
+		.set( 0, 0, 0 )
+		.setComponent( axisToIndex( axis ), -1 )
+		.applyQuaternion( modelRoot.getWorldQuaternion( tempWorldQuaternion ) )
+		normalize();
+
+	return new THREE.Plane().setFromNormalAndCoplanarPoint( worldNormal, worldPoint );
+
+}
+
+function resolveModelLocalBounds(modelRoot: THREE.Object3D): THREE.Box3 {
+
+	modelRoot.updateWorldMatrix( true, true );
+	tempLocalBounds.makeEmpty();
+	tempInverseRootMatrixWorld.copy( modelRoot.matrixWorld ).invert();
+
+	modelRoot.traverse( ( child ) => {
+		if ( child instanceof THREE.Mesh === false || shouldProcessSectionCutMesh( child ) === false ) {
+			return;
+		}
+
+		const geometry = child.geometry;
+		if ( geometry.boundingBox === null ) {
+			geometry.computeBoundingBox();
+		}
+
+		if ( geometry.boundingBox === null ) {
+			return;
+		}
+
+		tempRelativeMatrix.multiplyMatrices( tempInverseRootMatrixWorld, child.matrixWorld );
+		tempGeometryBounds.copy( geometry.boundingBox ).applyMatrix4( tempRelativeMatrix );
+		tempLocalBounds.union( tempGeometryBounds );
+	} );
+
+	return tempLocalBounds;
 
 }
 

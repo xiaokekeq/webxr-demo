@@ -115,7 +115,7 @@ export function createArSectionCutController(renderer: THREE.WebGLRenderer): ArS
 		let affectedMaterialCount = 0;
 
 		modelRoot.traverse( ( child ) => {
-			if ( child instanceof THREE.Mesh === false ) {
+			if ( child instanceof THREE.Mesh === false || shouldProcessSectionCutMesh( child ) === false ) {
 				return;
 			}
 
@@ -249,7 +249,7 @@ export function createArSectionCutController(renderer: THREE.WebGLRenderer): ArS
 		let restoredMaterialCount = 0;
 		let restoredMeshCount = 0;
 		modelRoot.traverse( ( child ) => {
-			if ( child instanceof THREE.Mesh === false ) {
+			if ( child instanceof THREE.Mesh === false || shouldProcessSectionCutMesh( child ) === false ) {
 				return;
 			}
 
@@ -444,5 +444,15 @@ function axisToIndex(axis: 'x' | 'y' | 'z'): 0 | 1 | 2 {
 		default:
 			return 2;
 	}
+
+}
+
+function shouldProcessSectionCutMesh(mesh: THREE.Mesh): boolean {
+
+	return mesh.userData[ SECTION_CUT_TAGS.stencilHelper ] !== true
+		&& mesh.userData[ SECTION_CUT_TAGS.capPlane ] !== true
+		&& mesh.userData.__displayModeHelper !== true
+		&& mesh.userData.__nonSelectableHelper !== true
+		&& mesh.userData.__excludeFromLayerIndex !== true;
 
 }

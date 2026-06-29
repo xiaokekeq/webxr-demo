@@ -56,7 +56,19 @@ interface LayeredXrayVisualState {
 	depthWrite: boolean;
 }
 
+interface FallbackMeshLayerDescriptor {
+	orderIndex: number;
+	totalCount: number;
+}
+
+interface FallbackMeshLayerResolution {
+	descriptors: WeakMap<THREE.Mesh, FallbackMeshLayerDescriptor>;
+	totalCount: number;
+}
+
 const tempLayerReports = new Map<string, ArXrayLayerReport>();
+const tempMeshBounds = new THREE.Box3();
+const tempMeshCenter = new THREE.Vector3();
 
 export function createArXrayVisualizationController(): ArXrayVisualizationController {
 
@@ -171,9 +183,7 @@ function applyXrayToRoot(options: {
 		materialSnapshots,
 		meshSnapshots
 	} = options;
-	const layerDescriptors = createLayerDescriptors( modelLayers );
-	const canUseLayeredOpacity = layerDescriptors.size > 1;
-	const opacityMode: ArXrayApplyResult['opacityMode'] = canUseLayeredOpacity ? 'layered' : 'uniform';
+	const opacity = computeUniformOpacity( value );
 	let affectedMeshCount = 0;
 	let affectedMaterialCount = 0;
 
@@ -191,12 +201,6 @@ function applyXrayToRoot(options: {
 			return;
 		}
 
-		const layerDescriptor = resolveLayerDescriptorForObject( mesh, layerDescriptors );
-		const layeredVisualState = layerDescriptor === null || canUseLayeredOpacity === false
-			? null
-			: computeLayeredVisualState( value, layerDescriptor.orderIndex, layerDescriptors.size );
-		const opacity = layeredVisualState?.opacity ?? computeUniformOpacity( value );
-
 		// Slider controls transparent xray; manual buttons continue to control layer visibility.
 		mesh.visible = meshSnapshot.visible;
 		affectedMeshCount += 1;
@@ -205,32 +209,22 @@ function applyXrayToRoot(options: {
 			rememberMaterial( materialSnapshots, material );
 			material.transparent = true;
 			material.opacity = opacity;
-			material.depthWrite = layeredVisualState?.depthWrite ?? false;
+			material.depthWrite = false;
 			material.depthTest = true;
 			material.side = materialSnapshots.get( material )?.side ?? material.side;
 			material.needsUpdate = true;
 			affectedMaterialCount += 1;
 		} );
-
-		if ( layerDescriptor !== null && canUseLayeredOpacity ) {
-			tempLayerReports.set( layerDescriptor.id, {
-				layerId: layerDescriptor.id,
-				layerIndex: layerDescriptor.orderIndex,
-				layerName: layerDescriptor.label,
-				opacity,
-				visible: layerDescriptor.visible
-			} );
-		}
 	} );
 
 	return createApplyResult( {
 		value,
-		opacityMode,
+		opacityMode: 'uniform',
 		totalLayerCount: modelLayers.length,
 		affectedMeshCount,
 		affectedMaterialCount,
 		hasModelRoot: true,
-		layerReports: Array.from( tempLayerReports.values() ).sort( ( a, b ) => a.layerIndex - b.layerIndex )
+		layerReports: []
 	} );
 
 }
@@ -310,6 +304,43 @@ function resolveLayerDescriptorForObject(
 	}
 
 	return null;
+
+}
+
+function buildFallbackMeshLayerDescriptors(modelRoot: THREE.Object3D): FallbackMeshLayerResolution {
+
+	const rankedMeshes: Array<{ mesh: THREE.Mesh; centerY: number }> = [];
+	modelRoot.traverse( ( child ) => {
+		if ( child instanceof THREE.Mesh === false || shouldAffectMesh( child ) === false ) {
+			return;
+		}
+
+		child.updateWorldMatrix( true, false );
+		tempMeshBounds.setFromObject( child );
+		if ( tempMeshBounds.isEmpty() ) {
+			return;
+		}
+
+		tempMeshBounds.getCenter( tempMeshCenter );
+		rankedMeshes.push( {
+			mesh: child,
+			centerY: tempMeshCenter.y
+		} );
+	} );
+
+	rankedMeshes.sort( ( a, b ) => b.centerY - a.centerY );
+	const descriptors = new WeakMap<THREE.Mesh, FallbackMeshLayerDescriptor>();
+	for ( let index = 0; index < rankedMeshes.length; index += 1 ) {
+		descriptors.set( rankedMeshes[ index ].mesh, {
+			orderIndex: index,
+			totalCount: rankedMeshes.length
+		} );
+	}
+
+	return {
+		descriptors,
+		totalCount: rankedMeshes.length
+	};
 
 }
 

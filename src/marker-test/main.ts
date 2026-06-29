@@ -17,7 +17,7 @@ import {
 
 const ARJS_SCRIPT_SELECTOR = 'script[data-arjs-runtime="true"]';
 const ARJS_REPOSITORY = 'AR-js-org/AR.js';
-const ARJS_RUNTIME_URL = '/arjs/build/ar.js';
+const ARJS_RUNTIME_URL = '/arjs/build/ar-threex.js';
 const ARJS_CAMERA_PARAMETERS_URL = '/arjs/data/camera_para.dat';
 const ARJS_HIRO_PATTERN_URL = '/arjs/data/patt.hiro';
 const ARJS_HIRO_IMAGE_URL = '/arjs/images/hiro.png';
@@ -1262,7 +1262,7 @@ function readArjsRuntimeDiagnostic(scriptLoaded: boolean): ArjsRuntimeDiagnostic
 		hasArToolkitContext: typeof runtime?.ArToolkitContext === 'function',
 		hasArMarkerControls: typeof runtime?.ArMarkerControls === 'function',
 		usingArjsNamespaceShim: runtime !== undefined && arjsNamespace !== undefined,
-		usingOfficialBuild: scriptSource.includes( '/arjs/build/ar.js' ) || scriptSource.includes( 'AR-js-org/AR.js' ),
+		usingOfficialBuild: scriptSource.includes( '/arjs/build/ar-threex.js' ) || scriptSource.includes( 'AR-js-org/AR.js' ),
 		repository: ARJS_REPOSITORY,
 		oldRepositoryDetected: detectDeprecatedRepositoryPath()
 	};
@@ -1279,7 +1279,7 @@ function createThreexUnavailableError(diagnostic: ArjsRuntimeDiagnostic): Error 
 
 	if ( diagnostic.hasTHREEx === false && diagnostic.hasARjs === false ) {
 		return new Error(
-			'AR.js runtime unavailable. Please check /arjs/build/ar.js from AR-js-org/AR.js.'
+			'AR.js runtime unavailable. Please check /arjs/build/ar-threex.js from AR-js-org/AR.js.'
 		);
 	}
 
@@ -1296,7 +1296,7 @@ function createThreexUnavailableError(diagnostic: ArjsRuntimeDiagnostic): Error 
 	}
 
 	return new Error(
-		'AR.js runtime unavailable. Please check /arjs/build/ar.js from AR-js-org/AR.js.'
+		'AR.js runtime unavailable. Please check /arjs/build/ar-threex.js from AR-js-org/AR.js.'
 	);
 
 }
@@ -1355,7 +1355,7 @@ function detectDeprecatedRepositoryPath(): boolean {
 
 function isOfficialArjsBuildUrl(url: string): boolean {
 
-	return url.includes( '/arjs/build/ar.js' ) || url.includes( 'AR-js-org/AR.js' );
+	return url.includes( '/arjs/build/ar-threex.js' ) || url.includes( 'AR-js-org/AR.js' );
 
 }
 

@@ -19,34 +19,35 @@ const ARJS_SCRIPT_SELECTOR = 'script[data-arjs-runtime="true"]';
 const ARJS_REPOSITORY = 'AR-js-org/AR.js';
 const ARJS_RUNTIME_URL = '/arjs/build/ar-threex.js';
 const ARJS_CAMERA_PARAMETERS_URL = '/arjs/data/camera_para.dat';
-const ARJS_HIRO_PATTERN_URL = '/arjs/data/patt.hiro';
-const ARJS_HIRO_IMAGE_URL = '/arjs/images/hiro.png';
+const ARJS_MARKER_PATTERN_URL = '/arjs/data/patt.focus-grid';
+const ARJS_MARKER_IMAGE_URL = '/markers/focus-grid-marker.svg';
 const MARKER_LOCALIZATION_STORAGE_KEY = 'loadModelAR.markerLocalization.lastStableSolution';
-const DEFAULT_MARKER_ID = 'hiro';
+const DEFAULT_MARKER_ID = 'focus-grid';
 const LOG_INTERVAL_MS = 250;
 const MAIN_AR_PAGE_URL = '/loadModelAR.html';
-const HIRO_MARKER_REFERENCE_URL = ARJS_HIRO_IMAGE_URL;
+const MARKER_REFERENCE_URL = ARJS_MARKER_IMAGE_URL;
 const THREEX_RUNTIME_POLL_INTERVAL_MS = 100;
 const THREEX_RUNTIME_TIMEOUT_MS = 8000;
 const LOOP_DEBUG_LOG_INTERVAL_MS = 1000;
-const ARJS_SOURCE_WIDTH = 1280;
-const ARJS_SOURCE_HEIGHT = 720;
+const ARJS_SOURCE_WIDTH = 640;
+const ARJS_SOURCE_HEIGHT = 480;
 const ARJS_DETECTION_CANVAS_WIDTH = 640;
 const ARJS_DETECTION_CANVAS_HEIGHT = 480;
-const ARJS_MAX_DETECTION_RATE = 60;
+const ARJS_MAX_DETECTION_RATE = 30;
 const ARJS_DEFAULT_MARKER_SIZE_METERS = 0.2;
-const ARJS_MARKER_SMOOTH_COUNT = 5;
-const ARJS_MARKER_SMOOTH_TOLERANCE = 0.01;
-const ARJS_MARKER_SMOOTH_THRESHOLD = 2;
+const ARJS_MARKER_SMOOTH_ENABLED = false;
+const ARJS_MARKER_SMOOTH_COUNT = 0;
+const ARJS_MARKER_SMOOTH_TOLERANCE = 0;
+const ARJS_MARKER_SMOOTH_THRESHOLD = 0;
 
 const MARKER_TEST_CONFIGS = {
 	dz1207: {
 		configUrl: '/pipe-viewer/dz1207.config.json',
-		hiroMarkerConfigId: 'dike-marker-001'
+		markerConfigId: 'dike-marker-001'
 	},
 	'local-debug': {
 		configUrl: '/pipe-viewer/company_debug_site.config.json',
-		hiroMarkerConfigId: 'local-debug-marker-001'
+		markerConfigId: 'local-debug-marker-001'
 	}
 } as const;
 
@@ -219,7 +220,7 @@ const stabilityAveragedHeadingElement = getRequiredElement<HTMLSpanElement>( 'ma
 const stabilityReasonElement = getRequiredElement<HTMLSpanElement>( 'marker-test-stability-reason' );
 const saveStatusElement = getRequiredElement<HTMLSpanElement>( 'marker-test-save-status' );
 const backToArButton = getRequiredElement<HTMLButtonElement>( 'marker-test-back-to-ar' );
-const showHiroMarkerButton = getRequiredElement<HTMLButtonElement>( 'marker-test-show-hiro-marker' );
+const showMarkerReferenceButton = getRequiredElement<HTMLButtonElement>( 'marker-test-show-marker-reference' );
 const resetSamplesButton = getRequiredElement<HTMLButtonElement>( 'marker-test-reset-samples' );
 const saveStableButton = getRequiredElement<HTMLButtonElement>( 'marker-test-save-stable' );
 
@@ -266,8 +267,8 @@ markerConfigIdElement.textContent = mapMarkerIdToConfigMarkerId( DEFAULT_MARKER_
 summaryMarkerConfigIdElement.textContent = mapMarkerIdToConfigMarkerId( DEFAULT_MARKER_ID );
 arjsBuildUrlElement.textContent = ARJS_RUNTIME_URL;
 cameraParamUrlElement.textContent = ARJS_CAMERA_PARAMETERS_URL;
-patternUrlElement.textContent = ARJS_HIRO_PATTERN_URL;
-markerImageUrlElement.textContent = ARJS_HIRO_IMAGE_URL;
+patternUrlElement.textContent = ARJS_MARKER_PATTERN_URL;
+markerImageUrlElement.textContent = ARJS_MARKER_IMAGE_URL;
 repositoryElement.textContent = ARJS_REPOSITORY;
 oldRepoDetectedElement.textContent = detectDeprecatedRepositoryPath() ? 'yes' : 'no';
 setStatus( 'Loading AR.js runtime, marker config, and stabilizer...' );
@@ -278,7 +279,7 @@ setSaveStatus( 'Current saved result is for debug only and is not connected to t
 syncDebugState();
 
 backToArButton.addEventListener( 'click', handleBackToAr );
-showHiroMarkerButton.addEventListener( 'click', handleShowHiroMarker );
+showMarkerReferenceButton.addEventListener( 'click', handleShowMarkerReference );
 toggleDebugButton.addEventListener( 'click', handleToggleDebugDrawer );
 resetSamplesButton.addEventListener( 'click', handleResetSamples );
 saveStableButton.addEventListener( 'click', handleSaveStableResult );
@@ -338,7 +339,7 @@ function setupArjsScene(runtime: ArjsRuntime): void {
 		logArjsRuntimeReady();
 		ensureCameraPreviewAttached();
 		handleResize();
-		setStatus( 'Camera ready. Point the device at a Hiro marker.' );
+		setStatus( 'Camera ready. Point the device at the marker.' );
 	} );
 
 	arToolkitContext.init( () => {
@@ -354,9 +355,9 @@ function setupArjsScene(runtime: ArjsRuntime): void {
 		markerRoot,
 		{
 			type: 'pattern',
-			patternUrl: ARJS_HIRO_PATTERN_URL,
+			patternUrl: ARJS_MARKER_PATTERN_URL,
 			size: getConfiguredMarkerSizeMeters(),
-			smooth: true,
+			smooth: ARJS_MARKER_SMOOTH_ENABLED,
 			smoothCount: ARJS_MARKER_SMOOTH_COUNT,
 			smoothTolerance: ARJS_MARKER_SMOOTH_TOLERANCE,
 			smoothThreshold: ARJS_MARKER_SMOOTH_THRESHOLD
@@ -502,7 +503,7 @@ function updateVisibleState(state: 'visible' | 'lost'): void {
 	rawDetectionElement.textContent = state;
 	summaryVisibleElement.textContent = state;
 	guideFrameElement.classList.toggle( 'marker-test__guide--detected', visible );
-	guideLabelElement.textContent = visible ? 'Marker detected' : 'Place Hiro marker inside frame';
+	guideLabelElement.textContent = visible ? 'Marker detected' : 'Place the marker inside frame';
 
 }
 
@@ -521,9 +522,9 @@ function handleBackToAr(): void {
 
 }
 
-function handleShowHiroMarker(): void {
+function handleShowMarkerReference(): void {
 
-	window.open( HIRO_MARKER_REFERENCE_URL, '_blank', 'noopener,noreferrer' );
+	window.open( MARKER_REFERENCE_URL, '_blank', 'noopener,noreferrer' );
 
 }
 
@@ -735,8 +736,8 @@ function logArjsMarkerAssets(): void {
 	console.info( '[ArjsMarkerAssets]', {
 		arjsBuildUrl: ARJS_RUNTIME_URL,
 		cameraParamUrl: ARJS_CAMERA_PARAMETERS_URL,
-		patternUrl: ARJS_HIRO_PATTERN_URL,
-		markerImageUrl: ARJS_HIRO_IMAGE_URL,
+		patternUrl: ARJS_MARKER_PATTERN_URL,
+		markerImageUrl: ARJS_MARKER_IMAGE_URL,
 		sourceWidth: ARJS_SOURCE_WIDTH,
 		sourceHeight: ARJS_SOURCE_HEIGHT,
 		detectionCanvasWidth: ARJS_DETECTION_CANVAS_WIDTH,
@@ -744,7 +745,7 @@ function logArjsMarkerAssets(): void {
 		maxDetectionRate: ARJS_MAX_DETECTION_RATE,
 		markerSizeMeters: getConfiguredMarkerSizeMeters(),
 		markerSmoothing: {
-			enabled: true,
+			enabled: ARJS_MARKER_SMOOTH_ENABLED,
 			smoothCount: ARJS_MARKER_SMOOTH_COUNT,
 			smoothTolerance: ARJS_MARKER_SMOOTH_TOLERANCE,
 			smoothThreshold: ARJS_MARKER_SMOOTH_THRESHOLD
@@ -774,10 +775,10 @@ function logOfficialAssetCheck(results: {
 		cameraParametersUrl: ARJS_CAMERA_PARAMETERS_URL,
 		cameraStatus: cameraParamStatus,
 		cameraBytes: results.cameraParamResult.bytes,
-		patternUrl: ARJS_HIRO_PATTERN_URL,
+		patternUrl: ARJS_MARKER_PATTERN_URL,
 		patternStatus,
 		patternBytes: results.patternResult.bytes,
-		markerImageUrl: ARJS_HIRO_IMAGE_URL,
+		markerImageUrl: ARJS_MARKER_IMAGE_URL,
 		markerImageStatus,
 		markerImageBytes: results.markerImageResult.bytes,
 		repository: ARJS_REPOSITORY,
@@ -1095,8 +1096,8 @@ async function probeMarkerAssets(): Promise<void> {
 	const [ buildResult, cameraParamResult, patternResult, markerImageResult ] = await Promise.all( [
 		probeAssetUrl( ARJS_RUNTIME_URL, 'text' ),
 		probeAssetUrl( ARJS_CAMERA_PARAMETERS_URL, 'text' ),
-		probeAssetUrl( ARJS_HIRO_PATTERN_URL, 'text' ),
-		probeAssetUrl( ARJS_HIRO_IMAGE_URL, 'binary' )
+		probeAssetUrl( ARJS_MARKER_PATTERN_URL, 'text' ),
+		probeAssetUrl( ARJS_MARKER_IMAGE_URL, 'binary' )
 	] );
 
 	arjsBuildStatus = buildResult.ok ? 'loaded' : 'failed';
@@ -1121,11 +1122,11 @@ async function probeMarkerAssets(): Promise<void> {
 	}
 
 	if ( patternResult.ok === false ) {
-		throw new Error( `patt.hiro load failed: ${patternResult.message}` );
+		throw new Error( `focus-grid pattern load failed: ${patternResult.message}` );
 	}
 
 	if ( markerImageResult.ok === false ) {
-		throw new Error( `hiro.png load failed: ${markerImageResult.message}` );
+		throw new Error( `focus-grid marker image load failed: ${markerImageResult.message}` );
 	}
 
 }
@@ -1270,7 +1271,7 @@ function initializeSceneRuntime(): void {
 	scene.add( camera );
 
 	markerRoot = new THREE.Group();
-	markerRoot.name = 'marker-root-hiro';
+	markerRoot.name = 'marker-root-focus-grid';
 	scene.add( markerRoot );
 
 	const markerAxes = new THREE.AxesHelper( 0.3 );
@@ -1394,8 +1395,8 @@ function detectDeprecatedRepositoryPath(): boolean {
 		runtimeScriptUrl,
 		ARJS_RUNTIME_URL,
 		ARJS_CAMERA_PARAMETERS_URL,
-		ARJS_HIRO_PATTERN_URL,
-		ARJS_HIRO_IMAGE_URL
+		ARJS_MARKER_PATTERN_URL,
+		ARJS_MARKER_IMAGE_URL
 	].some( ( value ) => value.includes( 'jeromeetienne' ) || value.includes( 'rawgit.com' ) );
 
 }
@@ -1417,9 +1418,10 @@ function delay(timeoutMs: number): Promise<void> {
 function mapMarkerIdToConfigMarkerId(markerId: string): string {
 
 	if ( markerId === DEFAULT_MARKER_ID ) {
-		// Debug-only mapping: Hiro is temporarily treated as the current config's
-		// selected engineering marker so marker-test can reuse project config.
-		return currentConfigDefinition.hiroMarkerConfigId;
+		// Debug-only mapping: the marker-test reference marker is temporarily
+		// treated as the current config's selected engineering marker so
+		// marker-test can reuse project config.
+		return currentConfigDefinition.markerConfigId;
 	}
 
 	return markerId;

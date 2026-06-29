@@ -92,29 +92,20 @@ export function createAutoPlacementBase(options: {
 
 export function createFrontPreviewPlacementBase(options: {
 	camera: THREE.Camera;
-	cameraWorldPosition: THREE.Vector3;
-	groundY: number;
+	groundPosition: THREE.Vector3;
 	modelTemplate: THREE.Group;
 	registrationSolution: EngineeringRegistrationSolution;
 	modelOrientationTarget: THREE.Quaternion;
-	previewDistanceMeters: number;
 }): ManualPlacementBase {
 
 	const {
 		camera,
-		cameraWorldPosition,
-		groundY,
+		groundPosition,
 		modelTemplate,
 		registrationSolution,
-		modelOrientationTarget,
-		previewDistanceMeters
+		modelOrientationTarget
 	} = options;
-	const position = getPreviewPlacementPosition(
-		camera,
-		cameraWorldPosition,
-		groundY,
-		previewDistanceMeters
-	).clone();
+	const position = groundPosition.clone();
 	const frontPreviewOrientation = flattenQuaternionToYaw(
 		camera.getWorldQuaternion( tempFrontPreviewQuaternion ),
 		modelOrientationTarget

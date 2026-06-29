@@ -457,12 +457,10 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 				xrPlacementCamera.getWorldPosition( cameraWorldPosition );
 				arPlacementBase = createFrontPreviewPlacementBase( {
 					camera: xrPlacementCamera,
-					cameraWorldPosition,
-					groundY: groundPosition.y,
+					groundPosition,
 					modelTemplate,
 					registrationSolution,
-					modelOrientationTarget,
-					previewDistanceMeters: previewPlacementDistanceMeters
+					modelOrientationTarget
 				} );
 
 				coarsePlacementPending = false;
@@ -485,7 +483,7 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 				} );
 				updateRegistrationStatusDetail( '状态：模型已放置' );
 				updatePlacementSummary();
-				setStatus( '已按当前面前预览位置贴地固定放置模型。' );
+				setStatus( '已按当前识别平面位置固定放置模型。' );
 				trackArPlacement( 'front-preview' );
 				return;
 			}

@@ -10,7 +10,6 @@ export type ArSessionPhase = 'scanning' | 'ready-to-place' | 'placing' | 'placed
 export type ArDisplayMode =
 	| 'solid-overlay'
 	| 'transparent-xray'
-	| 'spatial-reveal'
 	| 'layer-peeling'
 	| 'section-cut';
 export type SectionCutPlaneMode = 'cross-section' | 'longitudinal-section' | 'horizontal-section';
@@ -142,7 +141,6 @@ export interface RegistrationStoreState {
 	displayMode: ArDisplayMode;
 	structureRevealValue: number;
 	transparentXrayValue: number;
-	spatialRevealValue: number;
 	layerPeelingValue: number;
 	sectionCutValue: number;
 	sectionCutPlaneMode: SectionCutPlaneMode;

@@ -24,32 +24,14 @@ export function BrowsePanel(props: {
 
 	return (
 		<div className="panel-stack">
-			<PanelSection title="AR 透视显示模式" subtitle="五种显示模式共用同一套 AR 放置与配准结果，只切换可视化方式。">
+			<PanelSection title="AR 透视显示模式" subtitle="四种显示模式共用同一套 AR 放置与配准结果，只切换可视化方式。">
 				<DisplayModeSelector value={engine.displayMode} onChange={actions.setDisplayMode} label="模式" />
 			</PanelSection>
-
-			{engine.displayMode === 'spatial-reveal' ? (
-				<PanelSection
-					title="空间显现"
-					subtitle="从模型起点逐段显现到当前进度，100% 时恢复完整显示。"
-				>
-					<div className="summary-grid">
-						<div className="summary-card">
-							<strong>显现进度</strong>
-							<span>{getDisplayModeSliderValueText( 'spatial-reveal', engine.spatialRevealValue )}</span>
-						</div>
-						<div className="summary-card">
-							<strong>当前语义</strong>
-							<span>显示从起点到当前进度的模型范围</span>
-						</div>
-					</div>
-				</PanelSection>
-			) : null}
 
 			{engine.displayMode === 'section-cut' ? (
 				<PanelSection
 					title="剖切查看"
-					subtitle="移动剖切面查看内部断面；100% 表示剖切面到达远端边界，不是显现完成。"
+					subtitle="移动剖切面查看内部断面；当前模式会保留剖切方向，并补充截面封口辅助。"
 				>
 					<div className="summary-grid">
 						<div className="summary-card">

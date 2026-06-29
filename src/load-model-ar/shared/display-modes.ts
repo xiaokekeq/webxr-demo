@@ -10,7 +10,6 @@ export const DISPLAY_MODE_OPTIONS: Array<{
 }> = [
 	{ value: 'solid-overlay', label: '普通叠加' },
 	{ value: 'transparent-xray', label: '透明透视' },
-	{ value: 'spatial-reveal', label: '空间显现' },
 	{ value: 'layer-peeling', label: '层级剥离' },
 	{ value: 'section-cut', label: '剖切查看' }
 ];
@@ -35,8 +34,6 @@ export function getDisplayModeSliderLabel(mode: ArDisplayMode): string | null {
 	switch ( mode ) {
 		case 'transparent-xray':
 			return '透视强度';
-		case 'spatial-reveal':
-			return '显现进度';
 		case 'layer-peeling':
 			return '剥离进度';
 		case 'section-cut':

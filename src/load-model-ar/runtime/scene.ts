@@ -11,6 +11,7 @@ export function createARScene(canvasContainer: HTMLElement): ARSceneBundle {
 	const renderer = new THREE.WebGLRenderer( {
 		antialias: true,
 		alpha: true,
+		stencil: true,
 		// Keep the drawing buffer so snapshot export can read the current frame.
 		preserveDrawingBuffer: true
 	} );

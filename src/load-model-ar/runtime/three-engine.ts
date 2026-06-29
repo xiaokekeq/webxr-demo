@@ -71,7 +71,6 @@ import {
 import { createDisplayModeController, preserveRootTransform } from './display-mode.js';
 import { createLayerVisibilityController } from './layer-visibility.js';
 import { createArXrayVisualizationController } from './visualization/ar-xray-visualization.js';
-import { createArSpatialRevealController } from './visualization/ar-spatial-reveal.js';
 import { createArLayerPeelingController } from './visualization/ar-layer-peeling.js';
 import { createArSectionCutController } from './visualization/ar-section-cut.js';
 import {
@@ -131,7 +130,6 @@ function createInitialState(): RegistrationStoreState {
 		displayMode: 'solid-overlay',
 		structureRevealValue: 0,
 		transparentXrayValue: 0,
-		spatialRevealValue: 50,
 		layerPeelingValue: 0,
 		sectionCutValue: 50,
 		sectionCutPlaneMode: 'horizontal-section',
@@ -214,7 +212,6 @@ export class ThreeEngine {
 	private readonly desktopAxesHelper = new THREE.AxesHelper( 0.8 );
 	private readonly displayModeController;
 	private readonly structureRevealController = createArXrayVisualizationController();
-	private readonly spatialRevealController;
 	private readonly layerPeelingController = createArLayerPeelingController();
 	private readonly sectionCutController;
 	private readonly annotationLabelsController;
@@ -316,7 +313,6 @@ export class ThreeEngine {
 		this.displayModeController = createDisplayModeController( {
 			getPlacedModel: () => this.placementSession.getPlacedModel()
 		} );
-		this.spatialRevealController = createArSpatialRevealController( this.sceneBundle.renderer );
 		this.sectionCutController = createArSectionCutController( this.sceneBundle.renderer );
 		this.annotationLabelsController = createArAnnotationLabelController( {
 			canvas: this.sceneBundle.renderer.domElement
@@ -622,7 +618,6 @@ export class ThreeEngine {
 		this.displayModeController.dispose();
 		this.restoreVisualizationControllers();
 		this.structureRevealController.dispose();
-		this.spatialRevealController.dispose();
 		this.layerPeelingController.dispose();
 		this.sectionCutController.dispose();
 		this.annotationLabelsController.dispose();
@@ -657,7 +652,6 @@ export class ThreeEngine {
 		if (
 			mode !== 'solid-overlay'
 			&& mode !== 'transparent-xray'
-			&& mode !== 'spatial-reveal'
 			&& mode !== 'layer-peeling'
 			&& mode !== 'section-cut'
 		) {
@@ -702,12 +696,6 @@ export class ThreeEngine {
 				this.store.patch( {
 					structureRevealValue: clampedValue,
 					transparentXrayValue: clampedValue
-				} );
-				break;
-			case 'spatial-reveal':
-				this.store.patch( {
-					structureRevealValue: clampedValue,
-					spatialRevealValue: clampedValue
 				} );
 				break;
 			case 'layer-peeling':
@@ -1848,22 +1836,6 @@ export class ThreeEngine {
 				}
 				break;
 			}
-			case 'spatial-reveal': {
-				const report = this.spatialRevealController.apply( modelRoot, state.spatialRevealValue );
-				console.info( '[SpatialReveal]', {
-					value: report.value,
-					axis: report.axis,
-					direction: report.direction,
-					axisMin: report.axisMin,
-					axisMax: report.axisMax,
-					revealPosition: report.revealPosition,
-					visibleRange: report.visibleRange,
-					meaning: report.meaning,
-					affectedMeshCount: report.affectedMeshCount,
-					affectedMaterialCount: report.affectedMaterialCount
-				} );
-				break;
-			}
 			case 'layer-peeling': {
 				const report = this.layerPeelingController.apply( state.layerPeelingValue, state.modelLayers );
 				console.info( '[LayerPeeling]', {
@@ -2218,13 +2190,8 @@ export class ThreeEngine {
 
 	private restoreVisualizationControllers(activeMode?: ArDisplayMode): void {
 
-		// Spatial reveal and section cut both use clipping planes, but their semantics differ.
-		// Switching modes must clear the previous mode's clipping state before applying the next one.
 		if ( activeMode !== 'transparent-xray' ) {
 			this.structureRevealController.restore();
-		}
-		if ( activeMode !== 'spatial-reveal' ) {
-			this.spatialRevealController.restore();
 		}
 		if ( activeMode !== 'layer-peeling' ) {
 			this.layerPeelingController.restore();
@@ -2446,8 +2413,6 @@ function getDisplayModeSliderValue(
 	switch ( mode ) {
 		case 'transparent-xray':
 			return state.transparentXrayValue;
-		case 'spatial-reveal':
-			return state.spatialRevealValue;
 		case 'layer-peeling':
 			return state.layerPeelingValue;
 		case 'section-cut':

@@ -51,6 +51,11 @@ interface LayerDescriptor {
 	visible: boolean;
 }
 
+interface LayeredXrayVisualState {
+	opacity: number;
+	depthWrite: boolean;
+}
+
 const tempLayerReports = new Map<string, ArXrayLayerReport>();
 
 export function createArXrayVisualizationController(): ArXrayVisualizationController {
@@ -187,9 +192,10 @@ function applyXrayToRoot(options: {
 		}
 
 		const layerDescriptor = resolveLayerDescriptorForObject( mesh, layerDescriptors );
-		const opacity = layerDescriptor === null || canUseLayeredOpacity === false
-			? computeUniformOpacity( value )
-			: computeLayeredOpacity( value, layerDescriptor.orderIndex, layerDescriptors.size );
+		const layeredVisualState = layerDescriptor === null || canUseLayeredOpacity === false
+			? null
+			: computeLayeredVisualState( value, layerDescriptor.orderIndex, layerDescriptors.size );
+		const opacity = layeredVisualState?.opacity ?? computeUniformOpacity( value );
 
 		// Slider controls transparent xray; manual buttons continue to control layer visibility.
 		mesh.visible = meshSnapshot.visible;
@@ -199,7 +205,7 @@ function applyXrayToRoot(options: {
 			rememberMaterial( materialSnapshots, material );
 			material.transparent = true;
 			material.opacity = opacity;
-			material.depthWrite = false;
+			material.depthWrite = layeredVisualState?.depthWrite ?? false;
 			material.depthTest = true;
 			material.side = materialSnapshots.get( material )?.side ?? material.side;
 			material.needsUpdate = true;
@@ -316,10 +322,31 @@ function computeUniformOpacity(value: number): number {
 
 function computeLayeredOpacity(value: number, layerIndex: number, totalLayerCount: number): number {
 
-	const strength = clampPercentage( value ) / 100;
+	return computeLayeredVisualState( value, layerIndex, totalLayerCount ).opacity;
+
+}
+
+function computeLayeredVisualState(
+	value: number,
+	layerIndex: number,
+	totalLayerCount: number
+): LayeredXrayVisualState {
+
+	const strength = Math.pow( clampPercentage( value ) / 100, 0.78 );
 	const layerRatio = layerIndex / Math.max( 1, totalLayerCount - 1 );
-	const maxFade = 0.82 - layerRatio * 0.47;
-	return THREE.MathUtils.clamp( 1 - strength * maxFade, 0.18, 1 );
+	const excavationBias = 1 - layerRatio;
+	const opacityFloor = THREE.MathUtils.lerp( 0.04, 0.82, Math.pow( layerRatio, 0.7 ) );
+	const maxFade = 0.92 - layerRatio * 0.78;
+	const opacity = THREE.MathUtils.clamp(
+		1 - strength * ( maxFade + excavationBias * 0.12 ),
+		opacityFloor,
+		1
+	);
+
+	return {
+		opacity,
+		depthWrite: opacity >= 0.72
+	};
 
 }
 

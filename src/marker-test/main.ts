@@ -29,6 +29,15 @@ const HIRO_MARKER_REFERENCE_URL = ARJS_HIRO_IMAGE_URL;
 const THREEX_RUNTIME_POLL_INTERVAL_MS = 100;
 const THREEX_RUNTIME_TIMEOUT_MS = 8000;
 const LOOP_DEBUG_LOG_INTERVAL_MS = 1000;
+const ARJS_SOURCE_WIDTH = 1280;
+const ARJS_SOURCE_HEIGHT = 720;
+const ARJS_DETECTION_CANVAS_WIDTH = 640;
+const ARJS_DETECTION_CANVAS_HEIGHT = 480;
+const ARJS_MAX_DETECTION_RATE = 60;
+const ARJS_DEFAULT_MARKER_SIZE_METERS = 0.2;
+const ARJS_MARKER_SMOOTH_COUNT = 5;
+const ARJS_MARKER_SMOOTH_TOLERANCE = 0.01;
+const ARJS_MARKER_SMOOTH_THRESHOLD = 2;
 
 const MARKER_TEST_CONFIGS = {
 	dz1207: {
@@ -63,10 +72,19 @@ type ArToolkitContextInstance = {
 type ArMarkerControlsInstance = Record<string, never>;
 
 type ArjsRuntime = {
-	ArToolkitSource: new (options: { sourceType: 'webcam' }) => ArToolkitSourceInstance;
+	ArToolkitSource: new (options: {
+		sourceType: 'webcam';
+		sourceWidth?: number;
+		sourceHeight?: number;
+		displayWidth?: number;
+		displayHeight?: number;
+	}) => ArToolkitSourceInstance;
 	ArToolkitContext: new (options: {
 		cameraParametersUrl: string;
 		detectionMode: 'mono';
+		canvasWidth?: number;
+		canvasHeight?: number;
+		maxDetectionRate?: number;
 	}) => ArToolkitContextInstance;
 	ArMarkerControls: new (
 		context: ArToolkitContextInstance,
@@ -74,6 +92,11 @@ type ArjsRuntime = {
 		options: {
 			type: 'pattern';
 			patternUrl: string;
+			size?: number;
+			smooth?: boolean;
+			smoothCount?: number;
+			smoothTolerance?: number;
+			smoothThreshold?: number;
 		}
 	) => ArMarkerControlsInstance;
 };
@@ -293,11 +316,18 @@ function setupArjsScene(runtime: ArjsRuntime): void {
 	}
 
 	arToolkitSource = new runtime.ArToolkitSource( {
-		sourceType: 'webcam'
+		sourceType: 'webcam',
+		sourceWidth: ARJS_SOURCE_WIDTH,
+		sourceHeight: ARJS_SOURCE_HEIGHT,
+		displayWidth: window.innerWidth,
+		displayHeight: window.innerHeight
 	} );
 	arToolkitContext = new runtime.ArToolkitContext( {
 		cameraParametersUrl: ARJS_CAMERA_PARAMETERS_URL,
-		detectionMode: 'mono'
+		detectionMode: 'mono',
+		canvasWidth: ARJS_DETECTION_CANVAS_WIDTH,
+		canvasHeight: ARJS_DETECTION_CANVAS_HEIGHT,
+		maxDetectionRate: ARJS_MAX_DETECTION_RATE
 	} );
 	logArjsMarkerAssets();
 
@@ -324,7 +354,12 @@ function setupArjsScene(runtime: ArjsRuntime): void {
 		markerRoot,
 		{
 			type: 'pattern',
-			patternUrl: ARJS_HIRO_PATTERN_URL
+			patternUrl: ARJS_HIRO_PATTERN_URL,
+			size: getConfiguredMarkerSizeMeters(),
+			smooth: true,
+			smoothCount: ARJS_MARKER_SMOOTH_COUNT,
+			smoothTolerance: ARJS_MARKER_SMOOTH_TOLERANCE,
+			smoothThreshold: ARJS_MARKER_SMOOTH_THRESHOLD
 		}
 	);
 	markerControlsReady = markerControls !== null;
@@ -702,6 +737,18 @@ function logArjsMarkerAssets(): void {
 		cameraParamUrl: ARJS_CAMERA_PARAMETERS_URL,
 		patternUrl: ARJS_HIRO_PATTERN_URL,
 		markerImageUrl: ARJS_HIRO_IMAGE_URL,
+		sourceWidth: ARJS_SOURCE_WIDTH,
+		sourceHeight: ARJS_SOURCE_HEIGHT,
+		detectionCanvasWidth: ARJS_DETECTION_CANVAS_WIDTH,
+		detectionCanvasHeight: ARJS_DETECTION_CANVAS_HEIGHT,
+		maxDetectionRate: ARJS_MAX_DETECTION_RATE,
+		markerSizeMeters: getConfiguredMarkerSizeMeters(),
+		markerSmoothing: {
+			enabled: true,
+			smoothCount: ARJS_MARKER_SMOOTH_COUNT,
+			smoothTolerance: ARJS_MARKER_SMOOTH_TOLERANCE,
+			smoothThreshold: ARJS_MARKER_SMOOTH_THRESHOLD
+		},
 		arToolkitSourceReady,
 		arToolkitContextReady,
 		markerControlsReady,
@@ -1445,6 +1492,12 @@ function vectorToPlainObject(vector: THREE.Vector3): { x: number; y: number; z: 
 		y: vector.y,
 		z: vector.z
 	};
+
+}
+
+function getConfiguredMarkerSizeMeters(): number {
+
+	return markerPoseInEnu?.sizeMeters ?? ARJS_DEFAULT_MARKER_SIZE_METERS;
 
 }
 

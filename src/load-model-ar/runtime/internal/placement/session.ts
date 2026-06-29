@@ -38,7 +38,6 @@ const tempAnchorScale = new THREE.Vector3();
 const tempAnchorWorldQuaternion = new THREE.Quaternion();
 const tempLocalPosition = new THREE.Vector3();
 const tempLocalOrientation = new THREE.Quaternion();
-const FRONT_PREVIEW_FALLBACK_GROUND_OFFSET_METERS = 1.35;
 
 interface CreatePlacementSessionOptions {
 	store: {
@@ -449,12 +448,17 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 			let usedMarkerOverride = false;
 
 			if ( previewPlacementRequested ) {
+				if ( groundPosition === null ) {
+					updateRegistrationStatusDetail( '状态：面前预览等待识别平面' );
+					setStatus( '面前预览需要先识别地面或桌面，识别到平面后才会贴地放置模型。' );
+					return;
+				}
+
 				xrPlacementCamera.getWorldPosition( cameraWorldPosition );
-				const previewGroundY = groundPosition?.y ?? ( cameraWorldPosition.y - FRONT_PREVIEW_FALLBACK_GROUND_OFFSET_METERS );
 				arPlacementBase = createFrontPreviewPlacementBase( {
 					camera: xrPlacementCamera,
 					cameraWorldPosition,
-					groundY: previewGroundY,
+					groundY: groundPosition.y,
 					modelTemplate,
 					registrationSolution,
 					modelOrientationTarget,
@@ -481,11 +485,7 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 				} );
 				updateRegistrationStatusDetail( '状态：模型已放置' );
 				updatePlacementSummary();
-				setStatus(
-					groundPosition === null
-						? '已按当前面前预览位置固定放置模型（未使用平面命中）。'
-						: '已按当前面前预览位置固定放置模型。'
-				);
+				setStatus( '已按当前面前预览位置贴地固定放置模型。' );
 				trackArPlacement( 'front-preview' );
 				return;
 			}

@@ -16,17 +16,19 @@ import {
 } from '../load-model-ar/registration/marker-localization-stabilizer.js';
 
 const ARJS_SCRIPT_SELECTOR = 'script[data-arjs-runtime="true"]';
-const ARJS_RUNTIME_URL = 'https://raw.githack.com/AR-js-org/AR.js/master/three.js/build/ar-threex.js';
-const ARJS_CAMERA_PARAMETERS_URL = 'https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.7/data/data/camera_para.dat';
-const ARJS_HIRO_PATTERN_URL = 'https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.7/data/data/patt.hiro';
+const ARJS_REPOSITORY = 'AR-js-org/AR.js';
+const ARJS_RUNTIME_URL = '/arjs/build/ar.js';
+const ARJS_CAMERA_PARAMETERS_URL = '/arjs/data/camera_para.dat';
+const ARJS_HIRO_PATTERN_URL = '/arjs/data/patt.hiro';
+const ARJS_HIRO_IMAGE_URL = '/arjs/images/hiro.png';
 const MARKER_LOCALIZATION_STORAGE_KEY = 'loadModelAR.markerLocalization.lastStableSolution';
 const DEFAULT_MARKER_ID = 'hiro';
 const LOG_INTERVAL_MS = 250;
 const MAIN_AR_PAGE_URL = '/loadModelAR.html';
-const HIRO_MARKER_REFERENCE_URL = '/markers/hiro-marker.png';
+const HIRO_MARKER_REFERENCE_URL = ARJS_HIRO_IMAGE_URL;
 const THREEX_RUNTIME_POLL_INTERVAL_MS = 100;
 const THREEX_RUNTIME_TIMEOUT_MS = 8000;
-const LOOP_DEBUG_LOG_INTERVAL_MS = 2000;
+const LOOP_DEBUG_LOG_INTERVAL_MS = 1000;
 
 const MARKER_TEST_CONFIGS = {
 	dz1207: {
@@ -53,6 +55,9 @@ type ArToolkitContextInstance = {
 	init(onCompleted: () => void): void;
 	getProjectionMatrix(): THREE.Matrix4;
 	update(sourceElement: HTMLVideoElement | HTMLCanvasElement): void;
+	arController?: {
+		canvas?: HTMLCanvasElement | null;
+	};
 };
 
 type ArMarkerControlsInstance = Record<string, never>;
@@ -85,9 +90,21 @@ type ArjsRuntimeDiagnostic = {
 	hasArToolkitSource: boolean;
 	hasArToolkitContext: boolean;
 	hasArMarkerControls: boolean;
+	usingOfficialBuild: boolean;
+	repository: string;
+	oldRepositoryDetected: boolean;
 };
 
 type AssetProbeState = 'idle' | 'loading' | 'loaded' | 'failed';
+
+type AssetProbeResult = {
+	ok: boolean;
+	message: string;
+	status: number | null;
+	bytes: number;
+	contentType: string;
+	isHtml: boolean;
+};
 
 type SerializedStableMarkerLocalization = {
 	markerId: string;
@@ -120,8 +137,16 @@ const markerConfigIdElement = getRequiredElement<HTMLSpanElement>( 'marker-test-
 const markerIdElement = getRequiredElement<HTMLSpanElement>( 'marker-test-marker-id' );
 const cameraParamUrlElement = getRequiredElement<HTMLSpanElement>( 'marker-test-camera-param-url' );
 const patternUrlElement = getRequiredElement<HTMLSpanElement>( 'marker-test-pattern-url' );
+const arjsBuildUrlElement = getRequiredElement<HTMLSpanElement>( 'marker-test-arjs-build-url' );
+const arjsBuildStatusElement = getRequiredElement<HTMLSpanElement>( 'marker-test-arjs-build-status' );
+const markerImageUrlElement = getRequiredElement<HTMLSpanElement>( 'marker-test-marker-image-url' );
+const markerImageStatusElement = getRequiredElement<HTMLSpanElement>( 'marker-test-marker-image-status' );
+const repositoryElement = getRequiredElement<HTMLSpanElement>( 'marker-test-repository' );
+const oldRepoDetectedElement = getRequiredElement<HTMLSpanElement>( 'marker-test-old-repo-detected' );
 const cameraParamStatusElement = getRequiredElement<HTMLSpanElement>( 'marker-test-camera-param-status' );
 const patternStatusElement = getRequiredElement<HTMLSpanElement>( 'marker-test-pattern-status' );
+const rawDetectionElement = getRequiredElement<HTMLSpanElement>( 'marker-test-raw-detection' );
+const engineeringLocalizationElement = getRequiredElement<HTMLSpanElement>( 'marker-test-engineering-localization' );
 const warningElement = getRequiredElement<HTMLDivElement>( 'marker-test-warning' );
 const hasVideoElementElement = getRequiredElement<HTMLSpanElement>( 'marker-test-has-video-element' );
 const videoReadyStateElement = getRequiredElement<HTMLSpanElement>( 'marker-test-video-ready-state' );
@@ -188,8 +213,11 @@ let frameCount = 0;
 let lastFrameTimestamp: number | null = null;
 let lastArToolkitUpdateTimestamp: number | null = null;
 let markerRootVisible = false;
+let contextUpdatedCount = 0;
+let arjsBuildStatus: AssetProbeState = 'idle';
 let cameraParamStatus: AssetProbeState = 'idle';
 let patternStatus: AssetProbeState = 'idle';
+let markerImageStatus: AssetProbeState = 'idle';
 let debugDrawerOpen = false;
 const currentConfigMode = resolveConfigMode();
 const currentConfigDefinition = MARKER_TEST_CONFIGS[ currentConfigMode ];
@@ -200,8 +228,12 @@ summaryConfigModeElement.textContent = currentConfigMode;
 configUrlElement.textContent = currentConfigDefinition.configUrl;
 markerConfigIdElement.textContent = mapMarkerIdToConfigMarkerId( DEFAULT_MARKER_ID );
 summaryMarkerConfigIdElement.textContent = mapMarkerIdToConfigMarkerId( DEFAULT_MARKER_ID );
+arjsBuildUrlElement.textContent = ARJS_RUNTIME_URL;
 cameraParamUrlElement.textContent = ARJS_CAMERA_PARAMETERS_URL;
 patternUrlElement.textContent = ARJS_HIRO_PATTERN_URL;
+markerImageUrlElement.textContent = ARJS_HIRO_IMAGE_URL;
+repositoryElement.textContent = ARJS_REPOSITORY;
+oldRepoDetectedElement.textContent = detectDeprecatedRepositoryPath() ? 'yes' : 'no';
 setStatus( 'Loading AR.js runtime, marker config, and stabilizer...' );
 setPoseState( null, false );
 setLocalizationState( null, false );
@@ -221,13 +253,13 @@ async function boot(): Promise<void> {
 
 	try {
 		exposeThreeGlobal();
+		await probeMarkerAssets();
 
 		const [ runtime, config ] = await Promise.all( [
 			loadArjsRuntime(),
 			loadDemoModelConfig( currentConfigDefinition.configUrl, () => undefined )
 		] );
 
-		await probeMarkerAssets();
 		demoModelConfig = config;
 		markerPoseInEnu = resolveMarkerPoseInEnu( config, mapMarkerIdToConfigMarkerId( DEFAULT_MARKER_ID ) );
 		initializeSceneRuntime();
@@ -260,6 +292,7 @@ function setupArjsScene(runtime: ArjsRuntime): void {
 		arToolkitSourceReady = true;
 		syncDebugState();
 		logArjsMarkerAssets();
+		logArjsRuntimeReady();
 		ensureCameraPreviewAttached();
 		handleResize();
 		setStatus( 'Camera ready. Point the device at a Hiro marker.' );
@@ -269,6 +302,7 @@ function setupArjsScene(runtime: ArjsRuntime): void {
 		arToolkitContextReady = true;
 		syncDebugState();
 		logArjsMarkerAssets();
+		logArjsRuntimeReady();
 		camera?.projectionMatrix.copy( arToolkitContext?.getProjectionMatrix() ?? new THREE.Matrix4() );
 	} );
 
@@ -283,6 +317,7 @@ function setupArjsScene(runtime: ArjsRuntime): void {
 	markerControlsReady = markerControls !== null;
 	syncDebugState();
 	logArjsMarkerAssets();
+	logArjsRuntimeReady();
 
 	window.addEventListener( 'resize', handleResize );
 
@@ -307,6 +342,7 @@ function startLoop(): void {
 		if ( sourceReady && hasDomElement && contextReady && sourceElement !== null && arToolkitContext !== null ) {
 			arToolkitContext.update( sourceElement );
 			lastArToolkitUpdateTimestamp = Date.now();
+			contextUpdatedCount += 1;
 		}
 
 		const visible = Boolean( markerRoot?.visible );
@@ -415,6 +451,7 @@ function updateVisibleState(state: 'visible' | 'lost'): void {
 
 	const visible = state === 'visible';
 	visibleElement.textContent = state;
+	rawDetectionElement.textContent = state;
 	summaryVisibleElement.textContent = state;
 	guideFrameElement.classList.toggle( 'marker-test__guide--detected', visible );
 	guideLabelElement.textContent = visible ? 'Marker detected' : 'Place Hiro marker inside frame';
@@ -518,7 +555,8 @@ function setLocalizationState(
 	available: boolean
 ): void {
 
-	localizationAvailableElement.textContent = available ? 'available' : 'failed';
+	localizationAvailableElement.textContent = available ? 'available' : 'unavailable';
+	engineeringLocalizationElement.textContent = available ? 'available' : 'unavailable';
 
 	if ( localization === null ) {
 		correspondenceCountElement.textContent = '-';
@@ -581,8 +619,11 @@ function syncDebugState(): void {
 	arToolkitSourceDomExistsElement.textContent = sourceDomElementExists ? 'yes' : 'no';
 	arToolkitContextReadyElement.textContent = arToolkitContextReady ? 'yes' : 'no';
 	markerControlsReadyElement.textContent = markerControlsReady ? 'yes' : 'no';
+	arjsBuildStatusElement.textContent = arjsBuildStatus;
 	cameraParamStatusElement.textContent = cameraParamStatus;
 	patternStatusElement.textContent = patternStatus;
+	markerImageStatusElement.textContent = markerImageStatus;
+	oldRepoDetectedElement.textContent = detectDeprecatedRepositoryPath() ? 'yes' : 'no';
 	renderLoopRunningElement.textContent = renderLoopRunning ? 'yes' : 'no';
 	frameCountElement.textContent = `${frameCount}`;
 	lastFrameTimestampElement.textContent = lastFrameTimestamp === null
@@ -644,13 +685,43 @@ function logMarkerCameraPreview(): void {
 function logArjsMarkerAssets(): void {
 
 	console.info( '[ArjsMarkerAssets]', {
+		arjsBuildUrl: ARJS_RUNTIME_URL,
 		cameraParamUrl: ARJS_CAMERA_PARAMETERS_URL,
 		patternUrl: ARJS_HIRO_PATTERN_URL,
+		markerImageUrl: ARJS_HIRO_IMAGE_URL,
 		arToolkitSourceReady,
 		arToolkitContextReady,
 		markerControlsReady,
+		arjsBuildStatus,
 		cameraParamStatus,
-		patternStatus
+		patternStatus,
+		markerImageStatus
+	} );
+
+}
+
+function logOfficialAssetCheck(results: {
+	buildResult: AssetProbeResult;
+	cameraParamResult: AssetProbeResult;
+	patternResult: AssetProbeResult;
+	markerImageResult: AssetProbeResult;
+}): void {
+
+	console.info( '[ArjsOfficialAssetCheck]', {
+		arjsBuildUrl: ARJS_RUNTIME_URL,
+		arjsBuildStatus,
+		buildBytes: results.buildResult.bytes,
+		cameraParametersUrl: ARJS_CAMERA_PARAMETERS_URL,
+		cameraStatus: cameraParamStatus,
+		cameraBytes: results.cameraParamResult.bytes,
+		patternUrl: ARJS_HIRO_PATTERN_URL,
+		patternStatus,
+		patternBytes: results.patternResult.bytes,
+		markerImageUrl: ARJS_HIRO_IMAGE_URL,
+		markerImageStatus,
+		markerImageBytes: results.markerImageResult.bytes,
+		repository: ARJS_REPOSITORY,
+		oldRepositoryDetected: detectDeprecatedRepositoryPath()
 	} );
 
 }
@@ -664,6 +735,16 @@ function maybeLogArjsLoop(): void {
 
 	lastLoopLogAt = now;
 	const videoElement = getCurrentPreviewVideoElement();
+	console.info( '[MarkerFrameDebug]', {
+		frameCount,
+		sourceReady: arToolkitSourceReady,
+		videoWidth: videoElement?.videoWidth ?? 0,
+		videoHeight: videoElement?.videoHeight ?? 0,
+		markerVisible: markerRootVisible,
+		contextUpdatedCount,
+		markerRootVisible,
+		markerRootMatrixWorld: markerRoot?.matrixWorld ?? null
+	} );
 	console.info( '[ArjsTrackingLoop]', {
 		frameCount,
 		arToolkitSourceReady,
@@ -693,6 +774,9 @@ function handleResize(): void {
 
 	arToolkitSource.onResizeElement();
 	arToolkitSource.copyElementSizeTo( renderer.domElement );
+	if ( arToolkitContext?.arController?.canvas instanceof HTMLCanvasElement ) {
+		arToolkitSource.copyElementSizeTo( arToolkitContext.arController.canvas );
+	}
 	ensureCameraPreviewAttached();
 	syncDebugState();
 	logMarkerCameraPreview();
@@ -704,6 +788,7 @@ function handleResize(): void {
 	canvas.style.height = '100vh';
 	canvas.style.zIndex = '1';
 	canvas.style.pointerEvents = 'none';
+	logMarkerResize();
 
 }
 
@@ -765,16 +850,26 @@ async function loadArjsRuntime(): Promise<ArjsRuntime> {
 
 	exposeThreeGlobal();
 
+	const existingScript = document.querySelector<HTMLScriptElement>( ARJS_SCRIPT_SELECTOR );
+	if ( existingScript !== null && isOfficialArjsBuildUrl( existingScript.src ) === false ) {
+		console.warn( '[ArjsRuntime]', {
+			message: 'Detected deprecated AR.js repository path. Replacing runtime with local official build.',
+			scriptUrl: existingScript.src
+		} );
+		existingScript.remove();
+		delete ( window as MarkerTestWindow ).THREEx;
+	}
+
 	const existingRuntime = readArjsRuntime();
-	if ( existingRuntime !== null ) {
+	if ( existingRuntime !== null && isOfficialArjsBuildUrl( document.querySelector<HTMLScriptElement>( ARJS_SCRIPT_SELECTOR )?.src ?? ARJS_RUNTIME_URL ) ) {
 		logArjsRuntime( readArjsRuntimeDiagnostic( true ) );
 		return existingRuntime;
 	}
 
-	const existingScript = document.querySelector<HTMLScriptElement>( ARJS_SCRIPT_SELECTOR );
-	if ( existingScript !== null ) {
-		if ( existingScript.dataset.loaded !== 'true' ) {
-			await waitForScriptLoad( existingScript );
+	const retainedScript = document.querySelector<HTMLScriptElement>( ARJS_SCRIPT_SELECTOR );
+	if ( retainedScript !== null ) {
+		if ( retainedScript.dataset.loaded !== 'true' ) {
+			await waitForScriptLoad( retainedScript );
 		}
 
 		const existingRuntimeAfterLoad = await waitForThreexRuntime( 600 );
@@ -782,7 +877,7 @@ async function loadArjsRuntime(): Promise<ArjsRuntime> {
 			return existingRuntimeAfterLoad;
 		}
 
-		existingScript.remove();
+		retainedScript.remove();
 	}
 
 	const script = document.createElement( 'script' );
@@ -873,20 +968,36 @@ function waitForScriptLoad(script: HTMLScriptElement): Promise<void> {
 
 async function probeMarkerAssets(): Promise<void> {
 
+	arjsBuildStatus = 'loading';
 	cameraParamStatus = 'loading';
 	patternStatus = 'loading';
+	markerImageStatus = 'loading';
 	syncDebugState();
 	logArjsMarkerAssets();
 
-	const [ cameraParamResult, patternResult ] = await Promise.all( [
-		probeAssetUrl( ARJS_CAMERA_PARAMETERS_URL ),
-		probeAssetUrl( ARJS_HIRO_PATTERN_URL )
+	const [ buildResult, cameraParamResult, patternResult, markerImageResult ] = await Promise.all( [
+		probeAssetUrl( ARJS_RUNTIME_URL, 'text' ),
+		probeAssetUrl( ARJS_CAMERA_PARAMETERS_URL, 'text' ),
+		probeAssetUrl( ARJS_HIRO_PATTERN_URL, 'text' ),
+		probeAssetUrl( ARJS_HIRO_IMAGE_URL, 'binary' )
 	] );
 
+	arjsBuildStatus = buildResult.ok ? 'loaded' : 'failed';
 	cameraParamStatus = cameraParamResult.ok ? 'loaded' : 'failed';
 	patternStatus = patternResult.ok ? 'loaded' : 'failed';
+	markerImageStatus = markerImageResult.ok ? 'loaded' : 'failed';
 	syncDebugState();
+	logOfficialAssetCheck( {
+		buildResult,
+		cameraParamResult,
+		patternResult,
+		markerImageResult
+	} );
 	logArjsMarkerAssets();
+
+	if ( buildResult.ok === false ) {
+		throw new Error( `ar.js build load failed: ${buildResult.message}` );
+	}
 
 	if ( cameraParamResult.ok === false ) {
 		throw new Error( `camera_para.dat load failed: ${cameraParamResult.message}` );
@@ -896,12 +1007,13 @@ async function probeMarkerAssets(): Promise<void> {
 		throw new Error( `patt.hiro load failed: ${patternResult.message}` );
 	}
 
+	if ( markerImageResult.ok === false ) {
+		throw new Error( `hiro.png load failed: ${markerImageResult.message}` );
+	}
+
 }
 
-async function probeAssetUrl(url: string): Promise<{
-	ok: boolean;
-	message: string;
-}> {
+async function probeAssetUrl(url: string, mode: 'text' | 'binary'): Promise<AssetProbeResult> {
 
 	try {
 		const response = await fetch( url, {
@@ -911,18 +1023,67 @@ async function probeAssetUrl(url: string): Promise<{
 		if ( response.ok === false ) {
 			return {
 				ok: false,
-				message: `HTTP ${response.status}`
+				message: `HTTP ${response.status}`,
+				status: response.status,
+				bytes: 0,
+				contentType: response.headers.get( 'content-type' ) ?? '',
+				isHtml: false
+			};
+		}
+
+		const bytes = new Uint8Array( await response.arrayBuffer() );
+		const contentType = response.headers.get( 'content-type' ) ?? '';
+		const decodedText = mode === 'text' ? new TextDecoder().decode( bytes ) : '';
+		const isHtml = contentType.includes( 'text/html' ) || decodedText.trimStart().startsWith( '<!doctype html' ) || decodedText.trimStart().startsWith( '<html' );
+		if ( isHtml ) {
+			return {
+				ok: false,
+				message: 'returned HTML instead of AR.js asset',
+				status: response.status,
+				bytes: bytes.byteLength,
+				contentType,
+				isHtml
+			};
+		}
+
+		if ( bytes.byteLength < 32 ) {
+			return {
+				ok: false,
+				message: `asset bytes too small: ${bytes.byteLength}`,
+				status: response.status,
+				bytes: bytes.byteLength,
+				contentType,
+				isHtml
+			};
+		}
+
+		if ( mode === 'text' && url.endsWith( '/ar.js' ) && decodedText.includes( 'THREEx' ) === false ) {
+			return {
+				ok: false,
+				message: 'ar.js build does not expose THREEx runtime',
+				status: response.status,
+				bytes: bytes.byteLength,
+				contentType,
+				isHtml
 			};
 		}
 
 		return {
 			ok: true,
-			message: 'loaded'
+			message: 'loaded',
+			status: response.status,
+			bytes: bytes.byteLength,
+			contentType,
+			isHtml
 		};
 	} catch ( error ) {
 		return {
 			ok: false,
-			message: error instanceof Error ? error.message : 'unknown fetch error'
+			message: error instanceof Error ? error.message : 'unknown fetch error',
+			status: null,
+			bytes: 0,
+			contentType: '',
+			isHtml: false
 		};
 	}
 
@@ -1011,14 +1172,18 @@ function exposeThreeGlobal(): void {
 function readArjsRuntimeDiagnostic(scriptLoaded: boolean): ArjsRuntimeDiagnostic {
 
 	const runtime = ( window as MarkerTestWindow ).THREEx;
+	const scriptSource = document.querySelector<HTMLScriptElement>( ARJS_SCRIPT_SELECTOR )?.src ?? ARJS_RUNTIME_URL;
 
 	return {
-		scriptUrl: ARJS_RUNTIME_URL,
+		scriptUrl: scriptSource,
 		scriptLoaded,
 		hasTHREEx: runtime !== undefined,
 		hasArToolkitSource: typeof runtime?.ArToolkitSource === 'function',
 		hasArToolkitContext: typeof runtime?.ArToolkitContext === 'function',
-		hasArMarkerControls: typeof runtime?.ArMarkerControls === 'function'
+		hasArMarkerControls: typeof runtime?.ArMarkerControls === 'function',
+		usingOfficialBuild: scriptSource.includes( '/arjs/build/ar.js' ) || scriptSource.includes( 'AR-js-org/AR.js' ),
+		repository: ARJS_REPOSITORY,
+		oldRepositoryDetected: detectDeprecatedRepositoryPath()
 	};
 
 }
@@ -1033,7 +1198,7 @@ function createThreexUnavailableError(diagnostic: ArjsRuntimeDiagnostic): Error 
 
 	if ( diagnostic.hasTHREEx === false ) {
 		return new Error(
-			'AR.js THREEx runtime unavailable. Please check ar-threex.js CDN or local runtime file.'
+			'AR.js THREEx runtime unavailable. Please check /arjs/build/ar.js from AR-js-org/AR.js.'
 		);
 	}
 
@@ -1050,8 +1215,66 @@ function createThreexUnavailableError(diagnostic: ArjsRuntimeDiagnostic): Error 
 	}
 
 	return new Error(
-		'AR.js THREEx runtime unavailable. Please check ar-threex.js CDN or local runtime file.'
+		'AR.js THREEx runtime unavailable. Please check /arjs/build/ar.js from AR-js-org/AR.js.'
 	);
+
+}
+
+function logArjsRuntimeReady(): void {
+
+	console.info( '[ArjsRuntimeReady]', {
+		hasTHREE: Boolean( ( window as MarkerTestWindow ).THREE ),
+		hasTHREEx: Boolean( ( window as MarkerTestWindow ).THREEx ),
+		hasArToolkitSource: typeof ( window as MarkerTestWindow ).THREEx?.ArToolkitSource === 'function',
+		hasArToolkitContext: typeof ( window as MarkerTestWindow ).THREEx?.ArToolkitContext === 'function',
+		hasArMarkerControls: typeof ( window as MarkerTestWindow ).THREEx?.ArMarkerControls === 'function',
+		usingOfficialBuild: true,
+		buildUrl: ARJS_RUNTIME_URL,
+		sourceReady: arToolkitSourceReady,
+		contextInitialized: arToolkitContextReady,
+		markerControlsCreated: markerControlsReady
+	} );
+
+}
+
+function logMarkerResize(): void {
+
+	console.info( '[MarkerResize]', {
+		sourceWidth: arToolkitSource?.domElement instanceof HTMLVideoElement
+			? arToolkitSource.domElement.videoWidth
+			: arToolkitSource?.domElement instanceof HTMLCanvasElement
+				? arToolkitSource.domElement.width
+				: 0,
+		sourceHeight: arToolkitSource?.domElement instanceof HTMLVideoElement
+			? arToolkitSource.domElement.videoHeight
+			: arToolkitSource?.domElement instanceof HTMLCanvasElement
+				? arToolkitSource.domElement.height
+				: 0,
+		rendererWidth: renderer?.domElement.width ?? 0,
+		rendererHeight: renderer?.domElement.height ?? 0,
+		arControllerCanvasWidth: arToolkitContext?.arController?.canvas?.width ?? 0,
+		arControllerCanvasHeight: arToolkitContext?.arController?.canvas?.height ?? 0,
+		devicePixelRatio: window.devicePixelRatio
+	} );
+
+}
+
+function detectDeprecatedRepositoryPath(): boolean {
+
+	const runtimeScriptUrl = document.querySelector<HTMLScriptElement>( ARJS_SCRIPT_SELECTOR )?.src ?? ARJS_RUNTIME_URL;
+	return [
+		runtimeScriptUrl,
+		ARJS_RUNTIME_URL,
+		ARJS_CAMERA_PARAMETERS_URL,
+		ARJS_HIRO_PATTERN_URL,
+		ARJS_HIRO_IMAGE_URL
+	].some( ( value ) => value.includes( 'jeromeetienne' ) || value.includes( 'rawgit.com' ) );
+
+}
+
+function isOfficialArjsBuildUrl(url: string): boolean {
+
+	return url.includes( '/arjs/build/ar.js' ) || url.includes( 'AR-js-org/AR.js' );
 
 }
 

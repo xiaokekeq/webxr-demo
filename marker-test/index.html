@@ -282,9 +282,17 @@
 				Status:
 				<span id="marker-test-status">Initializing...</span>
 			</div>
+			<div class="marker-test__status">
+				AR.js raw detection:
+				<span id="marker-test-raw-detection">lost</span>
+			</div>
+			<div class="marker-test__status">
+				Engineering localization:
+				<span id="marker-test-engineering-localization">unavailable</span>
+			</div>
 			<p class="marker-test__notice">
 				Current saved result is for debug only and is not connected to the main WebXR AR flow.
-				Marker test currently depends on AR.js CDN. If THREEx is unavailable, use local ar-threex.js runtime assets.
+				Marker test now uses local official AR-js-org/AR.js assets from <code>/arjs</code>.
 				<br />
 				请扫描完整的 Hiro marker，包括黑色外框，不是只扫描 Hiro 文字。
 			</p>
@@ -297,10 +305,22 @@
 				<div class="marker-test__value" id="marker-test-marker-config-id">-</div>
 				<div class="marker-test__label">markerId</div>
 				<div class="marker-test__value" id="marker-test-marker-id">-</div>
+				<div class="marker-test__label">AR.js build</div>
+				<div class="marker-test__value" id="marker-test-arjs-build-url">-</div>
+				<div class="marker-test__label">AR.js build status</div>
+				<div class="marker-test__value" id="marker-test-arjs-build-status">-</div>
 				<div class="marker-test__label">cameraParamUrl</div>
 				<div class="marker-test__value" id="marker-test-camera-param-url">-</div>
 				<div class="marker-test__label">patternUrl</div>
 				<div class="marker-test__value" id="marker-test-pattern-url">-</div>
+				<div class="marker-test__label">markerImageUrl</div>
+				<div class="marker-test__value" id="marker-test-marker-image-url">-</div>
+				<div class="marker-test__label">markerImageStatus</div>
+				<div class="marker-test__value" id="marker-test-marker-image-status">-</div>
+				<div class="marker-test__label">repository</div>
+				<div class="marker-test__value" id="marker-test-repository">-</div>
+				<div class="marker-test__label">oldRepoDetected</div>
+				<div class="marker-test__value" id="marker-test-old-repo-detected">-</div>
 				<div class="marker-test__label">cameraParamStatus</div>
 				<div class="marker-test__value" id="marker-test-camera-param-status">-</div>
 				<div class="marker-test__label">patternStatus</div>

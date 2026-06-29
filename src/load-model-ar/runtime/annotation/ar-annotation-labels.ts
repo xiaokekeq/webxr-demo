@@ -47,6 +47,8 @@ interface AnnotationDetailEntry {
 
 const ANNOTATION_LABEL_TAG = '__annotationLabel';
 const DISPLAY_MODE_HELPER_TAG = '__displayModeHelper';
+const MAX_DETAIL_PANEL_WORLD_WIDTH = 0.4;
+const MIN_DETAIL_PANEL_WORLD_WIDTH = 0.08;
 const tempBounds = new THREE.Box3();
 const tempCenter = new THREE.Vector3();
 const tempSize = new THREE.Vector3();
@@ -226,8 +228,8 @@ function createDetailEntry(detail: ArAnnotationDetailOverlay): AnnotationDetailE
 	detail.targetObject.getWorldScale( tempWorldScale );
 
 	const textureResult = createDetailTexture( detail );
-	const worldHeight = clamp( Math.max( 0.26, tempSize.y * 0.34 ), 0.26, 0.56 );
-	const worldWidth = worldHeight * textureResult.aspect;
+	const worldWidth = computeDetailPanelWorldWidth( tempSize );
+	const worldHeight = worldWidth / textureResult.aspect;
 	const localWidth = worldWidth / safeScaleComponent( tempWorldScale.x );
 	const localHeight = worldHeight / safeScaleComponent( tempWorldScale.y );
 	const material = new THREE.SpriteMaterial( {
@@ -248,7 +250,7 @@ function createDetailEntry(detail: ArAnnotationDetailOverlay): AnnotationDetailE
 
 	tempWorldPosition.set(
 		tempCenter.x,
-		tempBounds.max.y + Math.max( 0.16, tempSize.y * 0.28 ),
+		tempBounds.max.y + Math.max( 0.12, tempSize.y * 0.2, worldHeight * 0.4 ),
 		tempCenter.z
 	);
 	detail.targetObject.add( sprite );
@@ -260,6 +262,13 @@ function createDetailEntry(detail: ArAnnotationDetailOverlay): AnnotationDetailE
 		texture: textureResult.texture,
 		material
 	};
+
+}
+
+function computeDetailPanelWorldWidth(size: THREE.Vector3): number {
+
+	const modelHorizontalSpan = Math.max( size.x, size.z );
+	return clamp( modelHorizontalSpan, MIN_DETAIL_PANEL_WORLD_WIDTH, MAX_DETAIL_PANEL_WORLD_WIDTH );
 
 }
 

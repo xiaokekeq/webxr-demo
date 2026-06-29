@@ -197,7 +197,8 @@ export function createPointerSelectionSession(
 				raycaster.intersectObjects( placedModel.children, true ),
 				placedModel,
 				canvasRect.left + canvasRect.width / 2,
-				canvasRect.top + canvasRect.height / 2
+				canvasRect.top + canvasRect.height / 2,
+				'xr-select'
 			);
 
 		},
@@ -225,7 +226,8 @@ export function createPointerSelectionSession(
 			raycaster.intersectObjects( placedModel.children, true ),
 			placedModel,
 			clientX,
-			clientY
+			clientY,
+			'screen'
 		);
 
 	}
@@ -234,7 +236,8 @@ export function createPointerSelectionSession(
 		intersections: THREE.Intersection[],
 		placedModel: THREE.Group,
 		clientX: number,
-		clientY: number
+		clientY: number,
+		source: 'screen' | 'xr-select'
 	): void {
 
 		const visibleIntersections = intersections.filter(
@@ -245,7 +248,7 @@ export function createPointerSelectionSession(
 		);
 
 		if ( visibleIntersections.length === 0 ) {
-			if ( sceneBundle.renderer.xr.isPresenting ) {
+			if ( sceneBundle.renderer.xr.isPresenting && source === 'xr-select' ) {
 				const fallbackSelection = findProjectedSelection( clientX, clientY, placedModel );
 				if ( fallbackSelection !== null ) {
 					applySelection( fallbackSelection.businessObject, fallbackSelection.properties );

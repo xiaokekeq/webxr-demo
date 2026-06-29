@@ -3,7 +3,7 @@ import { createStore } from 'zustand/vanilla';
 import type { ModelCatalogItem } from './model-catalog.js';
 import type { ManualAdjustmentPreset } from './manual-registration.js';
 
-export type WorkspaceMode = 'browse' | 'registration' | 'tools' | 'inspection';
+export type WorkspaceMode = 'browse' | 'registration' | 'inspection';
 export type AppMode = 'pre-ar' | 'ar-session';
 export type ArSupportState = 'checking' | 'supported' | 'unsupported';
 export type ArSessionPhase = 'scanning' | 'ready-to-place' | 'placing' | 'placed';
@@ -15,8 +15,6 @@ export type ArDisplayMode =
 	| 'section-cut';
 export type SectionCutPlaneMode = 'cross-section' | 'longitudinal-section' | 'horizontal-section';
 export type DepthSensingMode = 'disabled' | 'gpu' | 'cpu' | 'auto';
-export type PrecisionFeedbackTone = 'neutral' | 'info' | 'success' | 'error';
-export type MeasurementMode = 'distance-3d' | 'distance-horizontal' | 'depth';
 
 export interface PropertyPanelState {
 	name: string;
@@ -131,20 +129,6 @@ export interface AnnotationDetailState {
 	fields: AnnotationDetailField[];
 }
 
-export interface MeasurementState {
-	activeMode: MeasurementMode | null;
-	activeLabel: string;
-	isCapturing: boolean;
-	requiredPointCount: number;
-	capturedPointLabels: string[];
-	targetQualityText: string;
-	resultText: string;
-	detailText: string;
-	feedbackText: string;
-	feedbackTone: PrecisionFeedbackTone;
-	feedbackUpdatedAt: string;
-}
-
 export interface RegistrationStoreState {
 	projectName: string;
 	modelUrl: string;
@@ -171,7 +155,6 @@ export interface RegistrationStoreState {
 	manualReadout: ManualReadoutState;
 	manualAdjustmentPreset: ManualAdjustmentPreset;
 	autoPreviewPlacementEnabled: boolean;
-	depthSensingMode: DepthSensingMode;
 	registrationMetrics: RegistrationMetricsState;
 	modelScaleSummary: ModelScaleSummaryState;
 	registrationChainDebug: RegistrationChainDebugState;
@@ -179,7 +162,6 @@ export interface RegistrationStoreState {
 	placementSummary: PlacementSummaryState;
 	targetGuidance: TargetGuidanceState;
 	annotationDetail: AnnotationDetailState;
-	measurement: MeasurementState;
 	registrationStatusDetail: string;
 	runtimeStatus: string;
 	coarseLocationDebugText: string;
@@ -337,24 +319,6 @@ export function createDefaultTargetGuidanceState(): TargetGuidanceState {
 		distanceText: '',
 		detailText: '',
 		alignment: 'center'
-	};
-
-}
-
-export function createDefaultMeasurementState(): MeasurementState {
-
-	return {
-		activeMode: null,
-		activeLabel: '未开始',
-		isCapturing: false,
-		requiredPointCount: 2,
-		capturedPointLabels: [],
-		targetQualityText: '尚未采样',
-		resultText: '--',
-		detailText: '请选择一种测量模式。',
-		feedbackText: '',
-		feedbackTone: 'neutral',
-		feedbackUpdatedAt: ''
 	};
 
 }

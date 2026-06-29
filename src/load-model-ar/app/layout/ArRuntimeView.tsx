@@ -12,12 +12,15 @@ import { GuardedPressButton } from '../components/GuardedPressButton.js';
 import { BrowsePanel } from '../panels/BrowsePanel.js';
 import { InspectionPanel } from '../panels/InspectionPanel.js';
 import { RegistrationPanel } from '../panels/RegistrationPanel.js';
-import { ToolsPanel } from '../panels/ToolsPanel.js';
 import { ArCanvas } from './ArCanvas.js';
 import { ArStatusBar } from './ArStatusBar.js';
 import { BottomDrawer } from './BottomDrawer.js';
 import { ManualAdjustmentOverlay } from './ManualAdjustmentOverlay.js';
 import { usePlacementGuidance } from './use-placement-guidance.js';
+import {
+	getDisplayModeSliderLabel,
+	getDisplayModeSliderValueText
+} from '../../shared/display-modes.js';
 
 export function ArRuntimeView(props: {
 	state: AppState;
@@ -32,23 +35,16 @@ export function ArRuntimeView(props: {
 	const showGuidance = usePlacementGuidance( engine.arSessionPhase );
 	const canInspect = engine.arSessionPhase === 'placed';
 	const canOpenBrowse = engine.arSessionPhase === 'placed' || showPlacementUi;
-	const canOpenTools = true;
 	const placeActionLabel = engine.arSessionPhase === 'ready-to-place' ? '固定放置' : '继续扫描';
 	const drawerToggleLabel = state.ui.drawerOpen ? '收起面板' : `展开${getWorkspaceLabel( engine.workspaceMode )}`;
 	const displayModeLabel = getDisplayModeLabel( engine.displayMode );
 	const subtitle = `${getWorkspaceLabel( engine.workspaceMode )} / ${getPhaseLabel( engine.arSessionPhase )} / ${displayModeLabel} / RMS ${engine.registrationMetrics.rmsText}`;
-	const showMeasurementCaptureOverlay = state.ui.measurementCaptureActive
-		&& engine.workspaceMode === 'tools';
-	const measurementCaptureActionLabel = `记录第 ${engine.measurement.capturedPointLabels.length + 1} 点`;
-	const showCaptureOverlay = showMeasurementCaptureOverlay;
 	const showTargetGuidance = engine.arSessionPhase === 'placed' && engine.targetGuidance.visible;
 	const showCoarsePlacementDebug = engine.autoPreviewPlacementEnabled === false;
-	const showManualAdjustmentOverlay = showCaptureOverlay === false
-		&& engine.workspaceMode === 'registration'
+	const showManualAdjustmentOverlay = engine.workspaceMode === 'registration'
 		&& state.ui.registrationView === 'manual'
 		&& engine.appMode === 'ar-session';
-	const showVisualizationSlider = showCaptureOverlay === false
-		&& showManualAdjustmentOverlay === false
+	const showVisualizationSlider = showManualAdjustmentOverlay === false
 		&& showPlacementUi === false
 		&& showGuidance === false
 		&& state.ui.drawerOpen === false
@@ -56,9 +52,11 @@ export function ArRuntimeView(props: {
 	const [ targetGuidanceHidden, setTargetGuidanceHidden ] = useState( false );
 	const showTargetGuidanceCard = showTargetGuidance && targetGuidanceHidden === false;
 	const showTargetGuidanceToggle = showTargetGuidance && targetGuidanceHidden;
-	const showAnnotationDetailCard = showCaptureOverlay === false
-		&& engine.annotationDetail.visible
-		&& engine.annotationDetail.fields.length > 0;
+	const visualizationSliderLabel = getDisplayModeSliderLabel( engine.displayMode ) ?? '显示强度';
+	const visualizationSliderValueText = getDisplayModeSliderValueText(
+		engine.displayMode,
+		engine.structureRevealValue
+	);
 
 	return (
 		<div className={ `mobile-ar-root${showPlacementUi ? ' mobile-ar-root--placement' : ''}` }>
@@ -70,17 +68,15 @@ export function ArRuntimeView(props: {
 				onPointerDownCapture={actions.handleArUiInteraction}
 				onPointerUpCapture={actions.handleArUiInteraction}
 			>
-				{showCaptureOverlay ? null : (
-					<ArStatusBar
-						title={engine.projectName}
-						subtitle={subtitle}
-						status={engine.arSessionPhase === 'ready-to-place' ? '固定放置' : getPhaseLabel( engine.arSessionPhase )}
-						onStatusClick={showPlacementUi ? () => void actions.placeModel() : undefined}
-						statusDisabled={engine.arSessionPhase !== 'ready-to-place'}
-					/>
-				)}
+				<ArStatusBar
+					title={engine.projectName}
+					subtitle={subtitle}
+					status={engine.arSessionPhase === 'ready-to-place' ? '固定放置' : getPhaseLabel( engine.arSessionPhase )}
+					onStatusClick={showPlacementUi ? () => void actions.placeModel() : undefined}
+					statusDisabled={engine.arSessionPhase !== 'ready-to-place'}
+				/>
 
-				{showCaptureOverlay ? null : showPlacementUi && showGuidance ? (
+				{showPlacementUi && showGuidance ? (
 					<div className="guidance-card">
 						<h2>{guidance.title}</h2>
 						<p>{guidance.body}</p>
@@ -90,36 +86,7 @@ export function ArRuntimeView(props: {
 					</div>
 				) : null}
 
-				{showCaptureOverlay ? null : showAnnotationDetailCard ? (
-					<div className={ `annotation-detail-card${showTargetGuidanceCard ? ' annotation-detail-card--stacked' : ''}` }>
-						<div className="annotation-detail-card__header">
-							<div className="annotation-detail-card__summary">
-								<div className="annotation-detail-card__eyebrow">构件信息</div>
-								<div className="annotation-detail-card__title">{engine.annotationDetail.title}</div>
-								{engine.annotationDetail.subtitle ? (
-									<div className="annotation-detail-card__subtitle">{engine.annotationDetail.subtitle}</div>
-								) : null}
-							</div>
-							<button
-								type="button"
-								className="annotation-detail-card__close"
-								onClick={actions.closePropertyPanel}
-							>
-								关闭
-							</button>
-						</div>
-						<div className="annotation-detail-card__fields">
-							{engine.annotationDetail.fields.map( ( field ) => (
-								<div key={field.label} className="annotation-detail-card__field">
-									<strong>{field.label}</strong>
-									<span>{field.value}</span>
-								</div>
-							) )}
-						</div>
-					</div>
-				) : null}
-
-				{showCaptureOverlay ? null : showTargetGuidanceCard ? (
+				{showTargetGuidanceCard ? (
 					<div className={ `target-guidance-card target-guidance-card--${engine.targetGuidance.alignment}` }>
 						<div className="target-guidance-card__header">
 							<div className="target-guidance-card__summary">
@@ -144,7 +111,7 @@ export function ArRuntimeView(props: {
 					</div>
 				) : null}
 
-				{showCaptureOverlay ? null : showTargetGuidanceToggle ? (
+				{showTargetGuidanceToggle ? (
 					<button
 						type="button"
 						className={ `target-guidance-toggle target-guidance-toggle--${engine.targetGuidance.alignment}` }
@@ -158,7 +125,7 @@ export function ArRuntimeView(props: {
 
 				{showManualAdjustmentOverlay ? <ManualAdjustmentOverlay state={state} actions={actions} /> : null}
 
-				{showCaptureOverlay ? null : showPlacementUi ? (
+				{showPlacementUi ? (
 					<div className="primary-bar">
 						<ActionButton label="退出 AR" onClick={actions.exitAr} kind="secondary" />
 						<ActionButton
@@ -170,16 +137,15 @@ export function ArRuntimeView(props: {
 					</div>
 				) : null}
 
-				{showCaptureOverlay || showManualAdjustmentOverlay ? null : (
+				{showManualAdjustmentOverlay ? null : (
 					<BottomDrawer
 						open={state.ui.drawerOpen}
 						workspaceMode={engine.workspaceMode}
 						onToggle={actions.toggleDrawer}
 						toggleLabel={drawerToggleLabel}
 					>
-						{engine.workspaceMode === 'browse' ? <BrowsePanel state={state} actions={actions} canInspect={canInspect} /> : null}
+						{engine.workspaceMode === 'browse' ? <BrowsePanel state={state} actions={actions} /> : null}
 						{engine.workspaceMode === 'registration' ? <RegistrationPanel state={state} actions={actions} /> : null}
-						{engine.workspaceMode === 'tools' ? <ToolsPanel state={state} actions={actions} /> : null}
 						{engine.workspaceMode === 'inspection' ? <InspectionPanel state={state} actions={actions} /> : null}
 					</BottomDrawer>
 				)}
@@ -192,7 +158,9 @@ export function ArRuntimeView(props: {
 							min={0}
 							max={100}
 							step={1}
-							aria-label="透视强度"
+							aria-label={visualizationSliderLabel}
+							aria-valuetext={visualizationSliderValueText}
+							title={visualizationSliderValueText}
 							value={engine.structureRevealValue}
 							onChange={ ( event ) => {
 								actions.setStructureRevealValue( Number( event.currentTarget.value ) );
@@ -201,46 +169,22 @@ export function ArRuntimeView(props: {
 					</div>
 				) : null}
 
-				{showMeasurementCaptureOverlay ? (
-					<div className="precision-capture-bar">
-						<div className="precision-capture-bar__content">
-							<strong>{`当前模式：${engine.measurement.activeLabel}`}</strong>
-							<span>{`测点进度：${engine.measurement.capturedPointLabels.length} / ${engine.measurement.requiredPointCount}`}</span>
-							<span>{`采样质量：${engine.measurement.targetQualityText}`}</span>
-							<span>{engine.measurement.feedbackText || engine.measurement.detailText}</span>
-						</div>
-						<div className="precision-capture-bar__actions">
-							<ActionButton
-								label="取消测量"
-								onClick={actions.cancelMeasurement}
-								kind="secondary"
-							/>
-							<ActionButton
-								label={measurementCaptureActionLabel}
-								onClick={actions.confirmMeasurementPoint}
-								kind="primary"
-							/>
-						</div>
-					</div>
-				) : (
-					<nav className="bottom-nav">
-						{PANEL_OPTIONS.map( ( item ) => (
-							<GuardedPressButton
-								key={item.value}
-								className={ `nav-button${engine.workspaceMode === item.value ? ' is-active' : ''}` }
-								onPress={ () => actions.activatePanel( item.value ) }
-								disabled={
-									( item.value === 'browse' && !canOpenBrowse )
-									|| ( item.value === 'tools' && !canOpenTools )
-									|| ( item.value === 'inspection' && !canInspect )
-								}
-							>
-								<span className="nav-button__icon">{item.short}</span>
-								<span>{item.label}</span>
-							</GuardedPressButton>
-						) )}
-					</nav>
-				)}
+				<nav className="bottom-nav">
+					{PANEL_OPTIONS.map( ( item ) => (
+						<GuardedPressButton
+							key={item.value}
+							className={ `nav-button${engine.workspaceMode === item.value ? ' is-active' : ''}` }
+							onPress={ () => actions.activatePanel( item.value ) }
+							disabled={
+								( item.value === 'browse' && !canOpenBrowse )
+								|| ( item.value === 'inspection' && !canInspect )
+							}
+						>
+							<span className="nav-button__icon">{item.short}</span>
+							<span>{item.label}</span>
+						</GuardedPressButton>
+					) )}
+				</nav>
 			</div>
 		</div>
 	);

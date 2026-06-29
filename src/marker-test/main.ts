@@ -78,18 +78,31 @@ type ArjsRuntime = {
 	) => ArMarkerControlsInstance;
 };
 
+type ArjsNamespaceRuntime = {
+	Source?: ArjsRuntime[ 'ArToolkitSource' ];
+	Context?: ArjsRuntime[ 'ArToolkitContext' ];
+	MarkerControls?: ArjsRuntime[ 'ArMarkerControls' ];
+	ArToolkitSource?: ArjsRuntime[ 'ArToolkitSource' ];
+	ArToolkitContext?: ArjsRuntime[ 'ArToolkitContext' ];
+	ArMarkerControls?: ArjsRuntime[ 'ArMarkerControls' ];
+};
+
 type MarkerTestWindow = Window & typeof globalThis & {
 	THREE?: typeof THREE;
 	THREEx?: Partial<ArjsRuntime>;
+	ARjs?: Partial<ArjsNamespaceRuntime>;
+	ArMarkerControls?: ArjsRuntime[ 'ArMarkerControls' ];
 };
 
 type ArjsRuntimeDiagnostic = {
 	scriptUrl: string;
 	scriptLoaded: boolean;
 	hasTHREEx: boolean;
+	hasARjs: boolean;
 	hasArToolkitSource: boolean;
 	hasArToolkitContext: boolean;
 	hasArMarkerControls: boolean;
+	usingArjsNamespaceShim: boolean;
 	usingOfficialBuild: boolean;
 	repository: string;
 	oldRepositoryDetected: boolean;
@@ -898,6 +911,8 @@ async function loadArjsRuntime(): Promise<ArjsRuntime> {
 
 function readArjsRuntime(): ArjsRuntime | null {
 
+	installArjsRuntimeShim();
+
 	const candidate = ( window as MarkerTestWindow ).THREEx;
 	if ( candidate === undefined ) {
 		return null;
@@ -912,6 +927,61 @@ function readArjsRuntime(): ArjsRuntime | null {
 	}
 
 	return candidate as ArjsRuntime;
+
+}
+
+function installArjsRuntimeShim(): void {
+
+	const markerWindow = window as MarkerTestWindow;
+	const currentRuntime = markerWindow.THREEx;
+	if (
+		typeof currentRuntime?.ArToolkitSource === 'function'
+		&& typeof currentRuntime?.ArToolkitContext === 'function'
+		&& typeof currentRuntime?.ArMarkerControls === 'function'
+	) {
+		return;
+	}
+
+	const arjsRuntime = markerWindow.ARjs;
+	const sourceCtor = resolveRuntimeConstructor<ArjsRuntime[ 'ArToolkitSource' ]>(
+		currentRuntime?.ArToolkitSource,
+		arjsRuntime?.Source,
+		arjsRuntime?.ArToolkitSource
+	);
+	const contextCtor = resolveRuntimeConstructor<ArjsRuntime[ 'ArToolkitContext' ]>(
+		currentRuntime?.ArToolkitContext,
+		arjsRuntime?.Context,
+		arjsRuntime?.ArToolkitContext
+	);
+	const markerControlsCtor = resolveRuntimeConstructor<ArjsRuntime[ 'ArMarkerControls' ]>(
+		currentRuntime?.ArMarkerControls,
+		arjsRuntime?.MarkerControls,
+		arjsRuntime?.ArMarkerControls,
+		markerWindow.ArMarkerControls
+	);
+
+	if ( sourceCtor === null || contextCtor === null || markerControlsCtor === null ) {
+		return;
+	}
+
+	markerWindow.THREEx = {
+		...( currentRuntime ?? {} ),
+		ArToolkitSource: sourceCtor,
+		ArToolkitContext: contextCtor,
+		ArMarkerControls: markerControlsCtor
+	};
+
+}
+
+function resolveRuntimeConstructor<T extends Function>(...candidates: unknown[]): T | null {
+
+	for ( const candidate of candidates ) {
+		if ( typeof candidate === 'function' ) {
+			return candidate as T;
+		}
+	}
+
+	return null;
 
 }
 
@@ -1057,10 +1127,15 @@ async function probeAssetUrl(url: string, mode: 'text' | 'binary'): Promise<Asse
 			};
 		}
 
-		if ( mode === 'text' && url.endsWith( '/ar.js' ) && decodedText.includes( 'THREEx' ) === false ) {
+		if (
+			mode === 'text'
+			&& url.endsWith( '/ar.js' )
+			&& decodedText.includes( 'THREEx' ) === false
+			&& decodedText.includes( 'ARjs' ) === false
+		) {
 			return {
 				ok: false,
-				message: 'ar.js build does not expose THREEx runtime',
+				message: 'ar.js build does not expose THREEx or ARjs runtime',
 				status: response.status,
 				bytes: bytes.byteLength,
 				contentType,
@@ -1171,16 +1246,22 @@ function exposeThreeGlobal(): void {
 
 function readArjsRuntimeDiagnostic(scriptLoaded: boolean): ArjsRuntimeDiagnostic {
 
-	const runtime = ( window as MarkerTestWindow ).THREEx;
+	installArjsRuntimeShim();
+
+	const markerWindow = window as MarkerTestWindow;
+	const runtime = markerWindow.THREEx;
+	const arjsNamespace = markerWindow.ARjs;
 	const scriptSource = document.querySelector<HTMLScriptElement>( ARJS_SCRIPT_SELECTOR )?.src ?? ARJS_RUNTIME_URL;
 
 	return {
 		scriptUrl: scriptSource,
 		scriptLoaded,
 		hasTHREEx: runtime !== undefined,
+		hasARjs: arjsNamespace !== undefined,
 		hasArToolkitSource: typeof runtime?.ArToolkitSource === 'function',
 		hasArToolkitContext: typeof runtime?.ArToolkitContext === 'function',
 		hasArMarkerControls: typeof runtime?.ArMarkerControls === 'function',
+		usingArjsNamespaceShim: runtime !== undefined && arjsNamespace !== undefined,
 		usingOfficialBuild: scriptSource.includes( '/arjs/build/ar.js' ) || scriptSource.includes( 'AR-js-org/AR.js' ),
 		repository: ARJS_REPOSITORY,
 		oldRepositoryDetected: detectDeprecatedRepositoryPath()
@@ -1196,26 +1277,26 @@ function logArjsRuntime(diagnostic: ArjsRuntimeDiagnostic): void {
 
 function createThreexUnavailableError(diagnostic: ArjsRuntimeDiagnostic): Error {
 
-	if ( diagnostic.hasTHREEx === false ) {
+	if ( diagnostic.hasTHREEx === false && diagnostic.hasARjs === false ) {
 		return new Error(
-			'AR.js THREEx runtime unavailable. Please check /arjs/build/ar.js from AR-js-org/AR.js.'
+			'AR.js runtime unavailable. Please check /arjs/build/ar.js from AR-js-org/AR.js.'
 		);
 	}
 
 	if ( diagnostic.hasArToolkitSource === false ) {
-		return new Error( 'AR.js THREEx runtime unavailable: ArToolkitSource missing.' );
+		return new Error( 'AR.js runtime unavailable: ArToolkitSource/ARjs.Source missing.' );
 	}
 
 	if ( diagnostic.hasArToolkitContext === false ) {
-		return new Error( 'AR.js THREEx runtime unavailable: ArToolkitContext missing.' );
+		return new Error( 'AR.js runtime unavailable: ArToolkitContext/ARjs.Context missing.' );
 	}
 
 	if ( diagnostic.hasArMarkerControls === false ) {
-		return new Error( 'AR.js THREEx runtime unavailable: ArMarkerControls missing.' );
+		return new Error( 'AR.js runtime unavailable: ArMarkerControls/ARjs.MarkerControls missing.' );
 	}
 
 	return new Error(
-		'AR.js THREEx runtime unavailable. Please check /arjs/build/ar.js from AR-js-org/AR.js.'
+		'AR.js runtime unavailable. Please check /arjs/build/ar.js from AR-js-org/AR.js.'
 	);
 
 }

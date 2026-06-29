@@ -1,6 +1,5 @@
 import type * as THREE from 'three';
 import type { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import type { DepthSensingMode } from '../registration/registration-store.js';
 
 export type SetStatus = (message: string) => void;
 
@@ -62,8 +61,6 @@ export interface ARDomElements {
 	resetPlacementButton: HTMLButtonElement;
 	enableCoarseButton: HTMLButtonElement;
 	refreshGeoButton: HTMLButtonElement;
-	toolLayersButton: HTMLButtonElement;
-	toolMeasureButton: HTMLButtonElement;
 	modeBrowseButton: HTMLButtonElement;
 	modeRegistrationButton: HTMLButtonElement;
 	modeTimelineButton: HTMLButtonElement;
@@ -100,14 +97,6 @@ export interface ARDomElements {
 	timelineNextButton: HTMLButtonElement;
 	timelinePlayButton: HTMLButtonElement;
 	timelineStageButtons: HTMLButtonElement[];
-	toolsMeasureButton: HTMLButtonElement;
-	toolsHeightMeasureButton: HTMLButtonElement;
-	toolsDeltaMeasureButton: HTMLButtonElement;
-	toolsClearButton: HTMLButtonElement;
-	toolsCaptureButton: HTMLButtonElement;
-	toolsInfoCaptureButton: HTMLButtonElement;
-	toolsAnnotateButton: HTMLButtonElement;
-	toolsControlPointsButton: HTMLButtonElement;
 	inspectionCurrentNameEl: HTMLElement;
 	inspectionCurrentTypeEl: HTMLElement;
 	inspectionCurrentStatusEl: HTMLElement;
@@ -158,7 +147,6 @@ export interface XRAnchorHandle {
 export interface XRHitTestController {
 	setup(): void;
 	update(frame: XRFrame): void;
-	setDepthSensingMode(mode: DepthSensingMode): void;
 	hasGroundHit(): boolean;
 	getHitPosition(target: THREE.Vector3): THREE.Vector3 | null;
 	getHitMatrix(target: THREE.Matrix4): THREE.Matrix4 | null;

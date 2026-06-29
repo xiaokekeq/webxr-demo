@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import type { DepthSensingMode } from '../registration/registration-store.js';
 import type { SetStatus, XRAnchorHandle, XRHitTestController, XRHitTestQuality } from '../shared/types.js';
 
 interface CreateXRHitTestControllerOptions {
@@ -7,7 +6,6 @@ interface CreateXRHitTestControllerOptions {
 	reticle: THREE.Group;
 	xrButtonWrap: HTMLElement;
 	setStatus: SetStatus;
-	initialDepthSensingMode: DepthSensingMode;
 	onSessionStart?: () => void;
 	onSessionEnd?: () => void;
 	onSelect?: () => void;
@@ -81,7 +79,6 @@ export function createXRHitTestController(
 		reticle,
 		xrButtonWrap,
 		setStatus,
-		initialDepthSensingMode,
 		onSessionStart,
 		onSessionEnd,
 		onSelect,
@@ -96,7 +93,6 @@ export function createXRHitTestController(
 	let lastHitTestResult: XRHitTestResult | null = null;
 	let anchorSupportDetected = false;
 	let recentHitSamples: Array<{ position: THREE.Vector3; time: number }> = [];
-	let depthSensingMode = initialDepthSensingMode;
 	let sessionRequestPending = false;
 
 	function setup(): void {
@@ -104,12 +100,6 @@ export function createXRHitTestController(
 		xrButtonWrap.replaceChildren();
 		renderer.xr.addEventListener( 'sessionstart', handleSessionStart );
 		renderer.xr.addEventListener( 'sessionend', handleSessionEnd );
-
-	}
-
-	function setDepthSensingMode(mode: DepthSensingMode): void {
-
-		depthSensingMode = mode;
 
 	}
 
@@ -344,7 +334,6 @@ export function createXRHitTestController(
 	return {
 		setup,
 		update,
-		setDepthSensingMode,
 		hasGroundHit,
 		getHitPosition,
 		getHitMatrix,
@@ -368,7 +357,7 @@ export function createXRHitTestController(
 			try {
 				const session = await navigator.xr.requestSession(
 					'immersive-ar',
-					createSessionInit( depthSensingMode )
+					createSessionInit()
 				);
 				renderer.xr.setReferenceSpaceType( 'local' );
 				await renderer.xr.setSession( session );
@@ -410,7 +399,7 @@ export function createXRHitTestController(
 
 }
 
-function createSessionInit(mode: DepthSensingMode): DepthAwareSessionInit {
+function createSessionInit(): DepthAwareSessionInit {
 
 	const sessionInit: DepthAwareSessionInit = {
 		requiredFeatures: [ 'hit-test' ],
@@ -418,36 +407,7 @@ function createSessionInit(mode: DepthSensingMode): DepthAwareSessionInit {
 		domOverlay: { root: document.body }
 	};
 
-	if ( mode === 'disabled' ) {
-		return sessionInit;
-	}
-
-	sessionInit.optionalFeatures = [ 'dom-overlay', 'depth-sensing' ];
-	sessionInit.depthSensing = {
-		usagePreference: getDepthUsagePreference( mode ),
-		formatPreference: mode === 'cpu'
-			? [ 'float32', 'luminance-alpha' ]
-			: [ 'luminance-alpha', 'float32' ]
-	};
-
 	return sessionInit;
-
-}
-
-function getDepthUsagePreference(
-	mode: DepthSensingMode
-): Array<'cpu-optimized' | 'gpu-optimized'> {
-
-	switch ( mode ) {
-		case 'gpu':
-			return [ 'gpu-optimized' ];
-		case 'cpu':
-			return [ 'cpu-optimized' ];
-		case 'auto':
-			return [ 'gpu-optimized', 'cpu-optimized' ];
-		case 'disabled':
-			return [ 'gpu-optimized' ];
-	}
 
 }
 

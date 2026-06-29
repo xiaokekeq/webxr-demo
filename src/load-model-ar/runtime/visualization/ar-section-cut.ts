@@ -15,8 +15,9 @@ export interface ArSectionCutApplyResult {
 	affectedMeshCount: number;
 	affectedMaterialCount: number;
 	cutPosition: number;
-	modelMin: number;
-	modelMax: number;
+	axisMin: number;
+	axisMax: number;
+	meaning: string;
 }
 
 export interface ArSectionCutRestoreResult {
@@ -68,16 +69,19 @@ export function createArSectionCutController(renderer: THREE.WebGLRenderer): ArS
 				affectedMeshCount: 0,
 				affectedMaterialCount: 0,
 				cutPosition: 0,
-				modelMin: 0,
-				modelMax: 0
+				axisMin: 0,
+				axisMax: 0,
+				meaning: 'move cutting plane to inspect section'
 			};
 		}
 
 		tempBounds.setFromObject( modelRoot );
 		const axis = resolvePlaneAxis( tempBounds, currentPlaneMode );
-		const modelMin = tempBounds.min[ axis ];
-		const modelMax = tempBounds.max[ axis ];
-		const cutPosition = THREE.MathUtils.lerp( modelMin, modelMax, nextValue / 100 );
+		const axisMin = tempBounds.min[ axis ];
+		const axisMax = tempBounds.max[ axis ];
+		const cutPosition = THREE.MathUtils.lerp( axisMin, axisMax, nextValue / 100 );
+		// Section cut moves a clipping plane through the model to inspect an interior section.
+		// Unlike spatial reveal, value=100 still means "plane at far boundary", not "reveal complete".
 		const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(
 			tempNormal.set( 0, 0, 0 ).setComponent( axisToIndex( axis ), -1 ),
 			tempPoint.set( 0, 0, 0 ).setComponent( axisToIndex( axis ), cutPosition )
@@ -112,8 +116,9 @@ export function createArSectionCutController(renderer: THREE.WebGLRenderer): ArS
 			affectedMeshCount,
 			affectedMaterialCount,
 			cutPosition,
-			modelMin,
-			modelMax
+			axisMin,
+			axisMax,
+			meaning: 'move cutting plane to inspect section'
 		};
 
 	}

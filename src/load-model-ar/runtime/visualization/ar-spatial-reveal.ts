@@ -13,9 +13,11 @@ export interface ArSpatialRevealApplyResult {
 	direction: 1 | -1;
 	affectedMeshCount: number;
 	affectedMaterialCount: number;
-	modelMin: number;
-	modelMax: number;
+	axisMin: number;
+	axisMax: number;
 	revealPosition: number;
+	visibleRange: [ number, number ];
+	meaning: string;
 }
 
 export interface ArSpatialRevealRestoreResult {
@@ -62,22 +64,28 @@ export function createArSpatialRevealController(renderer: THREE.WebGLRenderer): 
 				direction: 1,
 				affectedMeshCount: 0,
 				affectedMaterialCount: 0,
-				modelMin: 0,
-				modelMax: 0,
-				revealPosition: 0
+				axisMin: 0,
+				axisMax: 0,
+				revealPosition: 0,
+				visibleRange: [ 0, 0 ],
+				meaning: 'show model progressively from start to revealPosition'
 			};
 		}
 
-		if ( nextValue >= 100 ) {
-			restoreRoot( modelRoot );
-			return createReport( modelRoot, nextValue, 'x', 1, 0, 0, 0, 0, 0 );
-		}
-
+		// Spatial reveal keeps the range from the start boundary up to revealPosition.
+		// Unlike section-cut, value=100 must restore the full model instead of keeping a cut state.
 		tempBounds.setFromObject( modelRoot );
 		const { axis, direction } = resolveRevealAxis( tempBounds );
-		const modelMin = tempBounds.min[ axis ];
-		const modelMax = tempBounds.max[ axis ];
-		const revealPosition = THREE.MathUtils.lerp( modelMin, modelMax, nextValue / 100 );
+		const axisMin = tempBounds.min[ axis ];
+		const axisMax = tempBounds.max[ axis ];
+		const revealPosition = THREE.MathUtils.lerp( axisMin, axisMax, nextValue / 100 );
+
+		if ( nextValue >= 100 ) {
+			restoreRoot( modelRoot );
+			renderer.localClippingEnabled = false;
+			return createReport( nextValue, axis, direction, 0, 0, axisMin, axisMax, axisMax );
+		}
+
 		const plane = tempPlane.setFromNormalAndCoplanarPoint(
 			tempPlaneNormal.setScalar( 0 ).setComponent( axisToIndex( axis ), -direction ),
 			tempPoint.set( 0, 0, 0 ).setComponent( axisToIndex( axis ), revealPosition )
@@ -107,14 +115,13 @@ export function createArSpatialRevealController(renderer: THREE.WebGLRenderer): 
 		} );
 
 		return createReport(
-			modelRoot,
 			nextValue,
 			axis,
 			direction,
 			affectedMeshCount,
 			affectedMaterialCount,
-			modelMin,
-			modelMax,
+			axisMin,
+			axisMax,
 			revealPosition
 		);
 
@@ -227,27 +234,27 @@ function buildMaterialSnapshot(material: THREE.Material) {
 }
 
 function createReport(
-	modelRoot: THREE.Object3D | null,
 	value: number,
 	axis: 'x' | 'y' | 'z',
 	direction: 1 | -1,
 	affectedMeshCount: number,
 	affectedMaterialCount: number,
-	modelMin: number,
-	modelMax: number,
+	axisMin: number,
+	axisMax: number,
 	revealPosition: number
 ): ArSpatialRevealApplyResult {
 
-	void modelRoot;
 	return {
 		value,
 		axis,
 		direction,
 		affectedMeshCount,
 		affectedMaterialCount,
-		modelMin,
-		modelMax,
-		revealPosition
+		axisMin,
+		axisMax,
+		revealPosition,
+		visibleRange: [ axisMin, revealPosition ],
+		meaning: 'show model progressively from start to revealPosition'
 	};
 
 }

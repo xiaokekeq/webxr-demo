@@ -1164,7 +1164,7 @@ textarea {
 	right: 12px;
 	bottom: max(12px, env(safe-area-inset-bottom, 0px));
 	display: grid;
-	grid-template-columns: repeat(4, minmax(0, 1fr));
+	grid-template-columns: repeat(3, minmax(0, 1fr));
 	gap: 10px;
 	padding: 12px 14px;
 	border-radius: 24px;
@@ -1794,7 +1794,7 @@ textarea {
 
 .desktop-tabs {
 	display: grid;
-	grid-template-columns: repeat(4, minmax(0, 1fr));
+	grid-template-columns: repeat(3, minmax(0, 1fr));
 	padding: 14px;
 	gap: 8px;
 	border-bottom: 1px solid rgba(148, 163, 184, 0.18);

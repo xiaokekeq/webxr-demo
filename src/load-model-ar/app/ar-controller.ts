@@ -1,8 +1,7 @@
 import { createStore } from 'zustand/vanilla';
 import type {
-	DepthSensingMode,
 	ArDisplayMode,
-	MeasurementMode,
+	SectionCutPlaneMode,
 	WorkspaceMode
 } from '../registration/registration-store.js';
 import type { ManualAdjustmentPreset } from '../registration/manual-registration.js';
@@ -20,9 +19,7 @@ export interface InspectionDraft {
 
 export interface ControllerUiState {
 	drawerOpen: boolean;
-	browseDetailsExpanded: boolean;
 	registrationView: RegistrationView;
-	measurementCaptureActive: boolean;
 	inspectionFormExpanded: boolean;
 	inspectionDraft: InspectionDraft;
 }
@@ -45,6 +42,7 @@ export interface LoadModelArController {
 		selectModel(modelId: string): void;
 		setDisplayMode(mode: ArDisplayMode): void;
 		setStructureRevealValue(value: number): void;
+		setSectionCutPlaneMode(mode: SectionCutPlaneMode): void;
 		activatePanel(mode: WorkspaceMode): void;
 		toggleDrawer(): void;
 		setTimelineStage(index: number): void;
@@ -60,28 +58,21 @@ export interface LoadModelArController {
 		resetPlacement(): void;
 		setManualAdjustmentPreset(preset: ManualAdjustmentPreset): void;
 		setAutoPreviewPlacementEnabled(enabled: boolean): void;
-		setDepthSensingMode(mode: DepthSensingMode): void;
 		adjustTranslation(axis: 'x' | 'y' | 'z', direction: 1 | -1): void;
 		adjustYaw(direction: 1 | -1): void;
 		adjustScale(direction: 1 | -1): void;
 		saveManualRegistration(): void;
 		resetManualRegistration(): void;
 		clearSavedRegistration(): void;
-		startMeasurementMode(mode: MeasurementMode): void;
-		confirmMeasurementPoint(): void;
-		cancelMeasurement(): void;
-		clearMeasurement(): void;
 		enterAr(): void;
 		placeModel(): Promise<void>;
 		exitAr(): void;
-		setBrowseDetailsExpanded(expanded: boolean): void;
 		setRegistrationView(view: RegistrationView): void;
 		setInspectionFormExpanded(expanded: boolean): void;
 		updateInspectionDraft(patch: Partial<InspectionDraft>): void;
 		saveInspectionRecord(): void;
 		exportInspectionRecords(): void;
 		takeSnapshot(): void;
-		runMeasurementTool(label: string): void;
 		toggleAnnotationHelper(label: string): void;
 		exportRegistrationSnapshot(): void;
 	};
@@ -94,19 +85,11 @@ const DEFAULT_INSPECTION_DRAFT: InspectionDraft = {
 	note: ''
 };
 
-function hasSelection(state: ThreeEngineSnapshot): boolean {
-
-	return state.hasSelection;
-
-}
-
 function createInitialUiState(): ControllerUiState {
 
 	return {
 		drawerOpen: true,
-		browseDetailsExpanded: false,
 		registrationView: 'overview',
-		measurementCaptureActive: false,
 		inspectionFormExpanded: false,
 		inspectionDraft: { ...DEFAULT_INSPECTION_DRAFT }
 	};
@@ -135,28 +118,10 @@ export function createLoadModelArController(): LoadModelArController {
 
 	}
 
-	function canUseMeasurementCaptureUi(): boolean {
-
-		const currentEngineState = engine.getState();
-		return isDesktopLayout === false && currentEngineState.appMode === 'ar-session';
-
-	}
-
 	function canUseManualAdjustmentOverlay(): boolean {
 
 		const currentEngineState = engine.getState();
 		return isDesktopLayout === false && currentEngineState.appMode === 'ar-session';
-
-	}
-
-	function stopMeasurementCapture(options?: {
-		drawerOpen?: boolean;
-	}): void {
-
-		patchUiState( {
-			measurementCaptureActive: false,
-			drawerOpen: options?.drawerOpen ?? stateStore.getState().ui.drawerOpen
-		} );
 
 	}
 
@@ -167,15 +132,12 @@ export function createLoadModelArController(): LoadModelArController {
 
 		const enteredArSession = previousEngineState.appMode !== 'ar-session' && nextState.appMode === 'ar-session';
 		const completedPlacement = previousEngineState.arSessionPhase !== 'placed' && nextState.arSessionPhase === 'placed';
-		const newlySelectedComponent = hasSelection( previousEngineState ) === false && hasSelection( nextState );
 
 		if ( enteredArSession ) {
 			nextUi = {
 				...nextUi,
 				drawerOpen: false,
-				registrationView: 'overview',
-				measurementCaptureActive: false,
-				browseDetailsExpanded: false
+				registrationView: 'overview'
 			};
 		}
 
@@ -183,27 +145,7 @@ export function createLoadModelArController(): LoadModelArController {
 			nextUi = {
 				...nextUi,
 				drawerOpen: false,
-				registrationView: 'overview',
-				measurementCaptureActive: false
-			};
-		}
-
-		if (
-			newlySelectedComponent
-			&& nextUi.measurementCaptureActive === false
-		) {
-			nextUi = {
-				...nextUi,
-				drawerOpen: true,
-				browseDetailsExpanded: true
-			};
-		}
-
-		if ( nextState.measurement.isCapturing === false && currentUi.measurementCaptureActive ) {
-			nextUi = {
-				...nextUi,
-				measurementCaptureActive: false,
-				drawerOpen: true
+				registrationView: 'overview'
 			};
 		}
 
@@ -237,9 +179,6 @@ export function createLoadModelArController(): LoadModelArController {
 
 			isDesktopLayout = nextIsDesktopLayout;
 			engine.setLayoutMode( nextIsDesktopLayout );
-			if ( nextIsDesktopLayout ) {
-				stopMeasurementCapture( { drawerOpen: true } );
-			}
 
 		},
 
@@ -266,8 +205,7 @@ export function createLoadModelArController(): LoadModelArController {
 
 				engine.closePropertyPanel();
 				patchUiState( {
-					drawerOpen: false,
-					browseDetailsExpanded: false
+					drawerOpen: false
 				} );
 
 			},
@@ -290,14 +228,17 @@ export function createLoadModelArController(): LoadModelArController {
 
 			},
 
+			setSectionCutPlaneMode(mode) {
+
+				engine.setSectionCutPlaneMode( mode );
+
+			},
+
 			activatePanel(mode) {
 
 				const { engine: currentEngineState, ui } = stateStore.getState();
 				if ( currentEngineState.workspaceMode === mode && ui.drawerOpen ) {
-					patchUiState( {
-						drawerOpen: false,
-						measurementCaptureActive: false
-					} );
+					patchUiState( { drawerOpen: false } );
 					return;
 				}
 
@@ -309,8 +250,7 @@ export function createLoadModelArController(): LoadModelArController {
 						: 'overview';
 				patchUiState( {
 					drawerOpen: true,
-					registrationView: nextRegistrationView,
-					measurementCaptureActive: false
+					registrationView: nextRegistrationView
 				} );
 
 			},
@@ -318,10 +258,6 @@ export function createLoadModelArController(): LoadModelArController {
 			toggleDrawer() {
 
 				const ui = stateStore.getState().ui;
-				if ( ui.measurementCaptureActive ) {
-					return;
-				}
-
 				patchUiState( { drawerOpen: !ui.drawerOpen } );
 
 			},
@@ -391,8 +327,7 @@ export function createLoadModelArController(): LoadModelArController {
 				engine.resetPlacement();
 				patchUiState( {
 					drawerOpen: false,
-					registrationView: 'overview',
-					measurementCaptureActive: false
+					registrationView: 'overview'
 				} );
 
 			},
@@ -406,12 +341,6 @@ export function createLoadModelArController(): LoadModelArController {
 			setAutoPreviewPlacementEnabled(enabled) {
 
 				engine.setAutoPreviewPlacementEnabled( enabled );
-
-			},
-
-			setDepthSensingMode(mode) {
-
-				engine.setDepthSensingMode( mode );
 
 			},
 
@@ -448,52 +377,6 @@ export function createLoadModelArController(): LoadModelArController {
 			clearSavedRegistration() {
 
 				engine.clearSavedRegistration();
-				patchUiState( {
-					measurementCaptureActive: false
-				} );
-
-			},
-
-			startMeasurementMode(mode) {
-
-				engine.setWorkspaceMode( 'tools' );
-				engine.startMeasurementMode( mode );
-				const measurementState = engine.getState().measurement;
-				if ( canUseMeasurementCaptureUi() && measurementState.isCapturing ) {
-					patchUiState( {
-						drawerOpen: false,
-						measurementCaptureActive: true
-					} );
-					return;
-				}
-
-				patchUiState( {
-					drawerOpen: true,
-					measurementCaptureActive: false
-				} );
-
-			},
-
-			confirmMeasurementPoint() {
-
-				engine.confirmMeasurementPoint();
-				if ( engine.getState().measurement.isCapturing === false ) {
-					stopMeasurementCapture( { drawerOpen: true } );
-				}
-
-			},
-
-			cancelMeasurement() {
-
-				engine.cancelMeasurement();
-				stopMeasurementCapture( { drawerOpen: true } );
-
-			},
-
-			clearMeasurement() {
-
-				engine.clearMeasurement();
-				stopMeasurementCapture( { drawerOpen: true } );
 
 			},
 
@@ -514,15 +397,8 @@ export function createLoadModelArController(): LoadModelArController {
 				engine.exitAr();
 				patchUiState( {
 					drawerOpen: false,
-					registrationView: 'overview',
-					measurementCaptureActive: false
+					registrationView: 'overview'
 				} );
-
-			},
-
-			setBrowseDetailsExpanded(expanded) {
-
-				patchUiState( { browseDetailsExpanded: expanded } );
 
 			},
 
@@ -531,8 +407,7 @@ export function createLoadModelArController(): LoadModelArController {
 				const shouldUseManualOverlay = view === 'manual' && canUseManualAdjustmentOverlay();
 				patchUiState( {
 					drawerOpen: shouldUseManualOverlay ? false : true,
-					registrationView: view,
-					measurementCaptureActive: false
+					registrationView: view
 				} );
 
 			},
@@ -541,8 +416,7 @@ export function createLoadModelArController(): LoadModelArController {
 
 				patchUiState( {
 					drawerOpen: true,
-					inspectionFormExpanded: expanded,
-					measurementCaptureActive: false
+					inspectionFormExpanded: expanded
 				} );
 
 			},
@@ -576,12 +450,6 @@ export function createLoadModelArController(): LoadModelArController {
 			takeSnapshot() {
 
 				engine.takeSnapshot();
-
-			},
-
-			runMeasurementTool(label) {
-
-				engine.runMeasurementTool( label );
 
 			},
 

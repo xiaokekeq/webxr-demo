@@ -13,7 +13,6 @@ import {
 import { createSceneHostRuntime, type SceneHostRuntimeHosts } from './internal/runtime/scene-host-runtime.js';
 import { createStatusRuntime } from './internal/runtime/status-runtime.js';
 import { createWorkspaceRuntime } from './internal/runtime/workspace-runtime.js';
-import { createMeasurementController } from './internal/tools/measurement-controller.js';
 import {
 	getFirstGeodeticPointFromDemoModelConfig,
 	type DemoModelConfig
@@ -22,16 +21,14 @@ import {
 	createDefaultAnnotationDetailState,
 	createDefaultRegistrationChainDebugState,
 	createDefaultModelScaleSummaryState,
-	createDefaultMeasurementState,
 	createDefaultSavedMarkerLocalizationState,
 	createDefaultTargetGuidanceState,
 	createRegistrationStore,
 	type AnnotationDetailState,
 	type ArDisplayMode,
-	type DepthSensingMode,
-	type MeasurementMode,
 	type RegistrationStore,
 	type RegistrationStoreState,
+	type SectionCutPlaneMode,
 	type WorkspaceMode
 } from '../registration/registration-store.js';
 import {
@@ -79,6 +76,7 @@ import { createArLayerPeelingController } from './visualization/ar-layer-peeling
 import { createArSectionCutController } from './visualization/ar-section-cut.js';
 import {
 	createArAnnotationLabelController,
+	type ArAnnotationDetailOverlay,
 	type ArAnnotationItem
 } from './annotation/ar-annotation-labels.js';
 import {
@@ -87,8 +85,10 @@ import {
 import { computeTargetGuidanceState } from './internal/placement/target-guidance.js';
 import { createARScene, resizeARScene } from './scene.js';
 import { createXRSessionRuntime } from './xr.js';
-import { getDepthSensingModeLabel } from '../shared/depth-sensing-modes.js';
-import { getDisplayModeLabel } from '../shared/display-modes.js';
+import {
+	getDisplayModeLabel,
+	getSectionCutPlaneModeLabel
+} from '../shared/display-modes.js';
 import { formatGeodetic } from '../shared/formatters.js';
 
 const MAX_VISIBLE_AUTO_PLACEMENT_DISTANCE_METERS = 8;
@@ -157,7 +157,6 @@ function createInitialState(): RegistrationStoreState {
 		},
 		manualAdjustmentPreset: 'fine',
 		autoPreviewPlacementEnabled: false,
-		depthSensingMode: 'disabled',
 		registrationMetrics: {
 			gpsText: '-',
 			enuText: '-',
@@ -173,7 +172,6 @@ function createInitialState(): RegistrationStoreState {
 		},
 		targetGuidance: createDefaultTargetGuidanceState(),
 		annotationDetail: createDefaultAnnotationDetailState(),
-		measurement: createDefaultMeasurementState(),
 		registrationStatusDetail: '状态：等待识别平面',
 		runtimeStatus: '正在准备 AR 工作区。',
 		coarseLocationDebugText: '手机 未获取 / 目标 -- / 精度 -- / 距离 --',
@@ -227,7 +225,6 @@ export class ThreeEngine {
 	private readonly xrRuntime;
 	private readonly manualReadoutSync;
 	private readonly manualRegistration;
-	private readonly measurementController;
 	private readonly workspaceRuntime;
 	private readonly pointerSelection;
 	private readonly arSessionStateRuntime;
@@ -291,17 +288,6 @@ export class ThreeEngine {
 			}
 		} );
 
-		this.measurementController = createMeasurementController( {
-			store: this.store,
-			scene: this.sceneBundle.scene,
-			setStatus: ( message ) => {
-				statusRuntime.setStatus( message );
-				this.emit();
-			},
-			getTargetPoint: ( target ) => this.xrRuntime.getHitTestController().getHitPosition( target ),
-			getTargetPointQuality: () => this.xrRuntime.getHitTestController().getHitTestQuality()
-		} );
-
 		this.propertySelection = createPropertySelectionController( {
 			store: this.store,
 			shouldRenderSelectionOutline: () => this.sceneBundle.renderer.xr.isPresenting
@@ -328,8 +314,7 @@ export class ThreeEngine {
 		} );
 
 		this.displayModeController = createDisplayModeController( {
-			getPlacedModel: () => this.placementSession.getPlacedModel(),
-			renderer: this.sceneBundle.renderer
+			getPlacedModel: () => this.placementSession.getPlacedModel()
 		} );
 		this.spatialRevealController = createArSpatialRevealController( this.sceneBundle.renderer );
 		this.sectionCutController = createArSectionCutController( this.sceneBundle.renderer );
@@ -370,9 +355,6 @@ export class ThreeEngine {
 				this.emit();
 			},
 			onInspectSelection: () => {
-				if ( this.store.getState().workspaceMode !== 'browse' ) {
-					this.store.patch( { workspaceMode: 'browse' } );
-				}
 				this.emit();
 			},
 			onSelectionApplied: ( selection ) => {
@@ -490,7 +472,6 @@ export class ThreeEngine {
 				statusRuntime.setStatus( message );
 				this.emit();
 			},
-			initialDepthSensingMode: this.store.getState().depthSensingMode,
 			onSessionStart: () => {
 				this.handleXRSessionStart();
 			},
@@ -645,7 +626,6 @@ export class ThreeEngine {
 		this.layerPeelingController.dispose();
 		this.sectionCutController.dispose();
 		this.annotationLabelsController.dispose();
-		this.measurementController.dispose();
 		this.sceneBundle.controls.dispose();
 		this.sceneBundle.renderer.dispose();
 
@@ -753,6 +733,26 @@ export class ThreeEngine {
 
 	}
 
+	setSectionCutPlaneMode(mode: SectionCutPlaneMode): void {
+
+		if (
+			mode !== 'horizontal-section'
+			&& mode !== 'cross-section'
+			&& mode !== 'longitudinal-section'
+		) {
+			return;
+		}
+
+		const state = this.store.getState();
+		if ( state.sectionCutPlaneMode === mode ) {
+			return;
+		}
+
+		this.store.patch( { sectionCutPlaneMode: mode } );
+		this.setStatus( `剖切方向已切换为：${getSectionCutPlaneModeLabel( mode )}` );
+
+	}
+
 	setWorkspaceMode(mode: WorkspaceMode): void {
 
 		if ( this.store.getState().workspaceMode === mode ) {
@@ -818,7 +818,6 @@ export class ThreeEngine {
 
 	resetPlacement(): void {
 
-		this.measurementController.reset();
 		this.arSessionStateRuntime.markPlacementCommitted( false );
 		this.placementSession.resetPlacement();
 		this.syncArSessionPhase();
@@ -1088,57 +1087,6 @@ export class ThreeEngine {
 
 	}
 
-	setDepthSensingMode(mode: DepthSensingMode): void {
-
-		if ( this.store.getState().depthSensingMode === mode ) {
-			return;
-		}
-
-		this.store.patch( { depthSensingMode: mode } );
-		this.xrRuntime.setDepthSensingMode( mode );
-		this.displayModeController.setDepthSensingMode( mode );
-		this.setStatus(
-			`Depth 模式已切换为：${getDepthSensingModeLabel( mode )}。`
-			+ ( this.sceneBundle.renderer.xr.isPresenting ? ' 新的能力请求会在下次进入 AR 时生效。' : '' )
-		);
-		this.emit();
-
-	}
-
-	startMeasurementMode(mode: MeasurementMode): void {
-
-		if ( this.sceneBundle.renderer.xr.isPresenting === false ) {
-			this.setStatus( '请先进入 AR 会话，再开始现场测量。' );
-			return;
-		}
-
-		if ( this.placementSession.getPlacedModel() === null ) {
-			this.setStatus( '请先完成模型放置，再开始现场测量。' );
-			return;
-		}
-
-		this.measurementController.start( mode );
-
-	}
-
-	confirmMeasurementPoint(): void {
-
-		this.measurementController.confirmPoint();
-
-	}
-
-	cancelMeasurement(): void {
-
-		this.measurementController.cancel();
-
-	}
-
-	clearMeasurement(): void {
-
-		this.measurementController.clear();
-
-	}
-
 	enterAr(): void {
 
 		if ( this.store.getState().arSupportState !== 'supported' ) {
@@ -1248,27 +1196,6 @@ export class ThreeEngine {
 			modelId: this.demoModelConfig?.modelId ?? null
 		} );
 		this.setStatus( result.statusMessage );
-
-	}
-
-	runMeasurementTool(label: string): void {
-
-		switch ( label ) {
-			case '两点测距':
-				this.startMeasurementMode( 'distance-3d' );
-				return;
-			case '水平距离':
-				this.startMeasurementMode( 'distance-horizontal' );
-				return;
-			case '深入测量':
-				this.startMeasurementMode( 'depth' );
-				return;
-			case '清除测量':
-				this.clearMeasurement();
-				return;
-			default:
-				this.setStatus( `${label} 暂未接入。` );
-		}
 
 	}
 
@@ -1731,7 +1658,6 @@ export class ThreeEngine {
 	private handleXRSessionStart(): void {
 
 		this.resetMarkerLocalizationCorrection();
-		this.measurementController.reset();
 		this.arSessionStateRuntime.handleSessionStart();
 		this.pointerSelection.suppressSelectionFor( 1200 );
 		this.placementSession.resetPlacement();
@@ -1751,7 +1677,6 @@ export class ThreeEngine {
 	private handleXRSessionEnd(): void {
 
 		this.resetMarkerLocalizationCorrection();
-		this.measurementController.reset();
 		this.arSessionStateRuntime.handleSessionEnd();
 		this.placementSession.resetPlacement();
 		this.syncManualRegistrationForHeading( 0 );
@@ -1929,9 +1854,11 @@ export class ThreeEngine {
 					value: report.value,
 					axis: report.axis,
 					direction: report.direction,
-					modelMin: report.modelMin,
-					modelMax: report.modelMax,
+					axisMin: report.axisMin,
+					axisMax: report.axisMax,
 					revealPosition: report.revealPosition,
+					visibleRange: report.visibleRange,
+					meaning: report.meaning,
 					affectedMeshCount: report.affectedMeshCount,
 					affectedMaterialCount: report.affectedMaterialCount
 				} );
@@ -1956,9 +1883,10 @@ export class ThreeEngine {
 					value: report.value,
 					planeMode: report.planeMode,
 					axis: report.axis,
-					modelMin: report.modelMin,
-					modelMax: report.modelMax,
+					axisMin: report.axisMin,
+					axisMax: report.axisMax,
 					cutPosition: report.cutPosition,
+					meaning: report.meaning,
 					affectedMeshCount: report.affectedMeshCount,
 					affectedMaterialCount: report.affectedMaterialCount
 				} );
@@ -2065,13 +1993,17 @@ export class ThreeEngine {
 		preferredLayerName?: string
 	): void {
 
+		const detailState = this.createAnnotationDetailState(
+			businessObject,
+			properties,
+			preferredLayerName
+		);
 		this.store.patch( {
-			annotationDetail: this.createAnnotationDetailState(
-				businessObject,
-				properties,
-				preferredLayerName
-			)
+			annotationDetail: detailState
 		} );
+		this.annotationLabelsController.setDetail(
+			this.createAnnotationDetailOverlay( businessObject, detailState )
+		);
 
 	}
 
@@ -2083,6 +2015,7 @@ export class ThreeEngine {
 		}
 
 		this.store.patch( { annotationDetail: createDefaultAnnotationDetailState() } );
+		this.annotationLabelsController.setDetail( null );
 
 	}
 
@@ -2116,6 +2049,24 @@ export class ThreeEngine {
 				{ label: '状态', value: properties?.status || ( businessObject.visible ? '可见' : '隐藏' ) },
 				{ label: '备注', value: remark }
 			]
+		};
+
+	}
+
+	private createAnnotationDetailOverlay(
+		targetObject: THREE.Object3D,
+		detailState: AnnotationDetailState
+	): ArAnnotationDetailOverlay | null {
+
+		if ( detailState.visible === false || detailState.fields.length === 0 ) {
+			return null;
+		}
+
+		return {
+			targetObject,
+			title: detailState.title,
+			subtitle: detailState.subtitle,
+			fields: detailState.fields
 		};
 
 	}
@@ -2267,6 +2218,8 @@ export class ThreeEngine {
 
 	private restoreVisualizationControllers(activeMode?: ArDisplayMode): void {
 
+		// Spatial reveal and section cut both use clipping planes, but their semantics differ.
+		// Switching modes must clear the previous mode's clipping state before applying the next one.
 		if ( activeMode !== 'transparent-xray' ) {
 			this.structureRevealController.restore();
 		}

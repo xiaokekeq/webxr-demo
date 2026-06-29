@@ -14,7 +14,6 @@ import { StatusBadge } from '../components/StatusBadge.js';
 import { getSupportLabel } from '../store/selectors.js';
 import { BrowsePanel } from '../panels/BrowsePanel.js';
 import { RegistrationPanel } from '../panels/RegistrationPanel.js';
-import { ToolsPanel } from '../panels/ToolsPanel.js';
 import { InspectionPanel } from '../panels/InspectionPanel.js';
 
 function useDesktopLayout(): boolean {
@@ -160,13 +159,6 @@ export function ArPage(): React.JSX.Element {
 									配准
 								</button>
 								<button
-									className={ `desktop-tab${engine.workspaceMode === 'tools' ? ' is-active' : ''}` }
-									type="button"
-									onClick={ () => actions.activatePanel( 'tools' ) }
-								>
-									工具
-								</button>
-								<button
 									className={ `desktop-tab${engine.workspaceMode === 'inspection' ? ' is-active' : ''}` }
 									type="button"
 									onClick={ () => actions.activatePanel( 'inspection' ) }
@@ -177,7 +169,6 @@ export function ArPage(): React.JSX.Element {
 							<div className="desktop-panel__body">
 								{engine.workspaceMode === 'browse' ? <BrowsePanel state={state} actions={actions} canInspect={true} /> : null}
 								{engine.workspaceMode === 'registration' ? <RegistrationPanel state={state} actions={actions} /> : null}
-								{engine.workspaceMode === 'tools' ? <ToolsPanel state={state} actions={actions} /> : null}
 								{engine.workspaceMode === 'inspection' ? <InspectionPanel state={state} actions={actions} /> : null}
 							</div>
 						</aside>

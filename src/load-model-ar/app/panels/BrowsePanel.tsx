@@ -6,34 +6,69 @@ import { ModelSelector } from '../components/ModelSelector.js';
 import { SegmentedField } from '../components/SegmentedField.js';
 import { StageSelector } from '../components/StageSelector.js';
 import { PanelSection } from '../components/PanelCard.js';
-import { DEPTH_SENSING_MODE_OPTIONS } from '../../shared/depth-sensing-modes.js';
-import { getDisplayModeLabel } from '../store/selectors.js';
+import {
+	SECTION_CUT_PLANE_MODE_OPTIONS,
+	getDisplayModeSliderValueText,
+	getSectionCutPlaneModeLabel
+} from '../../shared/display-modes.js';
+import type { SectionCutPlaneMode } from '../../registration/registration-store.js';
 
 export function BrowsePanel(props: {
 	state: AppState;
 	actions: AppActions;
-	canInspect: boolean;
 }): React.JSX.Element {
 
-	const { state, actions, canInspect } = props;
+	const { state, actions } = props;
 	const engine = state.engine;
-	const ui = state.ui;
 	const currentStage = engine.timelineStages[ engine.currentTimelineStageIndex ] ?? '-';
 
 	return (
 		<div className="panel-stack">
 			<PanelSection title="AR 透视显示模式" subtitle="五种显示模式共用同一套 AR 放置与配准结果，只切换可视化方式。">
 				<DisplayModeSelector value={engine.displayMode} onChange={actions.setDisplayMode} label="模式" />
-				<SegmentedField
-					label="Depth 模式"
-					value={engine.depthSensingMode}
-					onChange={ ( value ) => actions.setDepthSensingMode( value as typeof engine.depthSensingMode ) }
-					options={DEPTH_SENSING_MODE_OPTIONS}
-				/>
-				<p className="note-block">
-					关闭模式不会请求 `depth-sensing`；GPU、CPU、自动模式会在下次进入 AR 时按所选方式申请深度能力，不会改动 GPS、ENU、工程配准和模型放置解算。
-				</p>
 			</PanelSection>
+
+			{engine.displayMode === 'spatial-reveal' ? (
+				<PanelSection
+					title="空间显现"
+					subtitle="从模型起点逐段显现到当前进度，100% 时恢复完整显示。"
+				>
+					<div className="summary-grid">
+						<div className="summary-card">
+							<strong>显现进度</strong>
+							<span>{getDisplayModeSliderValueText( 'spatial-reveal', engine.spatialRevealValue )}</span>
+						</div>
+						<div className="summary-card">
+							<strong>当前语义</strong>
+							<span>显示从起点到当前进度的模型范围</span>
+						</div>
+					</div>
+				</PanelSection>
+			) : null}
+
+			{engine.displayMode === 'section-cut' ? (
+				<PanelSection
+					title="剖切查看"
+					subtitle="移动剖切面查看内部断面；100% 表示剖切面到达远端边界，不是显现完成。"
+				>
+					<div className="summary-grid">
+						<div className="summary-card">
+							<strong>剖切位置</strong>
+							<span>{getDisplayModeSliderValueText( 'section-cut', engine.sectionCutValue )}</span>
+						</div>
+						<div className="summary-card">
+							<strong>剖切方向</strong>
+							<span>{getSectionCutPlaneModeLabel( engine.sectionCutPlaneMode )}</span>
+						</div>
+					</div>
+					<SegmentedField
+						label="剖切方向"
+						value={engine.sectionCutPlaneMode}
+						onChange={ ( value ) => actions.setSectionCutPlaneMode( value as SectionCutPlaneMode ) }
+						options={SECTION_CUT_PLANE_MODE_OPTIONS}
+					/>
+				</PanelSection>
+			) : null}
 
 			<PanelSection title="模型与阶段">
 				<div className="field-grid">
@@ -58,52 +93,6 @@ export function BrowsePanel(props: {
 					<ActionButton label="上一阶段" onClick={actions.timelinePrev} />
 					<ActionButton label="播放" onClick={actions.timelinePlay} kind="primary" />
 					<ActionButton label="下一阶段" onClick={actions.timelineNext} />
-				</div>
-			</PanelSection>
-
-			<PanelSection
-				title="当前构件"
-				subtitle={engine.hasSelection ? '已选中构件，可继续核查。' : '点选模型构件后，这里会显示详情。'}
-			>
-				<div className="summary-grid">
-					<div className="summary-card">
-						<strong>名称</strong>
-						<span>{engine.hasSelection ? engine.propertyPanel.name : '未选择'}</span>
-					</div>
-					<div className="summary-card">
-						<strong>状态</strong>
-						<span>{engine.hasSelection ? engine.propertyPanel.status : getDisplayModeLabel( engine.displayMode )}</span>
-					</div>
-				</div>
-
-				{ui.browseDetailsExpanded ? (
-					<div className="detail-grid">
-						<div><strong>类型</strong><span>{engine.propertyPanel.type}</span></div>
-						<div><strong>尺寸</strong><span>{engine.propertyPanel.diameter}</span></div>
-						<div><strong>材质</strong><span>{engine.propertyPanel.material}</span></div>
-						<div><strong>深度</strong><span>{engine.propertyPanel.depth}</span></div>
-					</div>
-				) : null}
-
-				<p className="note-block">
-					{engine.hasSelection ? engine.propertyPanel.remark : '这里负责显示模式、图层与阶段浏览；选中构件后可以进入核查。'}
-				</p>
-
-				<div className="button-row">
-					<ActionButton
-						label={ui.browseDetailsExpanded ? '收起详情' : '查看详情'}
-						onClick={ () => actions.setBrowseDetailsExpanded( !ui.browseDetailsExpanded ) }
-						disabled={!engine.hasSelection}
-					/>
-					<ActionButton
-						label="进入核查"
-						onClick={ () => actions.activatePanel( 'inspection' ) }
-						kind="secondary"
-						disabled={!canInspect}
-					/>
-					{engine.hasSelection ? (
-						<ActionButton label="关闭" onClick={actions.closePropertyPanel} kind="secondary" />
-					) : null}
 				</div>
 			</PanelSection>
 		</div>

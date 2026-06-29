@@ -10,7 +10,6 @@ export { DISPLAY_MODE_OPTIONS, getDisplayModeLabel };
 export const PANEL_OPTIONS: Array<{ value: WorkspaceMode; label: string; short: string }> = [
 	{ value: 'browse', label: '浏览', short: '览' },
 	{ value: 'registration', label: '配准', short: '准' },
-	{ value: 'tools', label: '工具', short: '工' },
 	{ value: 'inspection', label: '核查', short: '查' }
 ];
 

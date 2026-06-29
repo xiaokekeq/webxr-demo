@@ -46,8 +46,6 @@ function getWorkspaceModeLabel(mode: WorkspaceMode): string {
 			return '浏览';
 		case 'registration':
 			return '配准';
-		case 'tools':
-			return '工具';
 		case 'inspection':
 			return '核查';
 	}

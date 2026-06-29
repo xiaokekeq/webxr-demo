@@ -9,6 +9,23 @@ interface CreatePointerSelectionSessionOptions {
 	propertySelection: PropertySelectionController;
 	setStatus(message: string): void;
 	onInspectSelection(): void;
+	onSelectionApplied?(
+		selection: {
+			businessObject: THREE.Object3D;
+			properties: PipeRecord | null;
+			highlightObject?: THREE.Object3D;
+		}
+	): void;
+	onSelectionCleared?(): void;
+	handlePreSelectionRaycast?(
+		selection: {
+			raycaster: THREE.Raycaster;
+			clientX: number;
+			clientY: number;
+			source: 'screen' | 'xr-select';
+			placedModel: THREE.Group;
+		}
+	): boolean;
 	getPlacedModel(): THREE.Group | null;
 	getWorkspaceMode(): WorkspaceMode;
 	getPipesByName(): Map<string, PipeRecord>;
@@ -36,6 +53,9 @@ export function createPointerSelectionSession(
 		propertySelection,
 		setStatus,
 		onInspectSelection,
+		onSelectionApplied,
+		onSelectionCleared,
+		handlePreSelectionRaycast,
 		getPlacedModel,
 		getWorkspaceMode,
 		getPipesByName,
@@ -109,8 +129,20 @@ export function createPointerSelectionSession(
 		pointer.x = ( ( clientX - rect.left ) / rect.width ) * 2 - 1;
 		pointer.y = - ( ( clientY - rect.top ) / rect.height ) * 2 + 1;
 
-		raycaster.setFromCamera( pointer, sceneBundle.camera );
+		const activeCamera = sceneBundle.renderer.xr.isPresenting
+			? sceneBundle.renderer.xr.getCamera()
+			: sceneBundle.camera;
+		raycaster.setFromCamera( pointer, activeCamera );
 		lastScreenSelectionTime = performance.now();
+		if ( handlePreSelectionRaycast?.( {
+			raycaster,
+			clientX,
+			clientY,
+			source: 'screen',
+			placedModel
+		} ) === true ) {
+			return;
+		}
 		selectScreenPoint( clientX, clientY, placedModel );
 
 	}
@@ -150,8 +182,17 @@ export function createPointerSelectionSession(
 			xrRayOrigin.setFromMatrixPosition( xrCamera.matrixWorld );
 			xrRayDirection.set( 0, 0, -1 ).transformDirection( xrCamera.matrixWorld );
 			raycaster.set( xrRayOrigin, xrRayDirection );
-
 			const canvasRect = sceneBundle.renderer.domElement.getBoundingClientRect();
+			if ( handlePreSelectionRaycast?.( {
+				raycaster,
+				clientX: canvasRect.left + canvasRect.width / 2,
+				clientY: canvasRect.top + canvasRect.height / 2,
+				source: 'xr-select',
+				placedModel
+			} ) === true ) {
+				return;
+			}
+
 			selectIntersections(
 				raycaster.intersectObjects( placedModel.children, true ),
 				placedModel,
@@ -214,11 +255,13 @@ export function createPointerSelectionSession(
 
 			if ( sceneBundle.renderer.xr.isPresenting ) {
 				propertySelection.clearSelection();
+				onSelectionCleared?.();
 				setStatus( 'No model part hit. Center the model and tap again.' );
 				return;
 			}
 
 			propertySelection.clearSelection();
+			onSelectionCleared?.();
 			setStatus( 'No model part selected.' );
 			return;
 		}
@@ -242,6 +285,7 @@ export function createPointerSelectionSession(
 
 		const businessName = getBusinessName( businessObject );
 		propertySelection.selectBusinessObject( businessObject, properties, highlightObject );
+		onSelectionApplied?.( { businessObject, properties, highlightObject } );
 		onInspectSelection();
 
 		if ( getWorkspaceMode() === 'browse' ) {

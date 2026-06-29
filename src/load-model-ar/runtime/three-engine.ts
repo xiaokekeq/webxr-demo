@@ -19,12 +19,14 @@ import {
 	type DemoModelConfig
 } from '../data/demo-model-config.js';
 import {
+	createDefaultAnnotationDetailState,
 	createDefaultRegistrationChainDebugState,
 	createDefaultModelScaleSummaryState,
 	createDefaultMeasurementState,
 	createDefaultSavedMarkerLocalizationState,
 	createDefaultTargetGuidanceState,
 	createRegistrationStore,
+	type AnnotationDetailState,
 	type ArDisplayMode,
 	type DepthSensingMode,
 	type MeasurementMode,
@@ -75,6 +77,10 @@ import { createArXrayVisualizationController } from './visualization/ar-xray-vis
 import { createArSpatialRevealController } from './visualization/ar-spatial-reveal.js';
 import { createArLayerPeelingController } from './visualization/ar-layer-peeling.js';
 import { createArSectionCutController } from './visualization/ar-section-cut.js';
+import {
+	createArAnnotationLabelController,
+	type ArAnnotationItem
+} from './annotation/ar-annotation-labels.js';
 import {
 	setAttachmentInfoBoardVisibility
 } from './attachment-info-board.js';
@@ -166,6 +172,7 @@ function createInitialState(): RegistrationStoreState {
 			scaleText: '-'
 		},
 		targetGuidance: createDefaultTargetGuidanceState(),
+		annotationDetail: createDefaultAnnotationDetailState(),
 		measurement: createDefaultMeasurementState(),
 		registrationStatusDetail: '状态：等待识别平面',
 		runtimeStatus: '正在准备 AR 工作区。',
@@ -212,6 +219,7 @@ export class ThreeEngine {
 	private readonly spatialRevealController;
 	private readonly layerPeelingController = createArLayerPeelingController();
 	private readonly sectionCutController;
+	private readonly annotationLabelsController;
 	private readonly layerVisibility = createLayerVisibilityController();
 	private readonly propertySelection;
 	private readonly placementSession;
@@ -244,6 +252,7 @@ export class ThreeEngine {
 	private lastSyncedDisplayMode: ArDisplayMode | null = null;
 	private lastSyncedDisplayModeRoot: THREE.Group | null = null;
 	private lastVisualizationSignature = '';
+	private lastAnnotationLabelsSignature = '';
 	private pipesByName = new Map<string, PipeRecord>();
 	private coarseWarmupPromise: Promise<void> | null = null;
 	private coarseRegistration = createCoarseRegistrationController( {
@@ -324,6 +333,9 @@ export class ThreeEngine {
 		} );
 		this.spatialRevealController = createArSpatialRevealController( this.sceneBundle.renderer );
 		this.sectionCutController = createArSectionCutController( this.sceneBundle.renderer );
+		this.annotationLabelsController = createArAnnotationLabelController( {
+			canvas: this.sceneBundle.renderer.domElement
+		} );
 
 		this.workspaceRuntime = createWorkspaceRuntime( {
 			store: this.store,
@@ -363,6 +375,24 @@ export class ThreeEngine {
 				}
 				this.emit();
 			},
+			onSelectionApplied: ( selection ) => {
+				this.updateAnnotationDetailFromSelection(
+					selection.businessObject,
+					selection.properties
+				);
+			},
+			onSelectionCleared: () => {
+				this.clearAnnotationDetail();
+			},
+			handlePreSelectionRaycast: ( selection ) => {
+				const item = this.annotationLabelsController.pick( selection.raycaster );
+				if ( item === null ) {
+					return false;
+				}
+
+				this.handleAnnotationSelection( item );
+				return true;
+			},
 			getPlacedModel: () => this.placementSession.getPlacedModel(),
 			getWorkspaceMode: () => this.store.getState().workspaceMode,
 			getPipesByName: () => this.pipesByName
@@ -397,9 +427,12 @@ export class ThreeEngine {
 				this.layerVisibility.reset();
 				this.restoreVisualizationControllers();
 				this.lastVisualizationSignature = '';
+				this.lastAnnotationLabelsSignature = '';
+				this.annotationLabelsController.clear();
 				this.store.patch( {
 					layerNames: STATIC_LAYER_NAMES,
-					modelLayers: []
+					modelLayers: [],
+					annotationDetail: createDefaultAnnotationDetailState()
 				} );
 				this.updateCoarseLocationDebugText();
 				this.refreshSavedMarkerLocalizationResult( { silentStatus: true } );
@@ -474,6 +507,7 @@ export class ThreeEngine {
 			onFrameUpdate: ( frame ) => {
 				this.displayModeController.updateDepthState( frame );
 				this.placementSession.updateArPlacementAnchor( frame );
+				this.annotationLabelsController.update( this.sceneBundle.renderer.xr.getCamera() );
 				this.updateTargetGuidance();
 				this.placementSession.verifyWorldLockedPlacement( 'xr-frame' );
 			}
@@ -491,11 +525,13 @@ export class ThreeEngine {
 		this.store.subscribe( () => {
 			this.syncDisplayModeState();
 			this.syncVisualizationState();
+			this.syncAnnotationLabels();
 			this.emit();
 		} );
 
 		this.syncDisplayModeState();
 		this.syncVisualizationState();
+		this.syncAnnotationLabels();
 
 	}
 
@@ -608,6 +644,7 @@ export class ThreeEngine {
 		this.spatialRevealController.dispose();
 		this.layerPeelingController.dispose();
 		this.sectionCutController.dispose();
+		this.annotationLabelsController.dispose();
 		this.measurementController.dispose();
 		this.sceneBundle.controls.dispose();
 		this.sceneBundle.renderer.dispose();
@@ -624,6 +661,7 @@ export class ThreeEngine {
 
 		this.pointerSelection.suppressSelectionFor( 1000 );
 		this.propertySelection.clearSelection();
+		this.clearAnnotationDetail();
 		this.setStatus( '已关闭构件详情面板。' );
 
 	}
@@ -1992,6 +2030,156 @@ export class ThreeEngine {
 
 	}
 
+	private syncAnnotationLabels(): void {
+
+		const state = this.store.getState();
+		const placedModel = state.appMode === 'ar-session'
+			&& state.arSessionPhase === 'placed'
+			? this.placementSession.getArPlacedModel()
+			: null;
+		const signature = [
+			state.appMode,
+			state.arSessionPhase,
+			placedModel?.uuid ?? 'none',
+			state.modelLayers.map( ( layer ) => `${layer.id}:${layer.visible ? '1' : '0'}` ).join( '|' )
+		].join( '::' );
+		if ( signature === this.lastAnnotationLabelsSignature ) {
+			return;
+		}
+
+		this.lastAnnotationLabelsSignature = signature;
+		if ( placedModel === null ) {
+			this.annotationLabelsController.clear();
+			this.clearAnnotationDetail();
+			console.info( '[ArAnnotationLabels]', {
+				labelCount: 0,
+				source: 'terrain-layer',
+				modelPlaced: false,
+				visible: false
+			} );
+			return;
+		}
+
+		const items = this.buildAnnotationItemsForPlacedModel( placedModel );
+		this.annotationLabelsController.setItems( items );
+		console.info( '[ArAnnotationLabels]', {
+			labelCount: items.length,
+			source: 'terrain-layer',
+			modelPlaced: true,
+			visible: items.length > 0
+		} );
+
+	}
+
+	private buildAnnotationItemsForPlacedModel(placedModel: THREE.Group): ArAnnotationItem[] {
+
+		const items: ArAnnotationItem[] = [];
+		for ( const layer of this.store.getState().modelLayers ) {
+			const targetObject = findLayerObjectById( placedModel, layer.id );
+			if ( targetObject === null || targetObject.visible === false ) {
+				continue;
+			}
+
+			const businessName = getBusinessNameFromObject( targetObject );
+			const properties = businessName.length > 0
+				? this.pipesByName.get( businessName ) ?? null
+				: null;
+			items.push( {
+				id: layer.id,
+				title: layer.label,
+				subtitle: `terrain-layer #${layer.orderIndex + 1}`,
+				description: properties?.remark,
+				layerName: layer.label,
+				objectName: targetObject.name || businessName,
+				properties: properties === null ? undefined : recordToAnnotationProperties( properties ),
+				targetObject
+			} );
+		}
+
+		return items;
+
+	}
+
+	private handleAnnotationSelection(item: ArAnnotationItem): void {
+
+		const businessName = getBusinessNameFromObject( item.targetObject );
+		const properties = businessName.length > 0
+			? this.pipesByName.get( businessName ) ?? null
+			: null;
+		this.propertySelection.selectBusinessObject( item.targetObject, properties );
+		this.updateAnnotationDetailFromSelection( item.targetObject, properties, item.layerName );
+		console.info( '[ArAnnotationSelected]', {
+			id: item.id,
+			title: item.title,
+			objectName: item.objectName ?? item.targetObject.name,
+			layerName: item.layerName ?? ''
+		} );
+		this.setStatus( `已选择 ${item.title}。` );
+		this.emit();
+
+	}
+
+	private updateAnnotationDetailFromSelection(
+		businessObject: THREE.Object3D,
+		properties: PipeRecord | null,
+		preferredLayerName?: string
+	): void {
+
+		this.store.patch( {
+			annotationDetail: this.createAnnotationDetailState(
+				businessObject,
+				properties,
+				preferredLayerName
+			)
+		} );
+
+	}
+
+	private clearAnnotationDetail(): void {
+
+		const current = this.store.getState().annotationDetail;
+		if ( current.visible === false && current.fields.length === 0 ) {
+			return;
+		}
+
+		this.store.patch( { annotationDetail: createDefaultAnnotationDetailState() } );
+
+	}
+
+	private createAnnotationDetailState(
+		businessObject: THREE.Object3D,
+		properties: PipeRecord | null,
+		preferredLayerName?: string
+	): AnnotationDetailState {
+
+		const bounds = new THREE.Box3().setFromObject( businessObject );
+		const center = bounds.getCenter( new THREE.Vector3() );
+		const size = bounds.getSize( new THREE.Vector3() );
+		const materialName = getObjectMaterialName( businessObject );
+		const layerName = preferredLayerName
+			?? getLayerLabelForObject( businessObject, this.store.getState().modelLayers )
+			?? '未分层';
+		const thickness = properties?.diameter
+			?? `${size.y.toFixed( 2 )}m`;
+		const remark = properties?.remark
+			?? `尺寸 ${size.x.toFixed( 2 )} x ${size.y.toFixed( 2 )} x ${size.z.toFixed( 2 )}m`;
+
+		return {
+			visible: true,
+			title: properties?.name ?? ( getBusinessNameFromObject( businessObject ) || businessObject.name || '未命名构件' ),
+			subtitle: layerName,
+			fields: [
+				{ label: '类型', value: properties?.type || businessObject.type || '-' },
+				{ label: '材料', value: properties?.material || materialName || '-' },
+				{ label: '高程', value: `${center.y.toFixed( 2 )}m` },
+				{ label: '厚度', value: thickness },
+				{ label: '状态', value: properties?.status || ( businessObject.visible ? '可见' : '隐藏' ) },
+				{ label: '备注', value: remark }
+			]
+		};
+
+	}
+
 	private syncArSessionPhase(): void {
 
 		this.arSessionStateRuntime.syncPhase();
@@ -2223,6 +2411,93 @@ function vector3ToObject(vector: THREE.Vector3): { x: number; y: number; z: numb
 		x: vector.x,
 		y: vector.y,
 		z: vector.z
+	};
+
+}
+
+function findLayerObjectById(root: THREE.Object3D, layerId: string): THREE.Object3D | null {
+
+	let resolved: THREE.Object3D | null = null;
+	root.traverse( ( child ) => {
+		if ( resolved !== null ) {
+			return;
+		}
+
+		if ( child.userData.__layerId === layerId && child.userData.__layerSelectable === true ) {
+			resolved = child;
+		}
+	} );
+
+	return resolved;
+
+}
+
+function getBusinessNameFromObject(object: THREE.Object3D | null): string {
+
+	if ( object === null ) {
+		return '';
+	}
+
+	const businessName = object.userData.__businessName;
+	if ( typeof businessName === 'string' && businessName.length > 0 ) {
+		return businessName;
+	}
+
+	return object.name || '';
+
+}
+
+function getObjectMaterialName(root: THREE.Object3D): string {
+
+	let resolvedMaterialName = '';
+	root.traverse( ( child ) => {
+		if ( resolvedMaterialName.length > 0 || ( child instanceof THREE.Mesh ) === false ) {
+			return;
+		}
+
+		if ( Array.isArray( child.material ) ) {
+			const names = child.material
+				.map( ( material ) => material.name )
+				.filter( ( name ) => name.length > 0 );
+			resolvedMaterialName = names.join( ', ' );
+			return;
+		}
+
+		resolvedMaterialName = child.material.name || '';
+	} );
+
+	return resolvedMaterialName || '-';
+
+}
+
+function getLayerLabelForObject(
+	object: THREE.Object3D,
+	layers: readonly RegistrationStoreState['modelLayers']
+): string | null {
+
+	let current: THREE.Object3D | null = object;
+	while ( current !== null ) {
+		const layerId = current.userData.__layerId;
+		if ( typeof layerId === 'string' ) {
+			return layers.find( ( layer ) => layer.id === layerId )?.label ?? layerId;
+		}
+		current = current.parent;
+	}
+
+	return null;
+
+}
+
+function recordToAnnotationProperties(record: PipeRecord): Record<string, string | number> {
+
+	return {
+		name: record.name,
+		type: record.type ?? '-',
+		diameter: record.diameter ?? '-',
+		material: record.material ?? '-',
+		depth: record.depth ?? '-',
+		status: record.status ?? '-',
+		remark: record.remark ?? '-'
 	};
 
 }

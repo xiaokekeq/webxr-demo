@@ -68,6 +68,9 @@ export function ArRuntimeView(props: {
 	const [ targetGuidanceHidden, setTargetGuidanceHidden ] = useState( false );
 	const showTargetGuidanceCard = showTargetGuidance && targetGuidanceHidden === false;
 	const showTargetGuidanceToggle = showTargetGuidance && targetGuidanceHidden;
+	const showAnnotationDetailCard = showCaptureOverlay === false
+		&& engine.annotationDetail.visible
+		&& engine.annotationDetail.fields.length > 0;
 
 	return (
 		<div className={ `mobile-ar-root${showPlacementUi ? ' mobile-ar-root--placement' : ''}` }>
@@ -96,6 +99,35 @@ export function ArRuntimeView(props: {
 						{showCoarsePlacementDebug ? (
 							<div className="guidance-card__debug">{engine.coarseLocationDebugText}</div>
 						) : null}
+					</div>
+				) : null}
+
+				{showCaptureOverlay ? null : showAnnotationDetailCard ? (
+					<div className={ `annotation-detail-card${showTargetGuidanceCard ? ' annotation-detail-card--stacked' : ''}` }>
+						<div className="annotation-detail-card__header">
+							<div className="annotation-detail-card__summary">
+								<div className="annotation-detail-card__eyebrow">构件信息</div>
+								<div className="annotation-detail-card__title">{engine.annotationDetail.title}</div>
+								{engine.annotationDetail.subtitle ? (
+									<div className="annotation-detail-card__subtitle">{engine.annotationDetail.subtitle}</div>
+								) : null}
+							</div>
+							<button
+								type="button"
+								className="annotation-detail-card__close"
+								onClick={actions.closePropertyPanel}
+							>
+								关闭
+							</button>
+						</div>
+						<div className="annotation-detail-card__fields">
+							{engine.annotationDetail.fields.map( ( field ) => (
+								<div key={field.label} className="annotation-detail-card__field">
+									<strong>{field.label}</strong>
+									<span>{field.value}</span>
+								</div>
+							) )}
+						</div>
 					</div>
 				) : null}
 

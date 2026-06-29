@@ -119,6 +119,18 @@ export interface TargetGuidanceState {
 	alignment: 'left' | 'center' | 'right';
 }
 
+export interface AnnotationDetailField {
+	label: string;
+	value: string;
+}
+
+export interface AnnotationDetailState {
+	visible: boolean;
+	title: string;
+	subtitle: string;
+	fields: AnnotationDetailField[];
+}
+
 export interface MeasurementState {
 	activeMode: MeasurementMode | null;
 	activeLabel: string;
@@ -166,6 +178,7 @@ export interface RegistrationStoreState {
 	savedMarkerLocalization: SavedMarkerLocalizationState;
 	placementSummary: PlacementSummaryState;
 	targetGuidance: TargetGuidanceState;
+	annotationDetail: AnnotationDetailState;
 	measurement: MeasurementState;
 	registrationStatusDetail: string;
 	runtimeStatus: string;
@@ -251,6 +264,17 @@ export function createDefaultModelScaleSummaryState(): ModelScaleSummaryState {
 		originalBoundsText: '-',
 		finalBoundsText: '-',
 		pivotOffsetText: '-'
+	};
+
+}
+
+export function createDefaultAnnotationDetailState(): AnnotationDetailState {
+
+	return {
+		visible: false,
+		title: '',
+		subtitle: '',
+		fields: []
 	};
 
 }

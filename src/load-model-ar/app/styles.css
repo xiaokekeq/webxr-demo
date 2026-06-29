@@ -666,7 +666,6 @@ textarea {
 .guidance-card,
 .annotation-detail-card,
 .target-guidance-card,
-.layer-quickbar,
 .primary-bar,
 .precision-capture-bar,
 .drawer-anchor,
@@ -932,44 +931,6 @@ textarea {
 	box-shadow:
 		inset 4px 0 0 #ea580c,
 		0 16px 38px rgba(15, 23, 42, 0.18);
-}
-
-.layer-quickbar {
-	position: fixed;
-	left: 16px;
-	right: 16px;
-	top: calc(max(14px, env(safe-area-inset-top, 0px)) + 84px);
-	padding: 12px 14px;
-	border-radius: 20px;
-	background:
-		linear-gradient(180deg, rgba(248, 250, 252, 0.96) 0%, rgba(226, 232, 240, 0.94) 100%);
-	color: #0f172a;
-	box-shadow: 0 16px 38px rgba(15, 23, 42, 0.2);
-	display: flex;
-	flex-direction: column;
-	gap: 12px;
-}
-
-.layer-quickbar__summary {
-	display: flex;
-	flex-direction: column;
-	gap: 4px;
-}
-
-.layer-quickbar__summary strong {
-	font-size: 14px;
-}
-
-.layer-quickbar__summary span {
-	font-size: 12px;
-	line-height: 1.5;
-	color: #475569;
-}
-
-.layer-quickbar__actions {
-	display: grid;
-	grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
-	gap: 10px;
 }
 
 .manual-overlay-shell {

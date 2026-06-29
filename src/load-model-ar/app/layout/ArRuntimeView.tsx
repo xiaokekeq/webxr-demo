@@ -47,18 +47,6 @@ export function ArRuntimeView(props: {
 		&& engine.workspaceMode === 'registration'
 		&& state.ui.registrationView === 'manual'
 		&& engine.appMode === 'ar-session';
-	const hiddenLayerCount = engine.modelLayers.filter( ( layer ) => layer.visible === false ).length;
-	const visibleLayerCount = engine.modelLayers.length - hiddenLayerCount;
-	const showLayerQuickBar = showCaptureOverlay === false
-		&& showManualAdjustmentOverlay === false
-		&& engine.arSessionPhase === 'placed'
-		&& showTargetGuidance === false
-		&& engine.modelLayers.length > 1;
-	const cycleDirection = state.ui.layerCycleDirection;
-	const cycleLayerLabel = cycleDirection === 'restore' ? '恢复上一层' : '隐藏上一层';
-	const cycleLayerHint = cycleDirection === 'restore'
-		? '当前正在逐层恢复模型显示，恢复完成后会回到继续剥离模式。'
-		: '当前正在从上到下隐藏模型层，隐藏到底后会自动切换到恢复模式。';
 	const showVisualizationSlider = showCaptureOverlay === false
 		&& showManualAdjustmentOverlay === false
 		&& showPlacementUi === false
@@ -166,28 +154,6 @@ export function ArRuntimeView(props: {
 					>
 						显示提示
 					</button>
-				) : null}
-
-				{showLayerQuickBar ? (
-					<div className="layer-quickbar">
-						<div className="layer-quickbar__summary">
-							<strong>{`当前可见 ${visibleLayerCount} / ${engine.modelLayers.length} 层`}</strong>
-							<span>{cycleLayerHint}</span>
-						</div>
-						<div className="layer-quickbar__actions">
-							<ActionButton
-								label={cycleLayerLabel}
-								onClick={actions.cycleModelLayer}
-								kind="primary"
-							/>
-							<ActionButton
-								label="恢复全部"
-								onClick={actions.resetModelLayers}
-								kind="secondary"
-								disabled={hiddenLayerCount === 0}
-							/>
-						</div>
-					</div>
 				) : null}
 
 				{showManualAdjustmentOverlay ? <ManualAdjustmentOverlay state={state} actions={actions} /> : null}

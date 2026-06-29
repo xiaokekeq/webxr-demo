@@ -1070,66 +1070,6 @@ export class ThreeEngine {
 
 	}
 
-	hideTopModelLayer(): void {
-
-		const beforeState = this.layerVisibility.getState();
-		const nextState = this.layerVisibility.hideTopLayer();
-		if ( nextState.length === 0 ) {
-			this.setStatus( '当前模型没有可管理的分层。' );
-			return;
-		}
-
-		if ( countHiddenLayers( nextState ) === countHiddenLayers( beforeState ) ) {
-			this.setStatus( '已经隐藏到最底层了。' );
-			return;
-		}
-
-		const hiddenLayer = nextState.find( ( layer, index ) => (
-			layer.visible === false && beforeState[ index ]?.visible !== false
-		) );
-		this.applyModelLayerVisibility();
-		this.syncLayerPeelingValueFromLayers();
-		this.setStatus( `已隐藏最上层：${hiddenLayer?.label ?? '当前层'}。` );
-
-	}
-
-	restoreModelLayer(): void {
-
-		const beforeState = this.layerVisibility.getState();
-		const nextState = this.layerVisibility.restoreLastHiddenLayer();
-		if ( nextState.length === 0 ) {
-			this.setStatus( '当前模型没有可管理的分层。' );
-			return;
-		}
-
-		if ( countHiddenLayers( nextState ) === countHiddenLayers( beforeState ) ) {
-			this.setStatus( '当前没有已隐藏的层可恢复。' );
-			return;
-		}
-
-		const restoredLayer = nextState.find( ( layer, index ) => (
-			layer.visible === true && beforeState[ index ]?.visible === false
-		) );
-		this.applyModelLayerVisibility();
-		this.syncLayerPeelingValueFromLayers();
-		this.setStatus( `已恢复一层：${restoredLayer?.label ?? '当前层'}。` );
-
-	}
-
-	resetModelLayers(): void {
-
-		const nextState = this.layerVisibility.reset();
-		if ( nextState.length === 0 ) {
-			this.setStatus( '当前模型没有可管理的分层。' );
-			return;
-		}
-
-		this.applyModelLayerVisibility();
-		this.syncLayerPeelingValueFromLayers();
-		this.setStatus( '已恢复全部模型分层。' );
-
-	}
-
 	setManualAdjustmentPreset(preset: ManualAdjustmentPreset): void {
 
 		this.manualRegistration.setAdjustmentPreset( preset );

@@ -22,7 +22,6 @@ export interface ControllerUiState {
 	drawerOpen: boolean;
 	browseDetailsExpanded: boolean;
 	registrationView: RegistrationView;
-	layerCycleDirection: 'hide' | 'restore';
 	measurementCaptureActive: boolean;
 	inspectionFormExpanded: boolean;
 	inspectionDraft: InspectionDraft;
@@ -59,10 +58,6 @@ export interface LoadModelArController {
 		clearMarkerLocalizationCorrection(): void;
 		clearSavedMarkerLocalization(): void;
 		resetPlacement(): void;
-		hideTopModelLayer(): void;
-		restoreModelLayer(): void;
-		resetModelLayers(): void;
-		cycleModelLayer(): void;
 		setManualAdjustmentPreset(preset: ManualAdjustmentPreset): void;
 		setAutoPreviewPlacementEnabled(enabled: boolean): void;
 		setDepthSensingMode(mode: DepthSensingMode): void;
@@ -111,7 +106,6 @@ function createInitialUiState(): ControllerUiState {
 		drawerOpen: true,
 		browseDetailsExpanded: false,
 		registrationView: 'overview',
-		layerCycleDirection: 'hide',
 		measurementCaptureActive: false,
 		inspectionFormExpanded: false,
 		inspectionDraft: { ...DEFAULT_INSPECTION_DRAFT }
@@ -155,32 +149,6 @@ export function createLoadModelArController(): LoadModelArController {
 
 	}
 
-	function getLayerVisibilityCounts() {
-
-		const layers = engine.getState().modelLayers;
-		const hiddenCount = layers.filter( ( layer ) => layer.visible === false ).length;
-		return {
-			totalCount: layers.length,
-			hiddenCount,
-			visibleCount: layers.length - hiddenCount
-		};
-
-	}
-
-	function getNextLayerCycleDirectionAfterHide(): 'hide' | 'restore' {
-
-		const { visibleCount } = getLayerVisibilityCounts();
-		return visibleCount <= 1 ? 'restore' : 'hide';
-
-	}
-
-	function getNextLayerCycleDirectionAfterRestore(): 'hide' | 'restore' {
-
-		const { hiddenCount } = getLayerVisibilityCounts();
-		return hiddenCount === 0 ? 'hide' : 'restore';
-
-	}
-
 	function stopMeasurementCapture(options?: {
 		drawerOpen?: boolean;
 	}): void {
@@ -206,7 +174,6 @@ export function createLoadModelArController(): LoadModelArController {
 				...nextUi,
 				drawerOpen: false,
 				registrationView: 'overview',
-				layerCycleDirection: 'hide',
 				measurementCaptureActive: false,
 				browseDetailsExpanded: false
 			};
@@ -425,53 +392,7 @@ export function createLoadModelArController(): LoadModelArController {
 				patchUiState( {
 					drawerOpen: false,
 					registrationView: 'overview',
-					layerCycleDirection: 'hide',
 					measurementCaptureActive: false
-				} );
-
-			},
-
-			hideTopModelLayer() {
-
-				engine.hideTopModelLayer();
-				patchUiState( {
-					layerCycleDirection: getNextLayerCycleDirectionAfterHide()
-				} );
-
-			},
-
-			restoreModelLayer() {
-
-				engine.restoreModelLayer();
-				patchUiState( {
-					layerCycleDirection: getNextLayerCycleDirectionAfterRestore()
-				} );
-
-			},
-
-			resetModelLayers() {
-
-				engine.resetModelLayers();
-				patchUiState( {
-					layerCycleDirection: 'hide'
-				} );
-
-			},
-
-			cycleModelLayer() {
-
-				const { layerCycleDirection } = stateStore.getState().ui;
-				if ( layerCycleDirection === 'restore' ) {
-					engine.restoreModelLayer();
-					patchUiState( {
-						layerCycleDirection: getNextLayerCycleDirectionAfterRestore()
-					} );
-					return;
-				}
-
-				engine.hideTopModelLayer();
-				patchUiState( {
-					layerCycleDirection: getNextLayerCycleDirectionAfterHide()
 				} );
 
 			},
@@ -594,7 +515,6 @@ export function createLoadModelArController(): LoadModelArController {
 				patchUiState( {
 					drawerOpen: false,
 					registrationView: 'overview',
-					layerCycleDirection: 'hide',
 					measurementCaptureActive: false
 				} );
 

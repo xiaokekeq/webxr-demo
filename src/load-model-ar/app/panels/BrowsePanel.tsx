@@ -2,7 +2,6 @@
 import type { AppActions, AppState } from '../store/ar-state.js';
 import { ActionButton } from '../components/ActionButton.js';
 import { DisplayModeSelector } from '../components/DisplayModeSelector.js';
-import { LayerSelector } from '../components/LayerSelector.js';
 import { ModelSelector } from '../components/ModelSelector.js';
 import { SegmentedField } from '../components/SegmentedField.js';
 import { StageSelector } from '../components/StageSelector.js';
@@ -49,13 +48,6 @@ export function BrowsePanel(props: {
 						<div className="value-chip">{currentStage}</div>
 					</div>
 				</div>
-
-				<LayerSelector
-					layers={engine.modelLayers}
-					onHideTopLayer={actions.hideTopModelLayer}
-					onRestoreLayer={actions.restoreModelLayer}
-					onResetLayers={actions.resetModelLayers}
-				/>
 				<StageSelector
 					stages={engine.timelineStages}
 					currentIndex={engine.currentTimelineStageIndex}

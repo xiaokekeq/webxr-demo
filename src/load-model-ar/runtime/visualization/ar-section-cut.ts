@@ -50,6 +50,7 @@ const SECTION_CUT_CAP_PADDING = 0.02;
 const tempBounds = new THREE.Box3();
 const tempLocalBounds = new THREE.Box3();
 const tempGeometryBounds = new THREE.Box3();
+const tempWorldBoundsCorner = new THREE.Vector3();
 const tempBoundsSize = new THREE.Vector3();
 const tempPoint = new THREE.Vector3();
 const tempPlaneNormal = new THREE.Vector3();
@@ -114,7 +115,7 @@ export function createArSectionCutController(renderer: THREE.WebGLRenderer): ArS
 		const axisMin = localBounds.min[ axis ];
 		const axisMax = localBounds.max[ axis ];
 		const cutPosition = THREE.MathUtils.lerp( axisMin, axisMax, nextValue / 100 );
-		const plane = createWorldSectionPlane( modelRoot, localBounds, axis, cutPosition );
+		const plane = createWorldSectionPlane( modelRoot, tempBounds, axis, nextValue / 100 );
 
 		renderer.localClippingEnabled = true;
 		let affectedMeshCount = 0;
@@ -396,22 +397,52 @@ function createCapPlaneMesh(renderer: THREE.WebGLRenderer): THREE.Mesh {
 
 function createWorldSectionPlane(
 	modelRoot: THREE.Object3D,
-	localBounds: THREE.Box3,
+	worldBounds: THREE.Box3,
 	axis: 'x' | 'y' | 'z',
-	cutPosition: number
+	valueRatio: number
 ): THREE.Plane {
 
 	modelRoot.updateWorldMatrix( true, true );
-	const localPoint = localBounds.getCenter( tempPoint );
-	localPoint[ axis ] = cutPosition;
-	const worldPoint = modelRoot.localToWorld( localPoint.clone() );
 	const worldNormal = tempPlaneNormal
 		.set( 0, 0, 0 )
 		.setComponent( axisToIndex( axis ), -1 )
 		.applyQuaternion( modelRoot.getWorldQuaternion( tempWorldQuaternion ) )
-		normalize();
+		.normalize();
+	const projectedRange = resolveProjectedBoundsRange( worldBounds, worldNormal );
+	const cutDistance = THREE.MathUtils.lerp( projectedRange.min, projectedRange.max, valueRatio );
+	const worldPoint = worldNormal.clone().multiplyScalar( cutDistance );
 
 	return new THREE.Plane().setFromNormalAndCoplanarPoint( worldNormal, worldPoint );
+
+}
+
+function resolveProjectedBoundsRange(
+	bounds: THREE.Box3,
+	normal: THREE.Vector3
+): { min: number; max: number } {
+
+	let min = Number.POSITIVE_INFINITY;
+	let max = Number.NEGATIVE_INFINITY;
+
+	for ( const x of [ bounds.min.x, bounds.max.x ] ) {
+		for ( const y of [ bounds.min.y, bounds.max.y ] ) {
+			for ( const z of [ bounds.min.z, bounds.max.z ] ) {
+				const projection = normal.dot( tempWorldBoundsCorner.set( x, y, z ) );
+				if ( projection < min ) {
+					min = projection;
+				}
+				if ( projection > max ) {
+					max = projection;
+				}
+			}
+		}
+	}
+
+	if ( Number.isFinite( min ) === false || Number.isFinite( max ) === false ) {
+		return { min: 0, max: 0 };
+	}
+
+	return { min, max };
 
 }
 

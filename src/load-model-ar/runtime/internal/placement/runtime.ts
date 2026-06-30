@@ -8,7 +8,7 @@ import {
 } from '../../../registration/ar-from-enu-solution.js';
 import { composeModelQuaternionInAr } from '../../../registration/engineering-registration.js';
 import type { ManualPlacementBase } from '../../../registration/manual-registration.js';
-import { placeModelAt } from '../../model.js';
+import { computeModelBusinessLocalBounds, placeModelAt } from '../../model.js';
 import type { CoarsePlacementEstimate } from '../../../shared/types.js';
 import { getPlacementResidualScale } from './camera-fit.js';
 
@@ -16,6 +16,10 @@ const tempEuler = new THREE.Euler();
 const tempSiteOffset = new THREE.Vector3();
 const tempHitTestPlacementQuaternion = new THREE.Quaternion();
 const tempHitTestPlacementNorth = new THREE.Vector3();
+const tempHitTestBusinessBounds = new THREE.Box3();
+const tempHitTestSupportPoint = new THREE.Vector3();
+const tempHitTestSupportOffset = new THREE.Vector3();
+const tempHitTestPlacementPosition = new THREE.Vector3();
 
 export function createAutoPlacementBase(options: {
 	estimate: CoarsePlacementEstimate;
@@ -110,20 +114,55 @@ export function createHitTestPlacementBase(options: {
 		new THREE.Quaternion()
 	).clone();
 	const headingDeg = extractHeadingDegFromHitTestOrientation( orientation );
+	const position = resolveHitTestPlacementPosition(
+		modelTemplate,
+		groundPosition,
+		orientation,
+		baseScale,
+		tempHitTestPlacementPosition
+	).clone();
 
 	return {
-		position: groundPosition.clone(),
+		position,
 		orientation,
 		scale: baseScale,
-		scaleAnchor: groundPosition.clone(),
+		scaleAnchor: position.clone(),
 		siteContext: {
-			siteOriginArPosition: groundPosition.clone(),
+			siteOriginArPosition: position.clone(),
 			headingDeg,
 			baseScale,
 			source: 'unknown',
 			timestamp: Date.now()
 		}
 	};
+
+}
+
+function resolveHitTestPlacementPosition(
+	modelTemplate: THREE.Group,
+	groundPosition: THREE.Vector3,
+	orientation: THREE.Quaternion,
+	baseScale: number,
+	target: THREE.Vector3
+): THREE.Vector3 {
+
+	const bounds = computeModelBusinessLocalBounds( modelTemplate, tempHitTestBusinessBounds );
+	if ( bounds.isEmpty() ) {
+		return target.copy( groundPosition );
+	}
+
+	tempHitTestSupportPoint.set(
+		bounds.min.x <= 0 && bounds.max.x >= 0 ? 0 : ( bounds.min.x + bounds.max.x ) * 0.5,
+		bounds.min.y,
+		bounds.min.z <= 0 && bounds.max.z >= 0 ? 0 : ( bounds.min.z + bounds.max.z ) * 0.5
+	);
+	tempHitTestSupportOffset
+		.copy( tempHitTestSupportPoint )
+		.multiply( modelTemplate.scale )
+		.multiplyScalar( baseScale )
+		.applyQuaternion( orientation );
+
+	return target.copy( groundPosition ).sub( tempHitTestSupportOffset );
 
 }
 

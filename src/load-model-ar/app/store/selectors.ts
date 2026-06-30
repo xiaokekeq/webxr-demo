@@ -54,14 +54,14 @@ export function getGuidanceContent(
 	if ( phase === 'ready-to-place' ) {
 		return {
 			title: '已识别到平面',
-			body: '可先临时放到当前 hit-test 平面，也可按定位/配准结果执行正式固定放置。'
+			body: '请在配准面板里先选好放置方式，再点击下方放置按钮。'
 		};
 	}
 
 	if ( phase === 'placing' ) {
 		return {
 			title: '正在放置模型',
-			body: '系统正在结合 hit-test 与粗配准结果生成初始位置。'
+			body: '系统正在结合 hit-test 与当前放置方式生成初始位置。'
 		};
 	}
 

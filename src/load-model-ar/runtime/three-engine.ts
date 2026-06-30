@@ -26,6 +26,7 @@ import {
 	createRegistrationStore,
 	type AnnotationDetailState,
 	type ArDisplayMode,
+	type ArPlacementMode,
 	type RegistrationStore,
 	type RegistrationStoreState,
 	type SectionCutPlaneMode,
@@ -151,6 +152,7 @@ function createInitialState(): RegistrationStoreState {
 			scaleText: '1.000x'
 		},
 		manualAdjustmentPreset: 'fine',
+		placementMode: 'localized',
 		registrationMetrics: {
 			gpsText: '-',
 			enuText: '-',
@@ -442,13 +444,7 @@ export class ThreeEngine {
 			onLoadManualRegistration: ( modelId ) => {
 				this.loadManualRegistration( modelId );
 			},
-			canRequestAutoPlacement: () => (
-				this.sceneBundle.renderer.xr.isPresenting
-				&& (
-					this.activeMarkerArFromEnuSolution !== null
-					|| this.coarseRegistration.canEstimate()
-				)
-			),
+			canRequestAutoPlacement: () => false,
 			requestAutoPlacement: () => {
 				this.requestAutoPlacement();
 			}
@@ -1056,6 +1052,18 @@ export class ThreeEngine {
 
 	}
 
+	setPlacementMode(mode: ArPlacementMode): void {
+
+		this.store.patch( { placementMode: mode } );
+		this.setStatus(
+			mode === 'hit-test-temporary'
+				? '已切换为临时放置到平面。'
+				: '已切换为按定位固定放置。'
+		);
+		this.emit();
+
+	}
+
 	enterAr(): void {
 
 		if ( this.store.getState().arSupportState !== 'supported' ) {
@@ -1069,6 +1077,11 @@ export class ThreeEngine {
 	}
 
 	async placeModel(): Promise<void> {
+
+		if ( this.store.getState().placementMode === 'hit-test-temporary' ) {
+			this.placeModelAtHitTest();
+			return;
+		}
 
 		if ( this.sceneBundle.renderer.xr.isPresenting === false ) {
 			this.setStatus( 'AR 会话尚未启动。' );
@@ -1876,9 +1889,10 @@ export class ThreeEngine {
 			return;
 		}
 
-		this.arSessionStateRuntime.markPlacementCommitted( true );
-		this.refreshActiveManualRegistrationSitePose();
+		this.activeManualArSitePose = null;
 		this.applyModelLayerVisibility();
+		this.syncRegistrationChainDebug();
+		this.handlePlacementCompleted();
 		this.syncSceneHost();
 		this.setStatus( '已按当前 hit-test 平面临时放置模型，不使用定位/配准结果。' );
 		this.emit();

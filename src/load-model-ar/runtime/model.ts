@@ -18,6 +18,10 @@ const templateCenter = new THREE.Vector3();
 const pivotOffsetVector = new THREE.Vector3();
 const finalSizeVector = new THREE.Vector3();
 const finalBounds = new THREE.Box3();
+const businessBounds = new THREE.Box3();
+const inverseBusinessRootMatrix = new THREE.Matrix4();
+const businessRelativeMatrix = new THREE.Matrix4();
+const businessGeometryBounds = new THREE.Box3();
 
 const PLACEABLE_TEMPLATE_REPORT_KEY = '__placeableTemplateReport';
 const PLACEABLE_TEMPLATE_TRANSFORM_KEY = '__placeableTemplateTransform';
@@ -716,6 +720,42 @@ export function clearPlacedModel(
 
 }
 
+export function computeModelBusinessLocalBounds(
+	modelRoot: THREE.Object3D,
+	target = new THREE.Box3()
+): THREE.Box3 {
+
+	modelRoot.updateWorldMatrix( true, true );
+	target.makeEmpty();
+	inverseBusinessRootMatrix.copy( modelRoot.matrixWorld ).invert();
+
+	modelRoot.traverse( ( child ) => {
+		if ( child instanceof THREE.Mesh === false || shouldIncludeInBusinessBounds( child ) === false ) {
+			return;
+		}
+
+		const geometry = child.geometry;
+		if ( geometry.boundingBox === null ) {
+			geometry.computeBoundingBox();
+		}
+
+		if ( geometry.boundingBox === null ) {
+			return;
+		}
+
+		businessRelativeMatrix.multiplyMatrices( inverseBusinessRootMatrix, child.matrixWorld );
+		businessGeometryBounds.copy( geometry.boundingBox ).applyMatrix4( businessRelativeMatrix );
+		target.union( businessGeometryBounds );
+	} );
+
+	if ( target.isEmpty() ) {
+		target.copy( businessBounds.setFromObject( modelRoot ) );
+	}
+
+	return target;
+
+}
+
 function createPlaceableTemplate(
 	source: THREE.Object3D,
 	perModelScaleFactor: number,
@@ -797,6 +837,24 @@ function createPlaceableTemplate(
 		template: wrapper,
 		report
 	};
+
+}
+
+function shouldIncludeInBusinessBounds(mesh: THREE.Mesh): boolean {
+
+	if (
+		mesh.userData.__nonSelectableHelper === true
+		|| mesh.userData.__excludeFromLayerIndex === true
+		|| mesh.userData.__displayModeHelper === true
+	) {
+		return false;
+	}
+
+	const materialName = Array.isArray( mesh.material )
+		? mesh.material.map( ( material ) => material.name ).join( '|' )
+		: mesh.material.name;
+
+	return materialName !== '__boundary-plane-highlight';
 
 }
 

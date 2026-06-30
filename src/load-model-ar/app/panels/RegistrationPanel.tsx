@@ -1,6 +1,7 @@
 import type React from 'react';
 import type { AppActions, AppState } from '../store/ar-state.js';
 import { ActionButton } from '../components/ActionButton.js';
+import { SelectField } from '../components/SelectField.js';
 import { PanelSection } from '../components/PanelCard.js';
 
 const MAX_MARKER_RESULT_AGE_SECONDS = 300;
@@ -25,14 +26,13 @@ function resolveMarkerTestConfig(state: AppState): {
 		};
 	}
 
-	// TODO: Derive this from a unified active model config identity contract
-	// once the AR runtime exposes configMode / configUrl / siteId directly.
 	return {
 		configMode: 'dz1207',
 		url: '/marker-test/?config=dz1207'
 	};
 
 }
+
 export function RegistrationPanel(props: {
 	state: AppState;
 	actions: AppActions;
@@ -119,16 +119,26 @@ export function RegistrationPanel(props: {
 					Pivot offset: {engine.modelScaleSummary.pivotOffsetText}
 				</p>
 
+				<SelectField
+					label="放置方式"
+					value={engine.placementMode}
+					onChange={ ( value ) => actions.setPlacementMode( value as 'localized' | 'hit-test-temporary' ) }
+					options={[
+						{ value: 'localized', label: '按定位固定' },
+						{ value: 'hit-test-temporary', label: '临时放到平面' }
+					]}
+				/>
+
+				<p className="note-block">
+					临时放到平面：只使用当前 hit-test 命中位置，不使用 GPS / Marker / 工程配准结果。<br />
+					按定位固定：使用 hit-test 平面作为现场锚点，并叠加当前定位/配准结果完成正式放置。
+				</p>
+
 				<div className="button-row">
 					<ActionButton label="Reset placement" onClick={actions.resetPlacement} kind="primary" />
 					<ActionButton label="Re-run coarse registration" onClick={ () => void actions.enableCoarseRegistration() } />
 					<ActionButton label="Refresh location" onClick={ () => void actions.refreshGeoLocation() } />
 				</div>
-
-				<p className="note-block">
-					临时放置到平面：只使用当前 hit-test 命中位置，不使用 GPS / Marker / 工程配准结果。<br />
-					按定位固定：使用 hit-test 平面作为现场锚点，并叠加当前定位/配准结果完成正式放置。
-				</p>
 
 				<div className="button-row">
 					<ActionButton

@@ -35,8 +35,8 @@ export interface ArSectionCutController {
 }
 
 interface SectionCutMeshHelpers {
-	backFaceStencil: THREE.Mesh;
-	frontFaceStencil: THREE.Mesh;
+	backFaceStencil: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>;
+	frontFaceStencil: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>;
 }
 
 const SECTION_CUT_TAGS = {
@@ -48,7 +48,6 @@ const tempLocalBounds = new THREE.Box3();
 const tempGeometryBounds = new THREE.Box3();
 const tempWorldBoundsCorner = new THREE.Vector3();
 const tempBoundsSize = new THREE.Vector3();
-const tempPoint = new THREE.Vector3();
 const tempPlaneNormal = new THREE.Vector3();
 const tempWorldQuaternion = new THREE.Quaternion();
 const tempInverseRootMatrixWorld = new THREE.Matrix4();
@@ -117,8 +116,7 @@ export function createArSectionCutController(renderer: THREE.WebGLRenderer): ArS
 				return;
 			}
 
-			rememberMeshSnapshot( meshSnapshots, child );
-			restoreMeshSnapshot( meshSnapshots, child );
+			restoreMeshToBaseline( meshSnapshots, child );
 			affectedMeshCount += 1;
 
 			forEachMaterial( child.material, ( material ) => {
@@ -253,9 +251,7 @@ export function createArSectionCutController(renderer: THREE.WebGLRenderer): ArS
 
 		for ( const helper of [ helpers.backFaceStencil, helpers.frontFaceStencil ] ) {
 			helper.removeFromParent();
-			if ( helper.material instanceof THREE.Material ) {
-				helper.material.dispose();
-			}
+			helper.material.dispose();
 		}
 		meshHelpers.delete( mesh );
 
@@ -270,12 +266,22 @@ export function createArSectionCutController(renderer: THREE.WebGLRenderer): ArS
 
 }
 
+function restoreMeshToBaseline(
+	meshSnapshots: WeakMap<THREE.Mesh, { visible: boolean }>,
+	mesh: THREE.Mesh
+): void {
+
+	rememberMeshSnapshot( meshSnapshots, mesh );
+	restoreMeshSnapshot( meshSnapshots, mesh );
+
+}
+
 function createStencilHelperMesh(
 	geometry: THREE.BufferGeometry,
 	side: THREE.Side,
 	stencilZPass: THREE.StencilOp,
 	plane: THREE.Plane
-): THREE.Mesh {
+): THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial> {
 
 	const material = new THREE.MeshBasicMaterial( {
 		colorWrite: false,
@@ -291,7 +297,7 @@ function createStencilHelperMesh(
 		toneMapped: false
 	} );
 
-	const mesh = new THREE.Mesh( geometry, material );
+	const mesh = new THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>( geometry, material );
 	mesh.name = '__section-cut-stencil-helper';
 	mesh.renderOrder = 4;
 	mesh.frustumCulled = false;

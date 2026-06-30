@@ -33,7 +33,7 @@ export function getDisplayModeSliderLabel(mode: ArDisplayMode): string | null {
 
 	switch ( mode ) {
 		case 'transparent-xray':
-			return '透视强度';
+			return '透明透视';
 		case 'layer-peeling':
 			return '剥离进度';
 		case 'section-cut':

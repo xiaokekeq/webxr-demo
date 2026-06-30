@@ -1,19 +1,12 @@
 import * as THREE from 'three';
 import type { ModelLayerState } from '../../registration/registration-store.js';
-
-export interface ArXrayMaterialSnapshot {
-	material: THREE.Material;
-	transparent: boolean;
-	opacity?: number;
-	depthWrite: boolean;
-	depthTest: boolean;
-	side: THREE.Side;
-}
-
-export interface ArXrayMeshSnapshot {
-	mesh: THREE.Mesh;
-	visible: boolean;
-}
+import {
+	forEachMaterial,
+	rememberMaterialSnapshot,
+	rememberMeshSnapshot,
+	restoreMaterialSnapshot,
+	restoreMeshSnapshot
+} from './material-visualization-state.js';
 
 export interface ArXrayLayerReport {
 	layerId: string;
@@ -44,38 +37,21 @@ export interface ArXrayVisualizationController {
 	dispose(): void;
 }
 
-interface LayerDescriptor {
-	id: string;
-	label: string;
-	orderIndex: number;
-	visible: boolean;
-}
-
-interface LayeredXrayVisualState {
-	opacity: number;
-	depthWrite: boolean;
-}
-
-interface FallbackMeshLayerDescriptor {
-	orderIndex: number;
-	totalCount: number;
-}
-
-interface FallbackMeshLayerResolution {
-	descriptors: WeakMap<THREE.Mesh, FallbackMeshLayerDescriptor>;
-	totalCount: number;
-}
-
-const tempLayerReports = new Map<string, ArXrayLayerReport>();
-const tempMeshBounds = new THREE.Box3();
-const tempMeshCenter = new THREE.Vector3();
-
 export function createArXrayVisualizationController(): ArXrayVisualizationController {
 
-	const materialSnapshots = new WeakMap<THREE.Material, ArXrayMaterialSnapshot>();
-	const meshSnapshots = new WeakMap<THREE.Mesh, ArXrayMeshSnapshot>();
+	const materialSnapshots = new WeakMap<THREE.Material, {
+		transparent: boolean;
+		opacity: number;
+		depthWrite: boolean;
+		depthTest: boolean;
+		side: THREE.Side;
+		clippingPlanes: THREE.Plane[] | null;
+		clipIntersection: boolean;
+		clipShadows: boolean;
+	}>();
+	const meshSnapshots = new WeakMap<THREE.Mesh, { visible: boolean }>();
 	let currentRoot: THREE.Object3D | null = null;
-	let currentValue = 0;
+	let currentValue = 100;
 
 	function apply(args: {
 		modelRoot: THREE.Object3D | null;
@@ -87,7 +63,7 @@ export function createArXrayVisualizationController(): ArXrayVisualizationContro
 		const previousRoot = currentRoot;
 		const previousValue = currentValue;
 
-		if ( previousRoot !== null && previousRoot !== args.modelRoot && previousValue > 0 ) {
+		if ( previousRoot !== null && previousRoot !== args.modelRoot && previousValue < 100 ) {
 			restoreRoot( previousRoot, materialSnapshots, meshSnapshots );
 		}
 
@@ -95,34 +71,24 @@ export function createArXrayVisualizationController(): ArXrayVisualizationContro
 		currentValue = nextValue;
 
 		if ( args.modelRoot === null ) {
-			return createApplyResult( {
-				value: nextValue,
-				opacityMode: 'uniform',
-				totalLayerCount: args.modelLayers.length,
-				affectedMeshCount: 0,
-				affectedMaterialCount: 0,
-				hasModelRoot: false,
-				layerReports: []
-			} );
+			return createApplyResult( nextValue, args.modelLayers.length, 0, 0, false );
 		}
 
 		if ( nextValue === 100 ) {
 			const restoreReport = restoreRoot( args.modelRoot, materialSnapshots, meshSnapshots );
-			return createApplyResult( {
-				value: nextValue,
-				opacityMode: 'uniform',
-				totalLayerCount: args.modelLayers.length,
-				affectedMeshCount: restoreReport.affectedMeshCount,
-				affectedMaterialCount: restoreReport.affectedMaterialCount,
-				hasModelRoot: true,
-				layerReports: []
-			} );
+			return createApplyResult(
+				nextValue,
+				args.modelLayers.length,
+				restoreReport.affectedMeshCount,
+				restoreReport.affectedMaterialCount,
+				true
+			);
 		}
 
-		return applyXrayToRoot( {
+		return applyTransparentXray( {
 			modelRoot: args.modelRoot,
 			value: nextValue,
-			modelLayers: args.modelLayers,
+			totalLayerCount: args.modelLayers.length,
 			materialSnapshots,
 			meshSnapshots
 		} );
@@ -131,12 +97,12 @@ export function createArXrayVisualizationController(): ArXrayVisualizationContro
 
 	function restore(): void {
 
-		if ( currentRoot !== null && currentValue > 0 ) {
+		if ( currentRoot !== null && currentValue < 100 ) {
 			restoreRoot( currentRoot, materialSnapshots, meshSnapshots );
 		}
 
 		currentRoot = null;
-		currentValue = 0;
+		currentValue = 100;
 
 	}
 
@@ -146,13 +112,10 @@ export function createArXrayVisualizationController(): ArXrayVisualizationContro
 			return;
 		}
 
-	modelRoot.traverse( ( child ) => {
-		if ( child instanceof THREE.Mesh && shouldAffectMesh( child ) ) {
-			meshSnapshots.set( child, {
-				mesh: child,
-				visible: child.visible
-			} );
-		}
+		modelRoot.traverse( ( child ) => {
+			if ( child instanceof THREE.Mesh && shouldAffectMesh( child ) ) {
+				rememberMeshSnapshot( meshSnapshots, child );
+			}
 		} );
 
 	}
@@ -168,18 +131,27 @@ export function createArXrayVisualizationController(): ArXrayVisualizationContro
 
 export const createStructureRevealController = createArXrayVisualizationController;
 
-function applyXrayToRoot(options: {
+function applyTransparentXray(options: {
 	modelRoot: THREE.Object3D;
 	value: number;
-	modelLayers: readonly ModelLayerState[];
-	materialSnapshots: WeakMap<THREE.Material, ArXrayMaterialSnapshot>;
-	meshSnapshots: WeakMap<THREE.Mesh, ArXrayMeshSnapshot>;
+	totalLayerCount: number;
+	materialSnapshots: WeakMap<THREE.Material, {
+		transparent: boolean;
+		opacity: number;
+		depthWrite: boolean;
+		depthTest: boolean;
+		side: THREE.Side;
+		clippingPlanes: THREE.Plane[] | null;
+		clipIntersection: boolean;
+		clipShadows: boolean;
+	}>;
+	meshSnapshots: WeakMap<THREE.Mesh, { visible: boolean }>;
 }): ArXrayApplyResult {
 
 	const {
 		modelRoot,
 		value,
-		modelLayers,
+		totalLayerCount,
 		materialSnapshots,
 		meshSnapshots
 	} = options;
@@ -187,26 +159,17 @@ function applyXrayToRoot(options: {
 	let affectedMeshCount = 0;
 	let affectedMaterialCount = 0;
 
-	tempLayerReports.clear();
-
 	modelRoot.traverse( ( child ) => {
 		if ( child instanceof THREE.Mesh === false || shouldAffectMesh( child ) === false ) {
 			return;
 		}
 
-		const mesh = child;
-		rememberMesh( meshSnapshots, mesh );
-		const meshSnapshot = meshSnapshots.get( mesh );
-		if ( meshSnapshot === undefined ) {
-			return;
-		}
-
-		// Slider controls transparent xray; manual buttons continue to control layer visibility.
-		mesh.visible = meshSnapshot.visible;
+		rememberMeshSnapshot( meshSnapshots, child );
+		restoreMeshSnapshot( meshSnapshots, child );
 		affectedMeshCount += 1;
 
-		forEachMaterial( mesh.material, ( material ) => {
-			rememberMaterial( materialSnapshots, material );
+		forEachMaterial( child.material, ( material ) => {
+			rememberMaterialSnapshot( materialSnapshots, material );
 			material.transparent = true;
 			material.opacity = opacity;
 			material.depthWrite = false;
@@ -217,22 +180,29 @@ function applyXrayToRoot(options: {
 		} );
 	} );
 
-	return createApplyResult( {
+	return createApplyResult(
 		value,
-		opacityMode: 'uniform',
-		totalLayerCount: modelLayers.length,
+		totalLayerCount,
 		affectedMeshCount,
 		affectedMaterialCount,
-		hasModelRoot: true,
-		layerReports: []
-	} );
+		true
+	);
 
 }
 
 function restoreRoot(
 	modelRoot: THREE.Object3D,
-	materialSnapshots: WeakMap<THREE.Material, ArXrayMaterialSnapshot>,
-	meshSnapshots: WeakMap<THREE.Mesh, ArXrayMeshSnapshot>
+	materialSnapshots: WeakMap<THREE.Material, {
+		transparent: boolean;
+		opacity: number;
+		depthWrite: boolean;
+		depthTest: boolean;
+		side: THREE.Side;
+		clippingPlanes: THREE.Plane[] | null;
+		clipIntersection: boolean;
+		clipShadows: boolean;
+	}>,
+	meshSnapshots: WeakMap<THREE.Mesh, { visible: boolean }>
 ): { affectedMeshCount: number; affectedMaterialCount: number } {
 
 	let affectedMeshCount = 0;
@@ -243,26 +213,14 @@ function restoreRoot(
 			return;
 		}
 
-		const mesh = child;
-		const meshSnapshot = meshSnapshots.get( mesh );
-		if ( meshSnapshot !== undefined ) {
-			mesh.visible = meshSnapshot.visible;
+		if ( restoreMeshSnapshot( meshSnapshots, child ) ) {
 			affectedMeshCount += 1;
 		}
 
-		forEachMaterial( mesh.material, ( material ) => {
-			const materialSnapshot = materialSnapshots.get( material );
-			if ( materialSnapshot === undefined ) {
-				return;
+		forEachMaterial( child.material, ( material ) => {
+			if ( restoreMaterialSnapshot( materialSnapshots, material ) ) {
+				affectedMaterialCount += 1;
 			}
-
-			material.transparent = materialSnapshot.transparent;
-			material.opacity = materialSnapshot.opacity ?? 1;
-			material.depthWrite = materialSnapshot.depthWrite;
-			material.depthTest = materialSnapshot.depthTest;
-			material.side = materialSnapshot.side;
-			material.needsUpdate = true;
-			affectedMaterialCount += 1;
 		} );
 	} );
 
@@ -273,152 +231,13 @@ function restoreRoot(
 
 }
 
-function createLayerDescriptors(modelLayers: readonly ModelLayerState[]): Map<string, LayerDescriptor> {
-
-	return new Map(
-		modelLayers.map( ( layer ) => [
-			layer.id,
-			{
-				id: layer.id,
-				label: layer.label,
-				orderIndex: layer.orderIndex,
-				visible: layer.visible
-			}
-		] )
-	);
-
-}
-
-function resolveLayerDescriptorForObject(
-	object: THREE.Object3D,
-	layerDescriptors: Map<string, LayerDescriptor>
-): LayerDescriptor | null {
-
-	let current: THREE.Object3D | null = object;
-	while ( current !== null ) {
-		const layerId = current.userData.__layerId;
-		if ( typeof layerId === 'string' && layerDescriptors.has( layerId ) ) {
-			return layerDescriptors.get( layerId ) ?? null;
-		}
-		current = current.parent;
-	}
-
-	return null;
-
-}
-
-function buildFallbackMeshLayerDescriptors(modelRoot: THREE.Object3D): FallbackMeshLayerResolution {
-
-	const rankedMeshes: Array<{ mesh: THREE.Mesh; centerY: number }> = [];
-	modelRoot.traverse( ( child ) => {
-		if ( child instanceof THREE.Mesh === false || shouldAffectMesh( child ) === false ) {
-			return;
-		}
-
-		child.updateWorldMatrix( true, false );
-		tempMeshBounds.setFromObject( child );
-		if ( tempMeshBounds.isEmpty() ) {
-			return;
-		}
-
-		tempMeshBounds.getCenter( tempMeshCenter );
-		rankedMeshes.push( {
-			mesh: child,
-			centerY: tempMeshCenter.y
-		} );
-	} );
-
-	rankedMeshes.sort( ( a, b ) => b.centerY - a.centerY );
-	const descriptors = new WeakMap<THREE.Mesh, FallbackMeshLayerDescriptor>();
-	for ( let index = 0; index < rankedMeshes.length; index += 1 ) {
-		descriptors.set( rankedMeshes[ index ].mesh, {
-			orderIndex: index,
-			totalCount: rankedMeshes.length
-		} );
-	}
-
-	return {
-		descriptors,
-		totalCount: rankedMeshes.length
-	};
-
-}
-
-function computeUniformOpacity(value: number): number {
-
-	return THREE.MathUtils.clamp( clampPercentage( value ) / 100, 0, 1 );
-
-}
-
-function computeLayeredOpacity(value: number, layerIndex: number, totalLayerCount: number): number {
-
-	return computeLayeredVisualState( value, layerIndex, totalLayerCount ).opacity;
-
-}
-
-function computeLayeredVisualState(
-	value: number,
-	layerIndex: number,
-	totalLayerCount: number
-): LayeredXrayVisualState {
-
-	const strength = Math.pow( clampPercentage( value ) / 100, 0.78 );
-	const layerRatio = layerIndex / Math.max( 1, totalLayerCount - 1 );
-	const excavationBias = 1 - layerRatio;
-	const opacityFloor = THREE.MathUtils.lerp( 0.04, 0.82, Math.pow( layerRatio, 0.7 ) );
-	const maxFade = 0.92 - layerRatio * 0.78;
-	const opacity = THREE.MathUtils.clamp(
-		1 - strength * ( maxFade + excavationBias * 0.12 ),
-		opacityFloor,
-		1
-	);
-
-	return {
-		opacity,
-		depthWrite: opacity >= 0.72
-	};
-
-}
-
-function rememberMaterial(
-	materialSnapshots: WeakMap<THREE.Material, ArXrayMaterialSnapshot>,
-	material: THREE.Material
-): void {
-
-	if ( materialSnapshots.has( material ) ) {
-		return;
-	}
-
-	materialSnapshots.set( material, {
-		material,
-		transparent: material.transparent,
-		opacity: material.opacity,
-		depthWrite: material.depthWrite,
-		depthTest: material.depthTest,
-		side: material.side
-	} );
-
-}
-
-function rememberMesh(
-	meshSnapshots: WeakMap<THREE.Mesh, ArXrayMeshSnapshot>,
-	mesh: THREE.Mesh
-): void {
-
-	if ( meshSnapshots.has( mesh ) ) {
-		return;
-	}
-
-	meshSnapshots.set( mesh, {
-		mesh,
-		visible: mesh.visible
-	} );
-
-}
-
 function shouldAffectMesh(mesh: THREE.Mesh): boolean {
 
-	if ( mesh.userData.__nonSelectableHelper === true || mesh.userData.__excludeFromLayerIndex === true ) {
+	if (
+		mesh.userData.__nonSelectableHelper === true
+		|| mesh.userData.__excludeFromLayerIndex === true
+		|| mesh.userData.__displayModeHelper === true
+	) {
 		return false;
 	}
 
@@ -430,19 +249,9 @@ function shouldAffectMesh(mesh: THREE.Mesh): boolean {
 
 }
 
-function forEachMaterial(
-	material: THREE.Material | THREE.Material[],
-	callback: (material: THREE.Material) => void
-): void {
+function computeUniformOpacity(value: number): number {
 
-	if ( Array.isArray( material ) ) {
-		for ( const item of material ) {
-			callback( item );
-		}
-		return;
-	}
-
-	callback( material );
+	return THREE.MathUtils.clamp( clampPercentage( value ) / 100, 0, 1 );
 
 }
 
@@ -452,8 +261,22 @@ function clampPercentage(value: number): number {
 
 }
 
-function createApplyResult(options: ArXrayApplyResult): ArXrayApplyResult {
+function createApplyResult(
+	value: number,
+	totalLayerCount: number,
+	affectedMeshCount: number,
+	affectedMaterialCount: number,
+	hasModelRoot: boolean
+): ArXrayApplyResult {
 
-	return options;
+	return {
+		value,
+		opacityMode: 'uniform',
+		totalLayerCount,
+		affectedMeshCount,
+		affectedMaterialCount,
+		hasModelRoot,
+		layerReports: []
+	};
 
 }

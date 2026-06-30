@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 import { loadDemoModelConfig, type DemoModelConfig } from '../load-model-ar/data/demo-model-config.js';
 import {
+	estimateMarkerPoseFromManualCorners,
+	type ManualMarkerCornerPoint
+} from './manual-corner-pose.js';
+import {
 	createMarkerPoseInArFromArjsObject,
 	type MarkerPoseInAr
 } from '../load-model-ar/registration/marker-pose-in-ar.js';
@@ -156,6 +160,18 @@ type SerializedStableMarkerLocalization = {
 	stabilityReport: ReturnType<typeof serializeStabilityReport>;
 };
 
+type MarkerInputMode = 'realtime' | 'manual-corners';
+
+type ManualCornerCaptureState = {
+	isOpen: boolean;
+	points: ManualMarkerCornerPoint[];
+	imageWidth: number;
+	imageHeight: number;
+	baseCanvas: HTMLCanvasElement | null;
+	lastLocalization: MarkerLocalizationSolution | null;
+	lastPose: MarkerPoseInAr | null;
+};
+
 const viewportElement = getRequiredElement<HTMLDivElement>( 'marker-test-viewport' );
 const cameraPreviewElement = getRequiredElement<HTMLDivElement>( 'marker-camera-preview' );
 const statusElement = getRequiredElement<HTMLSpanElement>( 'marker-test-status' );
@@ -166,8 +182,18 @@ const summaryVisibleElement = getRequiredElement<HTMLSpanElement>( 'marker-test-
 const summaryStableElement = getRequiredElement<HTMLSpanElement>( 'marker-test-summary-stable' );
 const debugDrawerElement = getRequiredElement<HTMLElement>( 'marker-test-debug-drawer' );
 const toggleDebugButton = getRequiredElement<HTMLButtonElement>( 'marker-test-toggle-debug' );
+const openManualCornersButton = getRequiredElement<HTMLButtonElement>( 'marker-test-open-manual-corners' );
 const guideFrameElement = getRequiredElement<HTMLDivElement>( 'marker-test-guide-frame' );
 const guideLabelElement = getRequiredElement<HTMLDivElement>( 'marker-test-guide-label' );
+const manualOverlayElement = getRequiredElement<HTMLElement>( 'marker-test-manual-overlay' );
+const manualCanvasElement = getRequiredElement<HTMLCanvasElement>( 'marker-test-manual-canvas' );
+const manualStageElement = getRequiredElement<HTMLDivElement>( 'marker-test-manual-stage' );
+const manualHintElement = getRequiredElement<HTMLDivElement>( 'marker-test-manual-hint' );
+const manualStatusElement = getRequiredElement<HTMLDivElement>( 'marker-test-manual-status' );
+const manualRetakeButton = getRequiredElement<HTMLButtonElement>( 'marker-test-manual-retake' );
+const manualResetPointsButton = getRequiredElement<HTMLButtonElement>( 'marker-test-manual-reset-points' );
+const manualSolveButton = getRequiredElement<HTMLButtonElement>( 'marker-test-manual-solve' );
+const manualCloseButton = getRequiredElement<HTMLButtonElement>( 'marker-test-manual-close' );
 const configModeElement = getRequiredElement<HTMLSpanElement>( 'marker-test-config-mode' );
 const configUrlElement = getRequiredElement<HTMLSpanElement>( 'marker-test-config-url' );
 const markerConfigIdElement = getRequiredElement<HTMLSpanElement>( 'marker-test-marker-config-id' );
@@ -256,6 +282,17 @@ let cameraParamStatus: AssetProbeState = 'idle';
 let patternStatus: AssetProbeState = 'idle';
 let markerImageStatus: AssetProbeState = 'idle';
 let debugDrawerOpen = false;
+let markerInputMode: MarkerInputMode = 'realtime';
+let manualStableReport: MarkerLocalizationStabilityReport | null = null;
+const manualCaptureState: ManualCornerCaptureState = {
+	isOpen: false,
+	points: [],
+	imageWidth: 0,
+	imageHeight: 0,
+	baseCanvas: null,
+	lastLocalization: null,
+	lastPose: null
+};
 const currentConfigMode = resolveConfigMode();
 const currentConfigDefinition = MARKER_TEST_CONFIGS[ currentConfigMode ];
 
@@ -276,13 +313,20 @@ setPoseState( null, false );
 setLocalizationState( null, false );
 setStabilityState( localizationStabilizer.getReport() );
 setSaveStatus( 'Current saved result is for debug only and is not connected to the main WebXR AR flow.' );
+updateManualCaptureUi();
 syncDebugState();
 
 backToArButton.addEventListener( 'click', handleBackToAr );
 showMarkerReferenceButton.addEventListener( 'click', handleShowMarkerReference );
 toggleDebugButton.addEventListener( 'click', handleToggleDebugDrawer );
+openManualCornersButton.addEventListener( 'click', handleOpenManualCorners );
 resetSamplesButton.addEventListener( 'click', handleResetSamples );
 saveStableButton.addEventListener( 'click', handleSaveStableResult );
+manualRetakeButton.addEventListener( 'click', handleManualRetakePhoto );
+manualResetPointsButton.addEventListener( 'click', handleManualResetPoints );
+manualSolveButton.addEventListener( 'click', handleManualSolvePose );
+manualCloseButton.addEventListener( 'click', handleManualClose );
+manualCanvasElement.addEventListener( 'click', handleManualCanvasClick );
 
 void boot();
 
@@ -396,7 +440,9 @@ function startLoop(): void {
 
 		const visible = Boolean( markerRoot?.visible );
 		markerRootVisible = visible;
-		updateVisibleState( visible ? 'visible' : 'lost' );
+		if ( markerInputMode === 'realtime' ) {
+			updateVisibleState( visible ? 'visible' : 'lost' );
+		}
 
 		if ( visible && markerRoot !== null ) {
 			markerRoot.updateMatrixWorld( true );
@@ -414,8 +460,13 @@ function startLoop(): void {
 			}
 
 			lastVisible = true;
-			setPoseState( markerPoseInAr, true );
-			resolveMarkerLocalizationDebug( markerPoseInAr, shouldLog );
+			if ( markerInputMode === 'realtime' ) {
+				manualStableReport = null;
+				manualCaptureState.lastLocalization = null;
+				manualCaptureState.lastPose = null;
+				setPoseState( markerPoseInAr, true );
+				resolveMarkerLocalizationDebug( markerPoseInAr, shouldLog );
+			}
 		} else {
 			if ( lastVisible ) {
 				console.info( '[ArjsMarkerTracking]', {
@@ -429,9 +480,11 @@ function startLoop(): void {
 			}
 
 			lastVisible = false;
-			setPoseState( null, false );
-			setLocalizationState( null, false );
-			setStabilityState( localizationStabilizer.getReport() );
+			if ( markerInputMode === 'realtime' ) {
+				setPoseState( null, false );
+				setLocalizationState( null, false );
+				setStabilityState( getEffectiveStabilityReport() );
+			}
 		}
 
 		if ( renderer !== null && scene !== null && camera !== null ) {
@@ -496,21 +549,303 @@ function resolveMarkerLocalizationDebug(
 
 }
 
-function updateVisibleState(state: 'visible' | 'lost'): void {
+function updateVisibleState(state: 'visible' | 'lost' | 'manual'): void {
 
-	const visible = state === 'visible';
+	const visible = state !== 'lost';
 	visibleElement.textContent = state;
 	rawDetectionElement.textContent = state;
 	summaryVisibleElement.textContent = state;
 	guideFrameElement.classList.toggle( 'marker-test__guide--detected', visible );
-	guideLabelElement.textContent = visible ? 'Marker detected' : 'Place the marker inside frame';
+	guideLabelElement.textContent = state === 'manual'
+		? 'Manual corner pose ready'
+		: visible
+			? 'Marker detected'
+			: 'Place the marker inside frame';
+
+}
+
+function getEffectiveStabilityReport(): MarkerLocalizationStabilityReport {
+
+	return manualStableReport ?? localizationStabilizer.getReport();
+
+}
+
+function handleOpenManualCorners(): void {
+
+	try {
+		captureManualPhotoFrame();
+		markerInputMode = 'manual-corners';
+		manualOverlayElement.hidden = false;
+		manualCaptureState.isOpen = true;
+		manualStableReport = null;
+		updateVisibleState( 'manual' );
+		setStatus( 'Manual corner mode ready. Tap the 4 marker corners in order.' );
+		console.info( '[ManualCornerCapture]', {
+			stage: 'opened',
+			imageWidth: manualCaptureState.imageWidth,
+			imageHeight: manualCaptureState.imageHeight
+		} );
+	} catch ( error ) {
+		setStatus( error instanceof Error ? error.message : 'Failed to open manual corner mode.' );
+	}
+
+}
+
+function handleManualRetakePhoto(): void {
+
+	try {
+		captureManualPhotoFrame();
+		manualStableReport = null;
+		setStatus( 'Photo retaken. Tap the 4 marker corners in order.' );
+		console.info( '[ManualCornerCapture]', {
+			stage: 'retaken',
+			imageWidth: manualCaptureState.imageWidth,
+			imageHeight: manualCaptureState.imageHeight
+		} );
+	} catch ( error ) {
+		setStatus( error instanceof Error ? error.message : 'Failed to retake manual corner photo.' );
+	}
+
+}
+
+function handleManualResetPoints(): void {
+
+	manualCaptureState.points = [];
+	manualStableReport = null;
+	manualCaptureState.lastLocalization = null;
+	manualCaptureState.lastPose = null;
+	redrawManualCanvas();
+	updateManualCaptureUi();
+	setStatus( 'Manual corner points reset.' );
+
+}
+
+function handleManualClose(): void {
+
+	manualOverlayElement.hidden = true;
+	manualCaptureState.isOpen = false;
+	manualCaptureState.points = [];
+	updateManualCaptureUi();
+
+	if ( manualCaptureState.lastLocalization === null ) {
+		markerInputMode = 'realtime';
+		updateVisibleState( markerRootVisible ? 'visible' : 'lost' );
+		setPoseState( null, false );
+		setLocalizationState( null, false );
+		setStabilityState( localizationStabilizer.getReport() );
+		setStatus( 'Returned to realtime marker mode.' );
+	}
+
+}
+
+function handleManualCanvasClick(event: MouseEvent): void {
+
+	if ( manualCaptureState.isOpen === false || manualCaptureState.baseCanvas === null ) {
+		return;
+	}
+
+	if ( manualCaptureState.points.length >= 4 ) {
+		return;
+	}
+
+	const rect = manualCanvasElement.getBoundingClientRect();
+	if ( rect.width <= 0 || rect.height <= 0 ) {
+		return;
+	}
+
+	const scaleX = manualCanvasElement.width / rect.width;
+	const scaleY = manualCanvasElement.height / rect.height;
+	const point = {
+		x: ( event.clientX - rect.left ) * scaleX,
+		y: ( event.clientY - rect.top ) * scaleY
+	};
+
+	manualCaptureState.points.push( point );
+	redrawManualCanvas();
+	updateManualCaptureUi();
+
+	console.info( '[ManualCornerCapture]', {
+		stage: 'point-added',
+		pointIndex: manualCaptureState.points.length,
+		point
+	} );
+}
+
+function handleManualSolvePose(): void {
+
+	if ( camera === null || markerPoseInEnu === null ) {
+		setStatus( 'Manual corner solving requires an initialized camera and marker config.' );
+		return;
+	}
+
+	if ( manualCaptureState.points.length !== 4 ) {
+		setStatus( 'Please tap all 4 marker corners before solving.' );
+		return;
+	}
+
+	try {
+		const markerPoseInAr = estimateMarkerPoseFromManualCorners( {
+			markerId: DEFAULT_MARKER_ID,
+			corners: manualCaptureState.points,
+			markerSizeMeters: getConfiguredMarkerSizeMeters(),
+			camera,
+			imageWidth: manualCaptureState.imageWidth,
+			imageHeight: manualCaptureState.imageHeight,
+			timestamp: Date.now()
+		} );
+		const localization = solveMarkerLocalization( {
+			markerId: DEFAULT_MARKER_ID,
+			markerPoseInEnu: markerPoseInEnu,
+			markerPoseInAr: markerPoseInAr.markerPoseInAr,
+			timestamp: markerPoseInAr.markerPoseInAr.timestamp
+		} );
+
+		manualCaptureState.lastPose = markerPoseInAr.markerPoseInAr;
+		manualCaptureState.lastLocalization = localization;
+		manualStableReport = {
+			stable: true,
+			sampleCount: 1,
+			averageRmsErrorMeters: localization.rmsErrorMeters,
+			positionStdMeters: 0,
+			headingStdDeg: 0,
+			averagedSiteOriginArPosition: vectorToPlainObject( localization.siteOriginArPosition ),
+			averagedHeadingDeg: localization.headingDeg,
+			latestSolution: localization,
+			reason: `Manual 4-corner pose solved. Reprojection error ${markerPoseInAr.reprojectionErrorPx.toFixed( 2 )} px.`
+		};
+
+		updateVisibleState( 'manual' );
+		setPoseState( markerPoseInAr.markerPoseInAr, true );
+		setLocalizationState( localization, true );
+		setStabilityState( getEffectiveStabilityReport() );
+		setStatus( `Manual corner pose solved. Reprojection error ${markerPoseInAr.reprojectionErrorPx.toFixed( 2 )} px.` );
+		setSaveStatus( 'Manual corner localization solved. You can save this marker result for main AR debug use.' );
+		updateManualCaptureUi();
+
+		console.info( '[ManualCornerPoseSolve]', {
+			markerId: DEFAULT_MARKER_ID,
+			markerConfigId: markerPoseInEnu.markerId,
+			reprojectionErrorPx: markerPoseInAr.reprojectionErrorPx,
+			iterations: markerPoseInAr.iterations,
+			matrix: markerPoseInAr.markerPoseInAr.matrix,
+			siteOriginArPosition: localization.siteOriginArPosition,
+			headingDeg: localization.headingDeg
+		} );
+		console.info( '[ManualCornerLocalization]', {
+			markerPoseInAr: markerPoseInAr.markerPoseInAr,
+			localization
+		} );
+	} catch ( error ) {
+		setStatus( error instanceof Error ? error.message : 'Manual corner pose solve failed.' );
+	}
+
+}
+
+function captureManualPhotoFrame(): void {
+
+	const sourceElement = resolveCameraPreviewElement();
+	if ( sourceElement === null ) {
+		throw new Error( 'Camera preview is not ready for manual corner capture.' );
+	}
+
+	const captureWidth = sourceElement instanceof HTMLVideoElement
+		? sourceElement.videoWidth
+		: sourceElement.width;
+	const captureHeight = sourceElement instanceof HTMLVideoElement
+		? sourceElement.videoHeight
+		: sourceElement.height;
+
+	if ( captureWidth <= 0 || captureHeight <= 0 ) {
+		throw new Error( 'Camera frame is not ready yet. Please wait for the video stream to stabilize.' );
+	}
+
+	const baseCanvas = document.createElement( 'canvas' );
+	baseCanvas.width = captureWidth;
+	baseCanvas.height = captureHeight;
+	const context = baseCanvas.getContext( '2d' );
+	if ( context === null ) {
+		throw new Error( '2D canvas context is unavailable for manual corner capture.' );
+	}
+
+	context.drawImage( sourceElement, 0, 0, captureWidth, captureHeight );
+
+	manualCaptureState.baseCanvas = baseCanvas;
+	manualCaptureState.imageWidth = captureWidth;
+	manualCaptureState.imageHeight = captureHeight;
+	manualCaptureState.points = [];
+	manualCaptureState.lastLocalization = null;
+	manualCaptureState.lastPose = null;
+	manualCanvasElement.width = captureWidth;
+	manualCanvasElement.height = captureHeight;
+	redrawManualCanvas();
+	updateManualCaptureUi();
+
+}
+
+function redrawManualCanvas(): void {
+
+	if ( manualCaptureState.baseCanvas === null ) {
+		return;
+	}
+
+	const context = manualCanvasElement.getContext( '2d' );
+	if ( context === null ) {
+		return;
+	}
+
+	context.clearRect( 0, 0, manualCanvasElement.width, manualCanvasElement.height );
+	context.drawImage( manualCaptureState.baseCanvas, 0, 0 );
+
+	if ( manualCaptureState.points.length >= 2 ) {
+		context.strokeStyle = 'rgba(112, 220, 255, 0.92)';
+		context.lineWidth = 3;
+		context.beginPath();
+		context.moveTo( manualCaptureState.points[ 0 ].x, manualCaptureState.points[ 0 ].y );
+		for ( let index = 1; index < manualCaptureState.points.length; index += 1 ) {
+			context.lineTo( manualCaptureState.points[ index ].x, manualCaptureState.points[ index ].y );
+		}
+		context.stroke();
+	}
+
+	for ( let index = 0; index < manualCaptureState.points.length; index += 1 ) {
+		const point = manualCaptureState.points[ index ];
+		context.fillStyle = 'rgba(28, 151, 255, 0.95)';
+		context.beginPath();
+		context.arc( point.x, point.y, 10, 0, Math.PI * 2 );
+		context.fill();
+		context.fillStyle = '#ffffff';
+		context.font = 'bold 18px sans-serif';
+		context.textAlign = 'center';
+		context.textBaseline = 'middle';
+		context.fillText( `${index + 1}`, point.x, point.y );
+	}
+
+}
+
+function updateManualCaptureUi(): void {
+
+	const pointCount = manualCaptureState.points.length;
+	const cornerNames = [ '左上', '右上', '右下', '左下' ];
+	manualStageElement.textContent = manualCaptureState.lastLocalization === null
+		? `已点 ${pointCount} / 4`
+		: '已完成解算';
+	manualHintElement.textContent = manualCaptureState.lastLocalization === null
+		? `请按顺序点击 marker 四个角：${cornerNames.join( '、' )}。`
+		: '位姿已解出。你可以重新拍照、重置点位，或者直接保存结果。';
+	manualStatusElement.textContent = manualCaptureState.lastLocalization === null
+		? ( pointCount < 4 ? `下一点：${cornerNames[ pointCount ] ?? '完成'}` : '已选满 4 点，可以开始计算位姿。' )
+		: `位姿已解出，当前点位数 ${pointCount}。`;
+	manualSolveButton.disabled = pointCount !== 4;
 
 }
 
 function handleResetSamples(): void {
 
 	localizationStabilizer.reset();
-	setStabilityState( localizationStabilizer.getReport() );
+	manualStableReport = null;
+	manualCaptureState.lastLocalization = null;
+	manualCaptureState.lastPose = null;
+	setStabilityState( getEffectiveStabilityReport() );
 	setSaveStatus( 'Sampling reset. Current saved result is still debug-only and not connected to main WebXR.' );
 	setStatus( 'Marker localization samples reset.' );
 
@@ -538,7 +873,7 @@ function handleToggleDebugDrawer(): void {
 
 function handleSaveStableResult(): void {
 
-	const report = localizationStabilizer.getReport();
+	const report = getEffectiveStabilityReport();
 	setStabilityState( report );
 
 	if ( report.stable === false || report.latestSolution === undefined || markerPoseInEnu === null ) {

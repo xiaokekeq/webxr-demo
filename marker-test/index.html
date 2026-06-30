@@ -158,6 +158,71 @@
 				display: none;
 			}
 
+			.marker-test__manual-overlay {
+				position: fixed;
+				inset: 0;
+				z-index: 40;
+				display: grid;
+				grid-template-rows: auto 1fr auto;
+				background: rgba(4, 10, 18, 0.92);
+				backdrop-filter: blur(12px);
+			}
+
+			.marker-test__manual-overlay[hidden] {
+				display: none;
+			}
+
+			.marker-test__manual-topbar,
+			.marker-test__manual-bottombar {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 10px;
+				align-items: center;
+				padding: 12px;
+			}
+
+			.marker-test__manual-title {
+				font-size: 14px;
+				font-weight: 700;
+			}
+
+			.marker-test__manual-hint {
+				font-size: 12px;
+				color: rgba(233, 241, 255, 0.82);
+			}
+
+			.marker-test__manual-stage {
+				padding: 4px 8px;
+				border-radius: 999px;
+				background: rgba(255, 255, 255, 0.08);
+				font-size: 12px;
+			}
+
+			.marker-test__manual-canvas-wrap {
+				display: grid;
+				place-items: center;
+				padding: 12px;
+				overflow: auto;
+			}
+
+			.marker-test__manual-canvas {
+				max-width: calc(100vw - 24px);
+				max-height: calc(100vh - 180px);
+				border-radius: 16px;
+				background: #000;
+				box-shadow: 0 18px 50px rgba(0, 0, 0, 0.38);
+				touch-action: none;
+			}
+
+			.marker-test__manual-bottombar {
+				justify-content: space-between;
+			}
+
+			.marker-test__manual-status {
+				font-size: 12px;
+				color: rgba(233, 241, 255, 0.82);
+			}
+
 			.marker-test__drawer {
 				position: fixed;
 				left: 8px;
@@ -267,6 +332,7 @@
 				<div class="marker-test__pill"><span class="marker-test__pill-label">visible</span><span id="marker-test-summary-visible">-</span></div>
 				<div class="marker-test__pill"><span class="marker-test__pill-label">stable</span><span id="marker-test-summary-stable">-</span></div>
 				<div class="marker-test__actions">
+					<button class="marker-test__button" id="marker-test-open-manual-corners" type="button">拍照点角</button>
 					<button class="marker-test__button" id="marker-test-show-marker-reference" type="button">Show marker</button>
 					<button class="marker-test__button" id="marker-test-toggle-debug" type="button">Debug</button>
 					<button class="marker-test__button" id="marker-test-back-to-ar" type="button">Back to AR</button>
@@ -276,6 +342,25 @@
 		<div class="marker-test__warning" id="marker-test-warning" hidden>
 			Camera video stream is visible but not ready for marker tracking.
 		</div>
+		<section class="marker-test__manual-overlay" id="marker-test-manual-overlay" hidden>
+			<div class="marker-test__manual-topbar">
+				<div class="marker-test__manual-title">拍照手动点角</div>
+				<div class="marker-test__manual-stage" id="marker-test-manual-stage">等待拍照</div>
+				<div class="marker-test__manual-hint" id="marker-test-manual-hint">拍下当前画面后，按顺序点击 marker 四个角：左上、右上、右下、左下。</div>
+			</div>
+			<div class="marker-test__manual-canvas-wrap">
+				<canvas class="marker-test__manual-canvas" id="marker-test-manual-canvas"></canvas>
+			</div>
+			<div class="marker-test__manual-bottombar">
+				<div class="marker-test__manual-status" id="marker-test-manual-status">准备就绪。</div>
+				<div class="marker-test__actions">
+					<button class="marker-test__button" id="marker-test-manual-retake" type="button">重新拍照</button>
+					<button class="marker-test__button" id="marker-test-manual-reset-points" type="button">清空点位</button>
+					<button class="marker-test__button" id="marker-test-manual-solve" type="button" disabled>计算位姿</button>
+					<button class="marker-test__button" id="marker-test-manual-close" type="button">关闭</button>
+				</div>
+			</div>
+		</section>
 		<section class="marker-test__drawer" id="marker-test-debug-drawer" hidden>
 			<h2 class="marker-test__drawer-title">Debug</h2>
 			<div class="marker-test__status">

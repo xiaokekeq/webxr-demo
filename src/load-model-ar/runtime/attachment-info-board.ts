@@ -81,16 +81,8 @@ function createInfoBoard(
 	markAsAttachmentInfoBoard( group );
 
 	const texture = createInfoBoardTexture( content );
-	const plateAngles = [ 0, Math.PI * 0.5, Math.PI, Math.PI * 1.5 ];
-
-	for ( const angle of plateAngles ) {
-		const plate = createInfoBoardPlate( texture, dimensions );
-		plate.position.x = Math.sin( angle ) * dimensions.radius;
-		plate.position.z = Math.cos( angle ) * dimensions.radius;
-		plate.rotation.y = angle;
-		plate.rotation.x = THREE.MathUtils.degToRad( -8 );
-		group.add( plate );
-	}
+	const plate = createInfoBoardPlate( texture, dimensions );
+	group.add( plate );
 
 	const stemRadius = Math.max( dimensions.width * 0.02, 0.012 );
 	const stem = new THREE.Mesh(
@@ -121,23 +113,23 @@ function createInfoBoardPlate(
 		height: number;
 		stemHeight: number;
 	}
-): THREE.Mesh {
+): THREE.Sprite {
 
-	const plate = new THREE.Mesh(
-		new THREE.PlaneGeometry( dimensions.width, dimensions.height ),
-		new THREE.MeshBasicMaterial( {
+	const plate = new THREE.Sprite(
+		new THREE.SpriteMaterial( {
 			map: texture,
 			transparent: true,
 			alphaTest: 0.04,
 			depthWrite: false,
-			toneMapped: false,
-			side: THREE.DoubleSide
+			toneMapped: false
 		} )
 	);
 
 	plate.position.y = dimensions.stemHeight + dimensions.height * 0.5;
+	plate.center.set( 0.5, 0 );
+	plate.scale.set( dimensions.width, dimensions.height, 1 );
 	plate.renderOrder = 120;
-	plate.raycast = () => {};
+	plate.raycast = THREE.Sprite.prototype.raycast;
 	markAsAttachmentInfoBoard( plate );
 	return plate;
 

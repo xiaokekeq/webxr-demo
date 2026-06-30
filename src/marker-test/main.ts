@@ -178,6 +178,7 @@ type ManualCornerCaptureState = {
 	activePointIndex: number | null;
 	draggingPointerId: number | null;
 	magnifierPoint: ManualMarkerCornerPoint | null;
+	requiresRetakeAfterSolve: boolean;
 };
 
 const viewportElement = getRequiredElement<HTMLDivElement>( 'marker-test-viewport' );
@@ -202,6 +203,7 @@ const manualStatusElement = getRequiredElement<HTMLDivElement>( 'marker-test-man
 const manualRetakeButton = getRequiredElement<HTMLButtonElement>( 'marker-test-manual-retake' );
 const manualResetPointsButton = getRequiredElement<HTMLButtonElement>( 'marker-test-manual-reset-points' );
 const manualSolveButton = getRequiredElement<HTMLButtonElement>( 'marker-test-manual-solve' );
+const manualSaveStableButton = getRequiredElement<HTMLButtonElement>( 'marker-test-manual-save-stable' );
 const manualCloseButton = getRequiredElement<HTMLButtonElement>( 'marker-test-manual-close' );
 const configModeElement = getRequiredElement<HTMLSpanElement>( 'marker-test-config-mode' );
 const configUrlElement = getRequiredElement<HTMLSpanElement>( 'marker-test-config-url' );
@@ -308,7 +310,8 @@ const manualCaptureState: ManualCornerCaptureState = {
 	lastReprojectionErrorPx: null,
 	activePointIndex: null,
 	draggingPointerId: null,
-	magnifierPoint: null
+	magnifierPoint: null,
+	requiresRetakeAfterSolve: false
 };
 const currentConfigMode = resolveConfigMode();
 const currentConfigDefinition = MARKER_TEST_CONFIGS[ currentConfigMode ];
@@ -339,6 +342,7 @@ toggleDebugButton.addEventListener( 'click', handleToggleDebugDrawer );
 openManualCornersButton.addEventListener( 'click', handleOpenManualCorners );
 resetSamplesButton.addEventListener( 'click', handleResetSamples );
 saveStableButton.addEventListener( 'click', handleSaveStableResult );
+manualSaveStableButton.addEventListener( 'click', handleSaveStableResult );
 manualRetakeButton.addEventListener( 'click', handleManualRetakePhoto );
 manualResetPointsButton.addEventListener( 'click', handleManualResetPoints );
 manualSolveButton.addEventListener( 'click', handleManualSolvePose );
@@ -622,6 +626,7 @@ function handleManualRetakePhoto(): void {
 
 	try {
 		captureManualPhotoFrame();
+		manualCaptureState.requiresRetakeAfterSolve = false;
 		setStatus( 'Photo retaken. Tap the 4 marker corners in order, then drag to fine tune.' );
 		console.info( '[ManualCornerCapture]', {
 			stage: 'retaken',
@@ -767,6 +772,11 @@ function handleManualSolvePose(): void {
 		return;
 	}
 
+	if ( manualCaptureState.requiresRetakeAfterSolve ) {
+		setStatus( 'Please retake a new photo before computing the next manual sample.' );
+		return;
+	}
+
 	try {
 		const markerPoseInAr = estimateMarkerPoseFromManualCorners( {
 			markerId: DEFAULT_MARKER_ID,
@@ -787,6 +797,7 @@ function handleManualSolvePose(): void {
 		manualCaptureState.lastPose = markerPoseInAr.markerPoseInAr;
 		manualCaptureState.lastLocalization = localization;
 		manualCaptureState.lastReprojectionErrorPx = markerPoseInAr.reprojectionErrorPx;
+		manualCaptureState.requiresRetakeAfterSolve = true;
 		const stabilizationReport = manualLocalizationStabilizer.addSample( localization );
 		manualStableReport = {
 			...stabilizationReport,
@@ -800,7 +811,7 @@ function handleManualSolvePose(): void {
 		setStatus(
 			manualStableReport.stable
 				? `Manual corner pose stabilized. Reprojection error ${markerPoseInAr.reprojectionErrorPx.toFixed( 2 )} px.`
-				: `Manual corner pose solved. Sample ${manualStableReport.sampleCount}/${MANUAL_SAMPLE_TARGET_COUNT}. Reprojection error ${markerPoseInAr.reprojectionErrorPx.toFixed( 2 )} px.`
+				: `Manual corner pose solved. Sample ${manualStableReport.sampleCount}/${MANUAL_SAMPLE_TARGET_COUNT}. Reprojection error ${markerPoseInAr.reprojectionErrorPx.toFixed( 2 )} px. Please retake for the next sample.`
 		);
 		setSaveStatus(
 			manualStableReport.stable
@@ -861,6 +872,7 @@ function captureManualPhotoFrame(): void {
 	manualCaptureState.baseCanvas = baseCanvas;
 	manualCaptureState.imageWidth = captureWidth;
 	manualCaptureState.imageHeight = captureHeight;
+	manualCaptureState.requiresRetakeAfterSolve = false;
 	resetManualPoints( true );
 	manualCanvasElement.width = captureWidth;
 	manualCanvasElement.height = captureHeight;
@@ -927,18 +939,18 @@ function updateManualCaptureUi(): void {
 	const sampleCount = manualReport.sampleCount;
 	manualStageElement.textContent = manualCaptureState.lastLocalization === null
 		? `已点 ${pointCount} / 4 · 样本 ${sampleCount} / ${MANUAL_SAMPLE_TARGET_COUNT}`
-		: `当前照片已解算 · 样本 ${sampleCount} / ${MANUAL_SAMPLE_TARGET_COUNT}`;
+		: `当前照片已计算 · 样本 ${sampleCount} / ${MANUAL_SAMPLE_TARGET_COUNT}`;
 	manualHintElement.textContent = manualCaptureState.lastLocalization === null
-		? `请按顺序点击 marker 四个角：${cornerNames.join( '、' )}。点完后可拖拽微调，放大镜会跟随显示局部。`
-		: '当前照片位姿已解算。你可以继续重新拍照累计样本，或直接保存稳定结果。';
+		? `请按顺序点击 marker 四个角：${cornerNames.join( '、' )}。点完后可以拖拽微调，放大镜会跟随显示局部。`
+		: '当前照片位姿已计算。下一次样本必须先重新拍照，再继续点四角计算。';
 	manualStatusElement.textContent = manualCaptureState.lastLocalization === null
 		? (
 			pointCount < 4
 				? `下一点：${cornerNames[ pointCount ] ?? '完成'}`
 				: '已选满 4 点，可以开始计算位姿。'
 		)
-		: `当前重投影误差 ${manualCaptureState.lastReprojectionErrorPx?.toFixed( 2 ) ?? '-'} px。`;
-	manualSolveButton.disabled = pointCount !== 4;
+		: `当前重投影误差 ${manualCaptureState.lastReprojectionErrorPx?.toFixed( 2 ) ?? '-'} px，请重新拍照后继续下一次样本。`;
+	manualSolveButton.disabled = pointCount !== 4 || manualCaptureState.requiresRetakeAfterSolve;
 
 }
 
@@ -1243,7 +1255,9 @@ function setStabilityState(report: MarkerLocalizationStabilityReport): void {
 		: `${report.averagedSiteOriginArPosition.x.toFixed( 4 )}, ${report.averagedSiteOriginArPosition.y.toFixed( 4 )}, ${report.averagedSiteOriginArPosition.z.toFixed( 4 )}`;
 	stabilityAveragedHeadingElement.textContent = formatOptionalNumber( report.averagedHeadingDeg, 4 );
 	stabilityReasonElement.textContent = report.reason ?? '-';
-	saveStableButton.disabled = report.stable === false;
+	const saveDisabled = report.stable === false;
+	saveStableButton.disabled = saveDisabled;
+	manualSaveStableButton.disabled = saveDisabled;
 
 }
 

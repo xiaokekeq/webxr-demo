@@ -35,12 +35,11 @@ export function ArRuntimeView(props: {
 	const showGuidance = usePlacementGuidance( engine.arSessionPhase );
 	const canInspect = engine.arSessionPhase === 'placed';
 	const canOpenBrowse = engine.arSessionPhase === 'placed' || showPlacementUi;
-	const placeActionLabel = engine.arSessionPhase === 'ready-to-place' ? '固定放置' : '继续扫描';
-	const drawerToggleLabel = state.ui.drawerOpen ? '收起面板' : `展开${getWorkspaceLabel( engine.workspaceMode )}`;
+	const drawerToggleLabel = state.ui.drawerOpen ? '鏀惰捣闈㈡澘' : `灞曞紑${getWorkspaceLabel( engine.workspaceMode )}`;
 	const displayModeLabel = getDisplayModeLabel( engine.displayMode );
 	const subtitle = `${getWorkspaceLabel( engine.workspaceMode )} / ${getPhaseLabel( engine.arSessionPhase )} / ${displayModeLabel} / RMS ${engine.registrationMetrics.rmsText}`;
 	const showTargetGuidance = engine.arSessionPhase === 'placed' && engine.targetGuidance.visible;
-	const showCoarsePlacementDebug = engine.autoPreviewPlacementEnabled === false;
+	const showCoarsePlacementDebug = true;
 	const showManualAdjustmentOverlay = engine.workspaceMode === 'registration'
 		&& state.ui.registrationView === 'manual'
 		&& engine.appMode === 'ar-session';
@@ -52,7 +51,7 @@ export function ArRuntimeView(props: {
 	const [ targetGuidanceHidden, setTargetGuidanceHidden ] = useState( false );
 	const showTargetGuidanceCard = showTargetGuidance && targetGuidanceHidden === false;
 	const showTargetGuidanceToggle = showTargetGuidance && targetGuidanceHidden;
-	const visualizationSliderLabel = getDisplayModeSliderLabel( engine.displayMode ) ?? '显示强度';
+	const visualizationSliderLabel = getDisplayModeSliderLabel( engine.displayMode ) ?? '鏄剧ず寮哄害';
 	const visualizationSliderValueText = getDisplayModeSliderValueText(
 		engine.displayMode,
 		engine.structureRevealValue
@@ -71,9 +70,8 @@ export function ArRuntimeView(props: {
 				<ArStatusBar
 					title={engine.projectName}
 					subtitle={subtitle}
-					status={engine.arSessionPhase === 'ready-to-place' ? '固定放置' : getPhaseLabel( engine.arSessionPhase )}
-					onStatusClick={showPlacementUi ? () => void actions.placeModel() : undefined}
-					statusDisabled={engine.arSessionPhase !== 'ready-to-place'}
+					status={engine.arSessionPhase === 'ready-to-place' ? '鍥哄畾鏀剧疆' : getPhaseLabel( engine.arSessionPhase )}
+					statusDisabled={true}
 				/>
 
 				{showPlacementUi && showGuidance ? (
@@ -90,7 +88,7 @@ export function ArRuntimeView(props: {
 					<div className={ `target-guidance-card target-guidance-card--${engine.targetGuidance.alignment}` }>
 						<div className="target-guidance-card__header">
 							<div className="target-guidance-card__summary">
-								<div className="target-guidance-card__eyebrow">当前暂未看到模型</div>
+								<div className="target-guidance-card__eyebrow">褰撳墠鏆傛湭鐪嬪埌妯″瀷</div>
 								<div className="target-guidance-card__direction">{engine.targetGuidance.directionText}</div>
 								<div className="target-guidance-card__distance">{engine.targetGuidance.distanceText}</div>
 							</div>
@@ -101,7 +99,7 @@ export function ArRuntimeView(props: {
 									setTargetGuidanceHidden( true );
 								} }
 							>
-								隐藏提示
+								闅愯棌鎻愮ず
 							</button>
 						</div>
 						<p>{engine.targetGuidance.detailText}</p>
@@ -119,7 +117,7 @@ export function ArRuntimeView(props: {
 							setTargetGuidanceHidden( false );
 						} }
 					>
-						显示提示
+						鏄剧ず鎻愮ず
 					</button>
 				) : null}
 
@@ -127,9 +125,15 @@ export function ArRuntimeView(props: {
 
 				{showPlacementUi ? (
 					<div className="primary-bar">
-						<ActionButton label="退出 AR" onClick={actions.exitAr} kind="secondary" />
+						<ActionButton label="閫€鍑?AR" onClick={actions.exitAr} kind="secondary" />
 						<ActionButton
-							label={placeActionLabel}
+							label="临时放平面"
+							onClick={actions.placeModelAtHitTest}
+							kind="secondary"
+							disabled={engine.arSessionPhase !== 'ready-to-place'}
+						/>
+						<ActionButton
+							label="按定位固定"
 							onClick={() => void actions.placeModel()}
 							kind="primary"
 							disabled={engine.arSessionPhase !== 'ready-to-place'}

@@ -1,7 +1,6 @@
 import type React from 'react';
 import type { AppActions, AppState } from '../store/ar-state.js';
 import { ActionButton } from '../components/ActionButton.js';
-import { SelectField } from '../components/SelectField.js';
 import { PanelSection } from '../components/PanelCard.js';
 
 const MAX_MARKER_RESULT_AGE_SECONDS = 300;
@@ -120,21 +119,16 @@ export function RegistrationPanel(props: {
 					Pivot offset: {engine.modelScaleSummary.pivotOffsetText}
 				</p>
 
-				<SelectField
-					label="面前预览（仅调试）"
-					value={engine.autoPreviewPlacementEnabled ? 'enabled' : 'disabled'}
-					onChange={ ( value ) => actions.setAutoPreviewPlacementEnabled( value === 'enabled' ) }
-					options={[
-						{ value: 'disabled', label: '关闭：按真实位置固定到现场' },
-						{ value: 'enabled', label: '开启：按当前面前预览位置固定放置' }
-					]}
-				/>
-
 				<div className="button-row">
 					<ActionButton label="Reset placement" onClick={actions.resetPlacement} kind="primary" />
 					<ActionButton label="Re-run coarse registration" onClick={ () => void actions.enableCoarseRegistration() } />
 					<ActionButton label="Refresh location" onClick={ () => void actions.refreshGeoLocation() } />
 				</div>
+
+				<p className="note-block">
+					临时放置到平面：只使用当前 hit-test 命中位置，不使用 GPS / Marker / 工程配准结果。<br />
+					按定位固定：使用 hit-test 平面作为现场锚点，并叠加当前定位/配准结果完成正式放置。
+				</p>
 
 				<div className="button-row">
 					<ActionButton

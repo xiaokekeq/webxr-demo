@@ -152,7 +152,6 @@ export interface RegistrationStoreState {
 	propertyPanel: PropertyPanelState;
 	manualReadout: ManualReadoutState;
 	manualAdjustmentPreset: ManualAdjustmentPreset;
-	autoPreviewPlacementEnabled: boolean;
 	registrationMetrics: RegistrationMetricsState;
 	modelScaleSummary: ModelScaleSummaryState;
 	registrationChainDebug: RegistrationChainDebugState;

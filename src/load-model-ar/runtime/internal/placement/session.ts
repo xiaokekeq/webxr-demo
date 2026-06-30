@@ -8,7 +8,7 @@ import { createDefaultTargetGuidanceState } from '../../../registration/registra
 import { createPlacementSummaryState } from '../runtime/view-state.js';
 import {
 	createAutoPlacementBase,
-	createFrontPreviewPlacementBase,
+	createHitTestPlacementBase,
 	createPlacementBaseFromArLocalizationSolution,
 	createDesktopPreviewBase,
 	placeAdjustedModel
@@ -21,7 +21,6 @@ type ArPlacementSource =
 	| 'coarse-registration'
 	| 'marker'
 	| 'manual'
-	| 'front-preview'
 	| 'unknown';
 
 interface TrackedArPlacementTransform {
@@ -41,9 +40,6 @@ const tempLocalOrientation = new THREE.Quaternion();
 
 interface CreatePlacementSessionOptions {
 	store: {
-		getState(): {
-			autoPreviewPlacementEnabled: boolean;
-		};
 		patch(partialState: {
 			placementSummary?: ReturnType<typeof createPlacementSummaryState>;
 			targetGuidance?: ReturnType<typeof createDefaultTargetGuidanceState>;
@@ -58,9 +54,6 @@ interface CreatePlacementSessionOptions {
 	defaultDesktopPreviewBadge: string;
 	desktopPreviewBadge: string;
 	previewDirection: THREE.Vector3;
-	maxVisibleAutoPlacementDistanceMeters: number;
-	maxReliableGpsAccuracyMeters: number;
-	previewPlacementDistanceMeters: number;
 }
 
 export interface PlacementSession {
@@ -72,6 +65,18 @@ export interface PlacementSession {
 	markCoarsePlacementPending(): void;
 	resetPlacement(): void;
 	requestAutoPlacement(modelTemplate: THREE.Group | null): void;
+	placeAtHitTest(args: {
+		xrHitTest: XRHitTestController;
+		modelTemplate: THREE.Group | null;
+		registrationSolution: EngineeringRegistrationSolution | null;
+		manualApplyToPlacement(
+			base: ManualPlacementBase,
+			targetPosition: THREE.Vector3,
+			targetOrientation: THREE.Quaternion
+		): { position: THREE.Vector3; orientation: THREE.Quaternion; scale: number };
+		manualPositionTarget: THREE.Vector3;
+		manualOrientationTarget: THREE.Quaternion;
+	}): boolean;
 	attemptCoarsePlacement(args: {
 		xrHitTest: XRHitTestController;
 		modelTemplate: THREE.Group | null;
@@ -144,8 +149,7 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 		canUsePreviewLayout,
 		defaultDesktopPreviewBadge,
 		desktopPreviewBadge,
-		previewDirection,
-		previewPlacementDistanceMeters
+		previewDirection
 	} = options;
 
 	let previewPlacedModel: THREE.Group | null = null;
@@ -411,6 +415,62 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 
 		},
 
+		placeAtHitTest(args) {
+
+			const {
+				xrHitTest,
+				modelTemplate,
+				registrationSolution,
+				manualApplyToPlacement,
+				manualPositionTarget,
+				manualOrientationTarget
+			} = args;
+
+			if (
+				sceneBundle.renderer.xr.isPresenting === false
+				|| modelTemplate === null
+				|| registrationSolution === null
+				|| xrHitTest.hasGroundHit() === false
+			) {
+				return false;
+			}
+
+			const groundPosition = xrHitTest.getHitPosition( new THREE.Vector3() );
+			if ( groundPosition === null ) {
+				updateRegistrationStatusDetail( '状态：等待识别平面' );
+				return false;
+			}
+
+			arPlacementBase = createHitTestPlacementBase( {
+				camera: sceneBundle.renderer.xr.getCamera(),
+				groundPosition,
+				modelTemplate,
+				registrationSolution
+			} );
+			const adjustedPlacement = manualApplyToPlacement(
+				arPlacementBase,
+				manualPositionTarget,
+				manualOrientationTarget
+			);
+			const usesAnchorRoot = tryActivateAnchorFromHit( xrHitTest, 'hit-test' );
+			const finalPlacement = usesAnchorRoot
+				? resolvePlacementRelativeToAnchor( adjustedPlacement )
+				: adjustedPlacement;
+
+			arPlacedModel = placeAdjustedModel( {
+				modelTemplate,
+				placedModel: arPlacedModel,
+				modelAnchor: sceneBundle.arModelAnchor,
+				adjustedPlacement: finalPlacement
+			} );
+			coarsePlacementPending = false;
+			updateRegistrationStatusDetail( '状态：模型已放置' );
+			updatePlacementSummary();
+			trackArPlacement( 'hit-test' );
+			return true;
+
+		},
+
 		attemptCoarsePlacement(args) {
 
 			const {
@@ -426,19 +486,18 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 				cameraWorldPosition,
 				onPlacementBaseResolved
 			} = args;
-			const previewPlacementRequested = store.getState().autoPreviewPlacementEnabled;
 
 			if (
 				coarsePlacementPending === false
 				|| modelTemplate === null
 				|| registrationSolution === null
-				|| ( previewPlacementRequested === false && xrHitTest.hasGroundHit() === false )
+				|| xrHitTest.hasGroundHit() === false
 			) {
 				return;
 			}
 
 			const groundPosition = xrHitTest.getHitPosition( new THREE.Vector3() );
-			if ( groundPosition === null && previewPlacementRequested === false ) {
+			if ( groundPosition === null ) {
 				updateRegistrationStatusDetail( '状态：等待识别平面' );
 				return;
 			}
@@ -446,47 +505,6 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 
 			let estimate: CoarsePlacementEstimate | null = null;
 			let usedMarkerOverride = false;
-
-			if ( previewPlacementRequested ) {
-				if ( groundPosition === null ) {
-					updateRegistrationStatusDetail( '状态：面前预览等待识别平面' );
-					setStatus( '面前预览需要先识别地面或桌面，识别到平面后才会贴地放置模型。' );
-					return;
-				}
-
-				xrPlacementCamera.getWorldPosition( cameraWorldPosition );
-				arPlacementBase = createFrontPreviewPlacementBase( {
-					camera: xrPlacementCamera,
-					groundPosition,
-					modelTemplate,
-					registrationSolution,
-					modelOrientationTarget
-				} );
-
-				coarsePlacementPending = false;
-				onPlacementBaseResolved?.( arPlacementBase );
-				const adjustedPlacement = manualApplyToPlacement(
-					arPlacementBase,
-					manualPositionTarget,
-					manualOrientationTarget
-				);
-				const usesAnchorRoot = tryActivateAnchorFromHit( xrHitTest, 'front-preview' );
-				const finalPlacement = usesAnchorRoot
-					? resolvePlacementRelativeToAnchor( adjustedPlacement )
-					: adjustedPlacement;
-
-				arPlacedModel = placeAdjustedModel( {
-					modelTemplate,
-					placedModel: arPlacedModel,
-					modelAnchor: sceneBundle.arModelAnchor,
-					adjustedPlacement: finalPlacement
-				} );
-				updateRegistrationStatusDetail( '状态：模型已放置' );
-				updatePlacementSummary();
-				setStatus( '已按当前识别平面位置固定放置模型。' );
-				trackArPlacement( 'front-preview' );
-				return;
-			}
 
 			if ( arFromEnuSolutionOverride !== null && arFromEnuSolutionOverride !== undefined ) {
 				arPlacementBase = createPlacementBaseFromArLocalizationSolution( {
@@ -509,19 +527,11 @@ export function createPlacementSession(options: CreatePlacementSessionOptions): 
 					return;
 				}
 
-				const usePreviewPlacement = false;
-
 				arPlacementBase = createAutoPlacementBase( {
-					camera: xrPlacementCamera,
-					cameraWorldPosition,
-					groundY: groundPosition.y,
-					groundPosition,
 					estimate,
 					modelTemplate,
 					registrationSolution,
-					modelOrientationTarget,
-					previewDistanceMeters: previewPlacementDistanceMeters,
-					usePreviewPlacement
+					modelOrientationTarget
 				} );
 
 			}

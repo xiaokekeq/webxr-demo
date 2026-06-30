@@ -90,9 +90,6 @@ import {
 } from '../shared/display-modes.js';
 import { formatGeodetic } from '../shared/formatters.js';
 
-const MAX_VISIBLE_AUTO_PLACEMENT_DISTANCE_METERS = 8;
-const MAX_RELIABLE_GPS_ACCURACY_METERS = 15;
-const PREVIEW_PLACEMENT_DISTANCE_METERS = 2.5;
 const MAX_LOG_ITEMS = 24;
 const DEFAULT_DESKTOP_PREVIEW_BADGE = '3D 预览区域';
 const DESKTOP_PREVIEW_BADGE = '3D 预览区域 / 可旋转、平移、缩放';
@@ -154,7 +151,6 @@ function createInitialState(): RegistrationStoreState {
 			scaleText: '1.000x'
 		},
 		manualAdjustmentPreset: 'fine',
-		autoPreviewPlacementEnabled: false,
 		registrationMetrics: {
 			gpsText: '-',
 			enuText: '-',
@@ -304,10 +300,7 @@ export class ThreeEngine {
 			canUsePreviewLayout: () => this.isDesktopLayout || this.store.getState().appMode === 'pre-ar',
 			defaultDesktopPreviewBadge: DEFAULT_DESKTOP_PREVIEW_BADGE,
 			desktopPreviewBadge: DESKTOP_PREVIEW_BADGE,
-			previewDirection: DESKTOP_PREVIEW_DIRECTION,
-			maxVisibleAutoPlacementDistanceMeters: MAX_VISIBLE_AUTO_PLACEMENT_DISTANCE_METERS,
-			maxReliableGpsAccuracyMeters: MAX_RELIABLE_GPS_ACCURACY_METERS,
-			previewPlacementDistanceMeters: PREVIEW_PLACEMENT_DISTANCE_METERS
+			previewDirection: DESKTOP_PREVIEW_DIRECTION
 		} );
 
 		this.displayModeController = createDisplayModeController( {
@@ -1063,18 +1056,6 @@ export class ThreeEngine {
 
 	}
 
-	setAutoPreviewPlacementEnabled(enabled: boolean): void {
-
-		this.store.patch( { autoPreviewPlacementEnabled: enabled } );
-		this.setStatus(
-			enabled
-				? '已开启面前预览。点击放置时会按当前手机前方预览位置固定到 AR 空间。'
-				: '已关闭面前预览。放置时将按真实目标位置固定到 AR 空间。'
-		);
-		this.emit();
-
-	}
-
 	enterAr(): void {
 
 		if ( this.store.getState().arSupportState !== 'supported' ) {
@@ -1094,8 +1075,7 @@ export class ThreeEngine {
 			return;
 		}
 
-		const previewPlacementRequested = this.store.getState().autoPreviewPlacementEnabled;
-		if ( previewPlacementRequested === false && this.xrRuntime.getHitTestController().hasGroundHit() === false ) {
+		if ( this.xrRuntime.getHitTestController().hasGroundHit() === false ) {
 			this.setStatus( '请先扫描地面或墙面，再开始放置。' );
 			return;
 		}
@@ -1105,11 +1085,7 @@ export class ThreeEngine {
 			return;
 		}
 
-		if (
-			previewPlacementRequested === false
-			&& this.activeMarkerArFromEnuSolution === null
-			&& this.coarseRegistration.canEstimate() === false
-		) {
+		if ( this.activeMarkerArFromEnuSolution === null && this.coarseRegistration.canEstimate() === false ) {
 			try {
 				this.setStatus( '正在准备粗配准数据。' );
 				await this.warmupCoarseRegistration();
@@ -1125,11 +1101,7 @@ export class ThreeEngine {
 			}
 		}
 
-		if (
-			previewPlacementRequested === false
-			&& this.activeMarkerArFromEnuSolution === null
-			&& this.coarseRegistration.canEstimate() === false
-		) {
+		if ( this.activeMarkerArFromEnuSolution === null && this.coarseRegistration.canEstimate() === false ) {
 			this.setStatus( this.coarseRegistration.getMissingRequirementMessage() );
 			return;
 		}
@@ -1870,6 +1842,49 @@ export class ThreeEngine {
 
 	}
 
+	placeModelAtHitTest(): void {
+
+		if ( this.sceneBundle.renderer.xr.isPresenting === false ) {
+			this.setStatus( 'AR 会话尚未启动。' );
+			return;
+		}
+
+		if ( this.xrRuntime.getHitTestController().hasGroundHit() === false ) {
+			this.setStatus( '请先扫描地面或桌面，再执行临时放置。' );
+			return;
+		}
+
+		if ( this.modelTemplate === null || this.registrationSolution === null ) {
+			this.setStatus( '模型资源尚未准备完成。' );
+			return;
+		}
+
+		this.propertySelection.clearSelection();
+		this.pointerSelection.suppressSelectionFor( 1200 );
+		const placed = this.placementSession.placeAtHitTest( {
+			xrHitTest: this.xrRuntime.getHitTestController(),
+			modelTemplate: this.modelTemplate,
+			registrationSolution: this.registrationSolution,
+			manualApplyToPlacement: this.manualRegistration.applyToPlacement,
+			manualPositionTarget: this.manualPosition,
+			manualOrientationTarget: this.manualOrientation
+		} );
+		this.syncArSessionPhase();
+
+		if ( placed === false ) {
+			this.setStatus( '已识别到平面，但临时放置未完成，请重试。' );
+			return;
+		}
+
+		this.arSessionStateRuntime.markPlacementCommitted( true );
+		this.refreshActiveManualRegistrationSitePose();
+		this.applyModelLayerVisibility();
+		this.syncSceneHost();
+		this.setStatus( '已按当前 hit-test 平面临时放置模型，不使用定位/配准结果。' );
+		this.emit();
+
+	}
+
 	private syncAnnotationLabels(): void {
 
 		const state = this.store.getState();
@@ -2052,7 +2067,6 @@ export class ThreeEngine {
 	private updateTargetGuidance(): void {
 
 		const nextGuidance = this.sceneBundle.renderer.xr.isPresenting
-			&& this.store.getState().autoPreviewPlacementEnabled === false
 			? computeTargetGuidanceState(
 				this.placementSession.getPlacedModel(),
 				this.sceneBundle.renderer.xr.getCamera()

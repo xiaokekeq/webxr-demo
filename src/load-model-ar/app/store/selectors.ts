@@ -54,7 +54,7 @@ export function getGuidanceContent(
 	if ( phase === 'ready-to-place' ) {
 		return {
 			title: '已识别到平面',
-			body: '确认目标位置稳定后，点击开始放置模型。'
+			body: '可先临时放到当前 hit-test 平面，也可按定位/配准结果执行正式固定放置。'
 		};
 	}
 
@@ -67,7 +67,7 @@ export function getGuidanceContent(
 
 	return {
 		title: '正在识别平面',
-		body: '缓慢移动手机，让地面或墙面持续出现在画面中。'
+		body: '缓慢移动手机，让地面或桌面持续出现在画面中。'
 	};
 
 }

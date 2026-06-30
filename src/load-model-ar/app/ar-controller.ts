@@ -57,7 +57,6 @@ export interface LoadModelArController {
 		clearSavedMarkerLocalization(): void;
 		resetPlacement(): void;
 		setManualAdjustmentPreset(preset: ManualAdjustmentPreset): void;
-		setAutoPreviewPlacementEnabled(enabled: boolean): void;
 		adjustTranslation(axis: 'x' | 'y' | 'z', direction: 1 | -1): void;
 		adjustYaw(direction: 1 | -1): void;
 		adjustScale(direction: 1 | -1): void;
@@ -65,6 +64,7 @@ export interface LoadModelArController {
 		resetManualRegistration(): void;
 		clearSavedRegistration(): void;
 		enterAr(): void;
+		placeModelAtHitTest(): void;
 		placeModel(): Promise<void>;
 		exitAr(): void;
 		setRegistrationView(view: RegistrationView): void;
@@ -338,12 +338,6 @@ export function createLoadModelArController(): LoadModelArController {
 
 			},
 
-			setAutoPreviewPlacementEnabled(enabled) {
-
-				engine.setAutoPreviewPlacementEnabled( enabled );
-
-			},
-
 			adjustTranslation(axis, direction) {
 
 				engine.adjustTranslation( axis, direction );
@@ -383,6 +377,12 @@ export function createLoadModelArController(): LoadModelArController {
 			enterAr() {
 
 				engine.enterAr();
+
+			},
+
+			placeModelAtHitTest() {
+
+				engine.placeModelAtHitTest();
 
 			},
 

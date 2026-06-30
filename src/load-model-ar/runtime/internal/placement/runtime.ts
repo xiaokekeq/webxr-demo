@@ -10,116 +10,34 @@ import { composeModelQuaternionInAr } from '../../../registration/engineering-re
 import type { ManualPlacementBase } from '../../../registration/manual-registration.js';
 import { placeModelAt } from '../../model.js';
 import type { CoarsePlacementEstimate } from '../../../shared/types.js';
-import { getPlacementResidualScale, getPreviewPlacementPosition } from './camera-fit.js';
+import { getPlacementResidualScale } from './camera-fit.js';
 
 const tempEuler = new THREE.Euler();
 const tempSiteOffset = new THREE.Vector3();
-const tempFrontPreviewQuaternion = new THREE.Quaternion();
-const tempFrontPreviewNorth = new THREE.Vector3();
+const tempHitTestPlacementQuaternion = new THREE.Quaternion();
+const tempHitTestPlacementNorth = new THREE.Vector3();
 
 export function createAutoPlacementBase(options: {
-	camera: THREE.Camera;
-	cameraWorldPosition: THREE.Vector3;
-	groundY: number;
-	groundPosition: THREE.Vector3;
 	estimate: CoarsePlacementEstimate;
 	modelTemplate: THREE.Group;
 	registrationSolution: EngineeringRegistrationSolution;
 	modelOrientationTarget: THREE.Quaternion;
-	previewDistanceMeters: number;
-	usePreviewPlacement: boolean;
 }): ManualPlacementBase {
 
 	const {
-		camera,
-		cameraWorldPosition,
-		groundY,
-		groundPosition,
 		estimate,
 		modelTemplate,
 		registrationSolution,
-		modelOrientationTarget,
-		previewDistanceMeters,
-		usePreviewPlacement
-	} = options;
-
-	if ( usePreviewPlacement === false ) {
-		return createPlacementBaseFromArLocalizationSolution( {
-			arFromEnuSolution: createArFromEnuSolution( {
-				position: estimate.position,
-				orientation: estimate.orientation,
-				headingDeg: estimate.headingDeg,
-				source: 'gps-imu',
-				accuracyMeters: estimate.accuracyMeters ?? undefined
-			} ),
-			modelTemplate,
-			registrationSolution,
-			modelOrientationTarget
-		} );
-	}
-
-	const position = getPreviewPlacementPosition(
-		camera,
-		cameraWorldPosition,
-		groundY,
-		previewDistanceMeters
-	).clone();
-	const baseScale = getPlacementResidualScale( modelTemplate, registrationSolution.modelToSite.scale );
-
-	return {
-		position,
-		orientation: flattenQuaternionToYaw(
-			composeModelQuaternionInAr(
-				estimate.orientation,
-				registrationSolution,
-				modelOrientationTarget
-			),
-			modelOrientationTarget
-		).clone(),
-		scale: baseScale,
-		scaleAnchor: position.clone(),
-		siteContext: {
-			siteOriginArPosition: estimate.position.clone(),
-			headingDeg: estimate.headingDeg,
-			baseScale,
-			source: 'gps-imu',
-			timestamp: Date.now(),
-			accuracyMeters: estimate.accuracyMeters ?? undefined
-		}
-	};
-
-}
-
-export function createFrontPreviewPlacementBase(options: {
-	camera: THREE.Camera;
-	groundPosition: THREE.Vector3;
-	modelTemplate: THREE.Group;
-	registrationSolution: EngineeringRegistrationSolution;
-	modelOrientationTarget: THREE.Quaternion;
-}): ManualPlacementBase {
-
-	const {
-		camera,
-		groundPosition,
-		modelTemplate,
-		registrationSolution,
 		modelOrientationTarget
 	} = options;
-	const frontPreviewOrientation = flattenQuaternionToYaw(
-		camera.getWorldQuaternion( tempFrontPreviewQuaternion ),
-		modelOrientationTarget
-	).clone();
-	const headingDeg = extractHeadingDegFromPreviewOrientation( frontPreviewOrientation );
 
-	// Front preview should still be ground-locked. Reuse the same
-	// ENU -> AR-local placement composition as formal placement so models
-	// with non-zero engineering translation do not appear floating.
 	return createPlacementBaseFromArLocalizationSolution( {
 		arFromEnuSolution: createArFromEnuSolution( {
-			position: groundPosition.clone(),
-			orientation: frontPreviewOrientation,
-			headingDeg,
-			source: 'unknown'
+			position: estimate.position,
+			orientation: estimate.orientation,
+			headingDeg: estimate.headingDeg,
+			source: 'gps-imu',
+			accuracyMeters: estimate.accuracyMeters ?? undefined
 		} ),
 		modelTemplate,
 		registrationSolution,
@@ -168,6 +86,42 @@ export function createPlacementBaseFromArLocalizationSolution(options: {
 			source: arFromEnuSolution.source,
 			timestamp: arFromEnuSolution.timestamp,
 			accuracyMeters: arFromEnuSolution.accuracyMeters
+		}
+	};
+
+}
+
+export function createHitTestPlacementBase(options: {
+	camera: THREE.Camera;
+	groundPosition: THREE.Vector3;
+	modelTemplate: THREE.Group;
+	registrationSolution: EngineeringRegistrationSolution;
+}): ManualPlacementBase {
+
+	const {
+		camera,
+		groundPosition,
+		modelTemplate,
+		registrationSolution
+	} = options;
+	const baseScale = getPlacementResidualScale( modelTemplate, registrationSolution.modelToSite.scale );
+	const orientation = flattenQuaternionToYaw(
+		camera.getWorldQuaternion( tempHitTestPlacementQuaternion ),
+		new THREE.Quaternion()
+	).clone();
+	const headingDeg = extractHeadingDegFromHitTestOrientation( orientation );
+
+	return {
+		position: groundPosition.clone(),
+		orientation,
+		scale: baseScale,
+		scaleAnchor: groundPosition.clone(),
+		siteContext: {
+			siteOriginArPosition: groundPosition.clone(),
+			headingDeg,
+			baseScale,
+			source: 'unknown',
+			timestamp: Date.now()
 		}
 	};
 
@@ -243,11 +197,11 @@ function flattenQuaternionToYaw(
 
 }
 
-function extractHeadingDegFromPreviewOrientation(orientation: THREE.Quaternion): number {
+function extractHeadingDegFromHitTestOrientation(orientation: THREE.Quaternion): number {
 
-	tempFrontPreviewNorth.set( 0, 1, 0 ).applyQuaternion( orientation );
+	tempHitTestPlacementNorth.set( 0, 1, 0 ).applyQuaternion( orientation );
 	return normalizeDegrees(
-		THREE.MathUtils.radToDeg( Math.atan2( - tempFrontPreviewNorth.x, - tempFrontPreviewNorth.z ) )
+		THREE.MathUtils.radToDeg( Math.atan2( - tempHitTestPlacementNorth.x, - tempHitTestPlacementNorth.z ) )
 	);
 
 }

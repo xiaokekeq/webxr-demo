@@ -40,13 +40,9 @@ interface SectionCutMeshHelpers {
 }
 
 const SECTION_CUT_TAGS = {
-	stencilHelper: '__sectionCutStencilHelper',
-	capPlane: '__sectionCutCapPlane'
+	stencilHelper: '__sectionCutStencilHelper'
 } as const;
 
-const SECTION_CUT_CAP_COLOR = 0xb6a48b;
-const SECTION_CUT_CAP_OPACITY = 0.96;
-const SECTION_CUT_CAP_PADDING = 0.02;
 const tempBounds = new THREE.Box3();
 const tempLocalBounds = new THREE.Box3();
 const tempGeometryBounds = new THREE.Box3();
@@ -54,13 +50,9 @@ const tempWorldBoundsCorner = new THREE.Vector3();
 const tempBoundsSize = new THREE.Vector3();
 const tempPoint = new THREE.Vector3();
 const tempPlaneNormal = new THREE.Vector3();
-const tempLocalPlaneNormal = new THREE.Vector3();
 const tempWorldQuaternion = new THREE.Quaternion();
 const tempInverseRootMatrixWorld = new THREE.Matrix4();
 const tempRelativeMatrix = new THREE.Matrix4();
-const tempPlaneQuaternion = new THREE.Quaternion();
-const unitPlaneGeometry = new THREE.PlaneGeometry( 1, 1 );
-const unitPlaneNormal = new THREE.Vector3( 0, 0, 1 );
 
 export function createArSectionCutController(renderer: THREE.WebGLRenderer): ArSectionCutController {
 
@@ -76,7 +68,6 @@ export function createArSectionCutController(renderer: THREE.WebGLRenderer): ArS
 	}>();
 	const meshSnapshots = new WeakMap<THREE.Mesh, { visible: boolean }>();
 	const meshHelpers = new WeakMap<THREE.Mesh, SectionCutMeshHelpers>();
-	const rootCapPlanes = new WeakMap<THREE.Object3D, THREE.Mesh>();
 	let currentRoot: THREE.Object3D | null = null;
 	let currentPlaneMode: SectionCutPlaneMode = 'horizontal-section';
 
@@ -105,7 +96,7 @@ export function createArSectionCutController(renderer: THREE.WebGLRenderer): ArS
 				cutPosition: 0,
 				axisMin: 0,
 				axisMax: 0,
-				meaning: 'move cutting plane to inspect section with cap fill'
+				meaning: 'move cutting plane to inspect section'
 			};
 		}
 
@@ -144,8 +135,6 @@ export function createArSectionCutController(renderer: THREE.WebGLRenderer): ArS
 			applyPlaneToStencilHelpers( helpers, plane );
 		} );
 
-		ensureCapPlane( modelRoot, axis, cutPosition, localBounds );
-
 		return {
 			value: nextValue,
 			planeMode: currentPlaneMode,
@@ -155,7 +144,7 @@ export function createArSectionCutController(renderer: THREE.WebGLRenderer): ArS
 			cutPosition,
 			axisMin,
 			axisMax,
-			meaning: 'move cutting plane to inspect section with cap fill'
+			meaning: 'move cutting plane to inspect section'
 		};
 
 	}
@@ -224,32 +213,6 @@ export function createArSectionCutController(renderer: THREE.WebGLRenderer): ArS
 
 	}
 
-	function ensureCapPlane(
-		modelRoot: THREE.Object3D,
-		axis: 'x' | 'y' | 'z',
-		cutPosition: number,
-		bounds: THREE.Box3
-	): void {
-
-		let capPlane = rootCapPlanes.get( modelRoot );
-		if ( capPlane === undefined ) {
-			capPlane = createCapPlaneMesh( renderer );
-			rootCapPlanes.set( modelRoot, capPlane );
-			modelRoot.add( capPlane );
-		}
-
-		const { width, height } = resolveCapPlaneSize( bounds, axis );
-		capPlane.scale.set( width + SECTION_CUT_CAP_PADDING, height + SECTION_CUT_CAP_PADDING, 1 );
-		capPlane.position.copy( bounds.getCenter( tempPoint ) );
-		capPlane.position[ axis ] = cutPosition;
-		capPlane.quaternion.copy(
-			tempPlaneQuaternion.setFromUnitVectors(
-				unitPlaneNormal,
-				tempLocalPlaneNormal.set( 0, 0, 0 ).setComponent( axisToIndex( axis ), 1 )
-			)
-		);
-	}
-
 	function restoreRoot(modelRoot: THREE.Object3D): ArSectionCutRestoreResult {
 
 		let restoredMaterialCount = 0;
@@ -271,8 +234,6 @@ export function createArSectionCutController(renderer: THREE.WebGLRenderer): ArS
 
 			removeMeshHelpers( child );
 		} );
-
-		removeCapPlane( modelRoot );
 
 		return {
 			mode: 'section-cut',
@@ -297,21 +258,6 @@ export function createArSectionCutController(renderer: THREE.WebGLRenderer): ArS
 			}
 		}
 		meshHelpers.delete( mesh );
-
-	}
-
-	function removeCapPlane(modelRoot: THREE.Object3D): void {
-
-		const capPlane = rootCapPlanes.get( modelRoot );
-		if ( capPlane === undefined ) {
-			return;
-		}
-
-		capPlane.removeFromParent();
-		if ( capPlane.material instanceof THREE.Material ) {
-			capPlane.material.dispose();
-		}
-		rootCapPlanes.delete( modelRoot );
 
 	}
 
@@ -351,46 +297,6 @@ function createStencilHelperMesh(
 	mesh.frustumCulled = false;
 	mesh.raycast = () => {};
 	mesh.userData[ SECTION_CUT_TAGS.stencilHelper ] = true;
-	return mesh;
-
-}
-
-function createCapPlaneMesh(renderer: THREE.WebGLRenderer): THREE.Mesh {
-
-	const material = new THREE.MeshStandardMaterial( {
-		color: SECTION_CUT_CAP_COLOR,
-		roughness: 1,
-		metalness: 0,
-		side: THREE.DoubleSide,
-		transparent: true,
-		opacity: SECTION_CUT_CAP_OPACITY,
-		depthWrite: true,
-		depthTest: true,
-		polygonOffset: true,
-		polygonOffsetFactor: -2,
-		polygonOffsetUnits: -2,
-		stencilWrite: true,
-		stencilFunc: THREE.NotEqualStencilFunc,
-		stencilRef: 0,
-		stencilFail: THREE.ReplaceStencilOp,
-		stencilZFail: THREE.ReplaceStencilOp,
-		stencilZPass: THREE.ReplaceStencilOp
-	} );
-
-	const mesh = new THREE.Mesh( unitPlaneGeometry, material );
-	mesh.name = '__section-cut-cap-plane';
-	mesh.renderOrder = 5;
-	mesh.frustumCulled = false;
-	mesh.raycast = () => {};
-	mesh.userData[ SECTION_CUT_TAGS.capPlane ] = true;
-	mesh.onAfterRender = () => {
-		if ( typeof renderer.clearStencil === 'function' ) {
-			renderer.clearStencil();
-			return;
-		}
-
-		renderer.clear( false, false, true );
-	};
 	return mesh;
 
 }
@@ -492,34 +398,6 @@ function resolvePlaneAxis(bounds: THREE.Box3, planeMode: SectionCutPlaneMode): '
 
 }
 
-function resolveCapPlaneSize(
-	bounds: THREE.Box3,
-	axis: 'x' | 'y' | 'z'
-): { width: number; height: number } {
-
-	bounds.getSize( tempBoundsSize );
-
-	switch ( axis ) {
-		case 'x':
-			return {
-				width: Math.max( 0.01, tempBoundsSize.z ),
-				height: Math.max( 0.01, tempBoundsSize.y )
-			};
-		case 'y':
-			return {
-				width: Math.max( 0.01, tempBoundsSize.x ),
-				height: Math.max( 0.01, tempBoundsSize.z )
-			};
-		case 'z':
-		default:
-			return {
-				width: Math.max( 0.01, tempBoundsSize.x ),
-				height: Math.max( 0.01, tempBoundsSize.y )
-			};
-	}
-
-}
-
 function axisToIndex(axis: 'x' | 'y' | 'z'): 0 | 1 | 2 {
 
 	switch ( axis ) {
@@ -536,7 +414,6 @@ function axisToIndex(axis: 'x' | 'y' | 'z'): 0 | 1 | 2 {
 function shouldProcessSectionCutMesh(mesh: THREE.Mesh): boolean {
 
 	return mesh.userData[ SECTION_CUT_TAGS.stencilHelper ] !== true
-		&& mesh.userData[ SECTION_CUT_TAGS.capPlane ] !== true
 		&& mesh.userData.__displayModeHelper !== true
 		&& mesh.userData.__nonSelectableHelper !== true
 		&& mesh.userData.__excludeFromLayerIndex !== true;

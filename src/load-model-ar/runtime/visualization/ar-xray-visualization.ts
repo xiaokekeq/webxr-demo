@@ -106,7 +106,7 @@ export function createArXrayVisualizationController(): ArXrayVisualizationContro
 			} );
 		}
 
-		if ( nextValue === 0 ) {
+		if ( nextValue === 100 ) {
 			const restoreReport = restoreRoot( args.modelRoot, materialSnapshots, meshSnapshots );
 			return createApplyResult( {
 				value: nextValue,
@@ -346,8 +346,7 @@ function buildFallbackMeshLayerDescriptors(modelRoot: THREE.Object3D): FallbackM
 
 function computeUniformOpacity(value: number): number {
 
-	const strength = clampPercentage( value ) / 100;
-	return THREE.MathUtils.clamp( 1 - strength * 0.82, 0.18, 1 );
+	return THREE.MathUtils.clamp( clampPercentage( value ) / 100, 0, 1 );
 
 }
 

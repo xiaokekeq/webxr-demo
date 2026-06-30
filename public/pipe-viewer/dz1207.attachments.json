@@ -1,0 +1,23 @@
+{
+  "attachments": [
+    {
+      "assetId": "stake-marker",
+      "world": {
+        "lon": 118.7360010705702,
+        "lat": 31.93998065985721,
+        "alt": 38.0738761295679,
+        "coordType": "WGS84"
+      },
+      "anchorMode": "bounds-center",
+      "yawDeg": 0,
+      "scaleMultiplier": 1,
+      "info": {
+        "title": "1号控制桩",
+        "code": "STAKE-01",
+        "type": "定位桩",
+        "status": "正常",
+        "remark": "作为桩号位置显示测试点，用于现场 AR 叠加校核。后续可继续在该 JSON 中扩展更多桩点。"
+      }
+    }
+  ]
+}

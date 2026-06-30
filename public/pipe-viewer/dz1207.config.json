@@ -77,25 +77,5 @@
       "yawDeg": 0
     }
   ],
-  "attachments": [
-    {
-      "assetId": "stake-marker",
-      "world": {
-        "lon": 118.7360010705702,
-        "lat": 31.93998065985721,
-        "alt": 38.0738761295679,
-        "coordType": "WGS84"
-      },
-      "anchorMode": "bounds-center",
-      "yawDeg": 0,
-      "scaleMultiplier": 1,
-      "info": {
-        "title": "1号控制桩",
-        "code": "STAKE-01",
-        "type": "定位桩",
-        "status": "正常",
-        "remark": "用于堤防边界定位与AR现场核查参考。"
-      }
-    }
-  ]
+  "attachmentsUrl": "/pipe-viewer/dz1207.attachments.json"
 }

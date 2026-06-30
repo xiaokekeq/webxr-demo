@@ -34,6 +34,15 @@ export interface DemoModelAttachmentInfo {
 	remark?: string;
 }
 
+interface RawDemoModelAttachmentShape {
+	assetId: string;
+	world: RawGeodeticCoordinateShape;
+	anchorMode?: DemoModelAttachment['anchorMode'];
+	yawDeg?: number;
+	scaleMultiplier?: number;
+	info?: DemoModelAttachmentInfo;
+}
+
 export interface MarkerEngineeringConfig {
 	id: string;
 	bindControlPointId?: string;
@@ -107,6 +116,8 @@ interface LocalDebugModelConfig {
 	scale?: number;
 	controlPoints?: LocalDebugControlPointShape[];
 	markers?: MarkerEngineeringConfig[];
+	attachments?: RawDemoModelAttachmentShape[];
+	attachmentsUrl?: string;
 }
 
 interface LegacyDemoModelConfig extends Omit<DemoModelConfig, 'siteFrame' | 'registration' | 'controlPoints'> {
@@ -117,17 +128,14 @@ interface LegacyDemoModelConfig extends Omit<DemoModelConfig, 'siteFrame' | 'reg
 		world: RawGeodeticCoordinateShape;
 	} | LegacyControlPointShape>;
 	markers?: MarkerEngineeringConfig[];
-	attachments?: Array<{
-		assetId: string;
-		world: RawGeodeticCoordinateShape;
-		anchorMode?: DemoModelAttachment['anchorMode'];
-		yawDeg?: number;
-		scaleMultiplier?: number;
-		info?: DemoModelAttachmentInfo;
-	}>;
+	attachments?: RawDemoModelAttachmentShape[];
+	attachmentsUrl?: string;
 }
 
 type RawDemoModelConfig = LegacyDemoModelConfig | LocalDebugModelConfig;
+type RawAttachmentCollection = RawDemoModelAttachmentShape[] | {
+	attachments: RawDemoModelAttachmentShape[];
+};
 
 export async function loadDemoModelConfig(
 	url: string,
@@ -142,7 +150,8 @@ export async function loadDemoModelConfig(
 	}
 
 	const raw = await response.json() as RawDemoModelConfig;
-	const normalized = normalizeDemoModelConfig( raw );
+	const enrichedRaw = await enrichDemoModelConfigAttachments( raw );
+	const normalized = normalizeDemoModelConfig( enrichedRaw );
 	validateDemoModelConfig( normalized );
 
 	console.info( '[Demo Model Config]', normalized );
@@ -251,7 +260,7 @@ function normalizeLocalDebugModelConfig(config: LocalDebugModelConfig): DemoMode
 		},
 		controlPoints: normalizedControlPoints,
 		markers: loadMarkerEngineeringConfigs( config.markers ),
-		attachments: []
+		attachments: normalizeAttachments( config.attachments )
 	};
 
 }
@@ -445,7 +454,7 @@ export function loadMarkerEngineeringConfigs(
 }
 
 function normalizeAttachments(
-	attachments: LegacyDemoModelConfig['attachments']
+	attachments: RawDemoModelAttachmentShape[] | undefined
 ): DemoModelAttachment[] {
 
 	if ( Array.isArray( attachments ) === false ) {
@@ -478,6 +487,63 @@ function normalizeAttachments(
 			info: normalizeAttachmentInfo( attachment.info )
 		};
 	} );
+
+}
+
+async function enrichDemoModelConfigAttachments(
+	config: RawDemoModelConfig
+): Promise<RawDemoModelConfig> {
+
+	const attachmentsUrl = resolveAttachmentsUrl( config );
+	if ( attachmentsUrl === undefined ) {
+		return config;
+	}
+
+	const externalAttachments = await loadExternalAttachments( attachmentsUrl );
+	if ( externalAttachments.length === 0 ) {
+		return {
+			...config,
+			attachments: [ ...( config.attachments ?? [] ) ]
+		};
+	}
+
+	return {
+		...config,
+		attachments: [ ...( config.attachments ?? [] ), ...externalAttachments ]
+	};
+
+}
+
+function resolveAttachmentsUrl(config: RawDemoModelConfig): string | undefined {
+
+	const candidate = 'attachmentsUrl' in config ? config.attachmentsUrl : undefined;
+	return typeof candidate === 'string' && candidate.trim().length > 0
+		? candidate.trim()
+		: undefined;
+
+}
+
+async function loadExternalAttachments(
+	url: string
+): Promise<RawDemoModelAttachmentShape[]> {
+
+	const response = await fetch( url );
+	if ( response.ok === false ) {
+		throw new Error( `Failed to load attachments config: HTTP ${response.status} (${url})` );
+	}
+
+	const parsed = await response.json() as RawAttachmentCollection;
+	const attachments = Array.isArray( parsed )
+		? parsed
+		: Array.isArray( parsed.attachments )
+			? parsed.attachments
+			: null;
+
+	if ( attachments === null ) {
+		throw new Error( `Attachments config must be an array or an object with attachments[]. (${url})` );
+	}
+
+	return attachments;
 
 }
 

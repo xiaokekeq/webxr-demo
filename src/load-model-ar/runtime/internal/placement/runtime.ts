@@ -105,34 +105,26 @@ export function createFrontPreviewPlacementBase(options: {
 		registrationSolution,
 		modelOrientationTarget
 	} = options;
-	const position = groundPosition.clone();
 	const frontPreviewOrientation = flattenQuaternionToYaw(
 		camera.getWorldQuaternion( tempFrontPreviewQuaternion ),
 		modelOrientationTarget
 	).clone();
-	const baseScale = getPlacementResidualScale( modelTemplate, registrationSolution.modelToSite.scale );
 	const headingDeg = extractHeadingDegFromPreviewOrientation( frontPreviewOrientation );
 
-	return {
-		position,
-		orientation: flattenQuaternionToYaw(
-			composeModelQuaternionInAr(
-				frontPreviewOrientation,
-				registrationSolution,
-				modelOrientationTarget
-			),
-			modelOrientationTarget
-		).clone(),
-		scale: baseScale,
-		scaleAnchor: position.clone(),
-		siteContext: {
-			siteOriginArPosition: position.clone(),
+	// Front preview should still be ground-locked. Reuse the same
+	// ENU -> AR-local placement composition as formal placement so models
+	// with non-zero engineering translation do not appear floating.
+	return createPlacementBaseFromArLocalizationSolution( {
+		arFromEnuSolution: createArFromEnuSolution( {
+			position: groundPosition.clone(),
+			orientation: frontPreviewOrientation,
 			headingDeg,
-			baseScale,
-			source: 'unknown',
-			timestamp: Date.now()
-		}
-	};
+			source: 'unknown'
+		} ),
+		modelTemplate,
+		registrationSolution,
+		modelOrientationTarget
+	} );
 
 }
 

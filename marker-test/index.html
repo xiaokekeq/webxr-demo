@@ -214,6 +214,19 @@
 				touch-action: none;
 			}
 
+			.marker-test__manual-magnifier {
+				position: fixed;
+				z-index: 44;
+				width: 144px;
+				height: 144px;
+				border-radius: 18px;
+				border: 1px solid rgba(167, 204, 255, 0.44);
+				background: rgba(5, 12, 24, 0.92);
+				box-shadow: 0 18px 34px rgba(0, 0, 0, 0.35);
+				backdrop-filter: blur(10px);
+				pointer-events: none;
+			}
+
 			.marker-test__manual-bottombar {
 				justify-content: space-between;
 			}
@@ -320,7 +333,7 @@
 	<body>
 		<div id="marker-camera-preview"></div>
 		<div id="marker-test-viewport"></div>
-			<div class="marker-test__guide" id="marker-test-guide-frame">
+		<div class="marker-test__guide" id="marker-test-guide-frame">
 			<div class="marker-test__guide-label" id="marker-test-guide-label">Place the marker inside frame</div>
 		</div>
 		<section class="marker-test__topbar">
@@ -346,11 +359,12 @@
 			<div class="marker-test__manual-topbar">
 				<div class="marker-test__manual-title">拍照手动点角</div>
 				<div class="marker-test__manual-stage" id="marker-test-manual-stage">等待拍照</div>
-				<div class="marker-test__manual-hint" id="marker-test-manual-hint">拍下当前画面后，按顺序点击 marker 四个角：左上、右上、右下、左下。</div>
+				<div class="marker-test__manual-hint" id="marker-test-manual-hint">拍下当前画面后，按顺序点 marker 四个角：左上、右上、右下、左下。</div>
 			</div>
 			<div class="marker-test__manual-canvas-wrap">
 				<canvas class="marker-test__manual-canvas" id="marker-test-manual-canvas"></canvas>
 			</div>
+			<canvas class="marker-test__manual-magnifier" id="marker-test-manual-magnifier" hidden></canvas>
 			<div class="marker-test__manual-bottombar">
 				<div class="marker-test__manual-status" id="marker-test-manual-status">准备就绪。</div>
 				<div class="marker-test__actions">

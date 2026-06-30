@@ -43,6 +43,10 @@ const ARJS_MARKER_SMOOTH_ENABLED = false;
 const ARJS_MARKER_SMOOTH_COUNT = 0;
 const ARJS_MARKER_SMOOTH_TOLERANCE = 0;
 const ARJS_MARKER_SMOOTH_THRESHOLD = 0;
+const MANUAL_SAMPLE_TARGET_COUNT = 4;
+const MANUAL_CORNER_DRAG_RADIUS_PX = 26;
+const MANUAL_MAGNIFIER_SIZE_PX = 144;
+const MANUAL_MAGNIFIER_ZOOM = 3;
 
 const MARKER_TEST_CONFIGS = {
 	dz1207: {
@@ -170,6 +174,10 @@ type ManualCornerCaptureState = {
 	baseCanvas: HTMLCanvasElement | null;
 	lastLocalization: MarkerLocalizationSolution | null;
 	lastPose: MarkerPoseInAr | null;
+	lastReprojectionErrorPx: number | null;
+	activePointIndex: number | null;
+	draggingPointerId: number | null;
+	magnifierPoint: ManualMarkerCornerPoint | null;
 };
 
 const viewportElement = getRequiredElement<HTMLDivElement>( 'marker-test-viewport' );
@@ -187,6 +195,7 @@ const guideFrameElement = getRequiredElement<HTMLDivElement>( 'marker-test-guide
 const guideLabelElement = getRequiredElement<HTMLDivElement>( 'marker-test-guide-label' );
 const manualOverlayElement = getRequiredElement<HTMLElement>( 'marker-test-manual-overlay' );
 const manualCanvasElement = getRequiredElement<HTMLCanvasElement>( 'marker-test-manual-canvas' );
+const manualMagnifierElement = getRequiredElement<HTMLCanvasElement>( 'marker-test-manual-magnifier' );
 const manualStageElement = getRequiredElement<HTMLDivElement>( 'marker-test-manual-stage' );
 const manualHintElement = getRequiredElement<HTMLDivElement>( 'marker-test-manual-hint' );
 const manualStatusElement = getRequiredElement<HTMLDivElement>( 'marker-test-manual-status' );
@@ -254,6 +263,10 @@ const tempPosition = new THREE.Vector3();
 const tempQuaternion = new THREE.Quaternion();
 const tempScale = new THREE.Vector3();
 const localizationStabilizer = new MarkerLocalizationStabilizer();
+const manualLocalizationStabilizer = new MarkerLocalizationStabilizer( {
+	minSampleCount: MANUAL_SAMPLE_TARGET_COUNT,
+	maxSampleAgeMs: 10 * 60 * 1000
+} );
 
 let renderer: THREE.WebGLRenderer | null = null;
 let scene: THREE.Scene | null = null;
@@ -291,7 +304,11 @@ const manualCaptureState: ManualCornerCaptureState = {
 	imageHeight: 0,
 	baseCanvas: null,
 	lastLocalization: null,
-	lastPose: null
+	lastPose: null,
+	lastReprojectionErrorPx: null,
+	activePointIndex: null,
+	draggingPointerId: null,
+	magnifierPoint: null
 };
 const currentConfigMode = resolveConfigMode();
 const currentConfigDefinition = MARKER_TEST_CONFIGS[ currentConfigMode ];
@@ -326,7 +343,11 @@ manualRetakeButton.addEventListener( 'click', handleManualRetakePhoto );
 manualResetPointsButton.addEventListener( 'click', handleManualResetPoints );
 manualSolveButton.addEventListener( 'click', handleManualSolvePose );
 manualCloseButton.addEventListener( 'click', handleManualClose );
-manualCanvasElement.addEventListener( 'click', handleManualCanvasClick );
+manualCanvasElement.addEventListener( 'pointerdown', handleManualCanvasPointerDown );
+manualCanvasElement.addEventListener( 'pointermove', handleManualCanvasPointerMove );
+manualCanvasElement.addEventListener( 'pointerup', handleManualCanvasPointerUp );
+manualCanvasElement.addEventListener( 'pointerleave', handleManualCanvasPointerUp );
+manualCanvasElement.addEventListener( 'pointercancel', handleManualCanvasPointerUp );
 
 void boot();
 
@@ -566,20 +587,26 @@ function updateVisibleState(state: 'visible' | 'lost' | 'manual'): void {
 
 function getEffectiveStabilityReport(): MarkerLocalizationStabilityReport {
 
-	return manualStableReport ?? localizationStabilizer.getReport();
+	if ( markerInputMode === 'manual-corners' || manualStableReport !== null ) {
+		return manualStableReport ?? manualLocalizationStabilizer.getReport();
+	}
+
+	return localizationStabilizer.getReport();
 
 }
 
 function handleOpenManualCorners(): void {
 
 	try {
+		manualLocalizationStabilizer.reset();
+		manualStableReport = null;
 		captureManualPhotoFrame();
 		markerInputMode = 'manual-corners';
 		manualOverlayElement.hidden = false;
 		manualCaptureState.isOpen = true;
-		manualStableReport = null;
 		updateVisibleState( 'manual' );
-		setStatus( 'Manual corner mode ready. Tap the 4 marker corners in order.' );
+		setStabilityState( getEffectiveStabilityReport() );
+		setStatus( 'Manual corner mode ready. Tap the 4 marker corners in order, then drag to fine tune.' );
 		console.info( '[ManualCornerCapture]', {
 			stage: 'opened',
 			imageWidth: manualCaptureState.imageWidth,
@@ -595,8 +622,7 @@ function handleManualRetakePhoto(): void {
 
 	try {
 		captureManualPhotoFrame();
-		manualStableReport = null;
-		setStatus( 'Photo retaken. Tap the 4 marker corners in order.' );
+		setStatus( 'Photo retaken. Tap the 4 marker corners in order, then drag to fine tune.' );
 		console.info( '[ManualCornerCapture]', {
 			stage: 'retaken',
 			imageWidth: manualCaptureState.imageWidth,
@@ -610,13 +636,10 @@ function handleManualRetakePhoto(): void {
 
 function handleManualResetPoints(): void {
 
-	manualCaptureState.points = [];
-	manualStableReport = null;
-	manualCaptureState.lastLocalization = null;
-	manualCaptureState.lastPose = null;
+	resetManualPoints( true );
 	redrawManualCanvas();
 	updateManualCaptureUi();
-	setStatus( 'Manual corner points reset.' );
+	setStatus( 'Manual corner points reset for the current photo.' );
 
 }
 
@@ -624,7 +647,8 @@ function handleManualClose(): void {
 
 	manualOverlayElement.hidden = true;
 	manualCaptureState.isOpen = false;
-	manualCaptureState.points = [];
+	resetManualPoints( false );
+	hideManualMagnifier();
 	updateManualCaptureUi();
 
 	if ( manualCaptureState.lastLocalization === null ) {
@@ -638,29 +662,43 @@ function handleManualClose(): void {
 
 }
 
-function handleManualCanvasClick(event: MouseEvent): void {
+function handleManualCanvasPointerDown(event: PointerEvent): void {
 
 	if ( manualCaptureState.isOpen === false || manualCaptureState.baseCanvas === null ) {
 		return;
 	}
 
+	const point = mapPointerEventToManualPoint( event );
+	if ( point === null ) {
+		return;
+	}
+
+	const existingPointIndex = findNearestManualPointIndex( point );
+	if ( existingPointIndex !== null ) {
+		manualCaptureState.activePointIndex = existingPointIndex;
+		manualCaptureState.draggingPointerId = event.pointerId;
+		manualCaptureState.magnifierPoint = point;
+		updateManualPoint( existingPointIndex, point, true );
+		manualCanvasElement.setPointerCapture( event.pointerId );
+		redrawManualCanvas();
+		updateManualCaptureUi();
+		return;
+	}
+
 	if ( manualCaptureState.points.length >= 4 ) {
+		manualCaptureState.activePointIndex = null;
+		manualCaptureState.draggingPointerId = null;
+		manualCaptureState.magnifierPoint = point;
+		redrawManualCanvas();
 		return;
 	}
-
-	const rect = manualCanvasElement.getBoundingClientRect();
-	if ( rect.width <= 0 || rect.height <= 0 ) {
-		return;
-	}
-
-	const scaleX = manualCanvasElement.width / rect.width;
-	const scaleY = manualCanvasElement.height / rect.height;
-	const point = {
-		x: ( event.clientX - rect.left ) * scaleX,
-		y: ( event.clientY - rect.top ) * scaleY
-	};
 
 	manualCaptureState.points.push( point );
+	manualCaptureState.activePointIndex = manualCaptureState.points.length - 1;
+	manualCaptureState.draggingPointerId = event.pointerId;
+	manualCaptureState.magnifierPoint = point;
+	invalidateManualSolveResult();
+	manualCanvasElement.setPointerCapture( event.pointerId );
 	redrawManualCanvas();
 	updateManualCaptureUi();
 
@@ -669,6 +707,52 @@ function handleManualCanvasClick(event: MouseEvent): void {
 		pointIndex: manualCaptureState.points.length,
 		point
 	} );
+
+}
+
+function handleManualCanvasPointerMove(event: PointerEvent): void {
+
+	if ( manualCaptureState.isOpen === false || manualCaptureState.baseCanvas === null ) {
+		return;
+	}
+
+	const point = mapPointerEventToManualPoint( event );
+	if ( point === null ) {
+		return;
+	}
+
+	manualCaptureState.magnifierPoint = point;
+
+	if (
+		manualCaptureState.draggingPointerId === event.pointerId
+		&& manualCaptureState.activePointIndex !== null
+	) {
+		updateManualPoint( manualCaptureState.activePointIndex, point, true );
+		updateManualCaptureUi();
+	}
+
+	redrawManualCanvas();
+
+}
+
+function handleManualCanvasPointerUp(event: PointerEvent): void {
+
+	if ( manualCaptureState.draggingPointerId !== event.pointerId ) {
+		manualCaptureState.magnifierPoint = null;
+		redrawManualCanvas();
+		return;
+	}
+
+	if ( manualCanvasElement.hasPointerCapture( event.pointerId ) ) {
+		manualCanvasElement.releasePointerCapture( event.pointerId );
+	}
+
+	manualCaptureState.draggingPointerId = null;
+	manualCaptureState.activePointIndex = null;
+	manualCaptureState.magnifierPoint = null;
+	redrawManualCanvas();
+	updateManualCaptureUi();
+
 }
 
 function handleManualSolvePose(): void {
@@ -702,24 +786,27 @@ function handleManualSolvePose(): void {
 
 		manualCaptureState.lastPose = markerPoseInAr.markerPoseInAr;
 		manualCaptureState.lastLocalization = localization;
+		manualCaptureState.lastReprojectionErrorPx = markerPoseInAr.reprojectionErrorPx;
+		const stabilizationReport = manualLocalizationStabilizer.addSample( localization );
 		manualStableReport = {
-			stable: true,
-			sampleCount: 1,
-			averageRmsErrorMeters: localization.rmsErrorMeters,
-			positionStdMeters: 0,
-			headingStdDeg: 0,
-			averagedSiteOriginArPosition: vectorToPlainObject( localization.siteOriginArPosition ),
-			averagedHeadingDeg: localization.headingDeg,
-			latestSolution: localization,
-			reason: `Manual 4-corner pose solved. Reprojection error ${markerPoseInAr.reprojectionErrorPx.toFixed( 2 )} px.`
+			...stabilizationReport,
+			reason: `${stabilizationReport.reason ?? 'Stable.'} Manual reprojection error ${markerPoseInAr.reprojectionErrorPx.toFixed( 2 )} px.`
 		};
 
 		updateVisibleState( 'manual' );
 		setPoseState( markerPoseInAr.markerPoseInAr, true );
 		setLocalizationState( localization, true );
 		setStabilityState( getEffectiveStabilityReport() );
-		setStatus( `Manual corner pose solved. Reprojection error ${markerPoseInAr.reprojectionErrorPx.toFixed( 2 )} px.` );
-		setSaveStatus( 'Manual corner localization solved. You can save this marker result for main AR debug use.' );
+		setStatus(
+			manualStableReport.stable
+				? `Manual corner pose stabilized. Reprojection error ${markerPoseInAr.reprojectionErrorPx.toFixed( 2 )} px.`
+				: `Manual corner pose solved. Sample ${manualStableReport.sampleCount}/${MANUAL_SAMPLE_TARGET_COUNT}. Reprojection error ${markerPoseInAr.reprojectionErrorPx.toFixed( 2 )} px.`
+		);
+		setSaveStatus(
+			manualStableReport.stable
+				? 'Manual corner localization is stable. You can save this marker result for main AR debug use.'
+				: `Manual corner localization captured. Collect ${MANUAL_SAMPLE_TARGET_COUNT} photos for stability averaging.`
+		);
 		updateManualCaptureUi();
 
 		console.info( '[ManualCornerPoseSolve]', {
@@ -733,7 +820,9 @@ function handleManualSolvePose(): void {
 		} );
 		console.info( '[ManualCornerLocalization]', {
 			markerPoseInAr: markerPoseInAr.markerPoseInAr,
-			localization
+			localization,
+			sampleCount: manualStableReport.sampleCount,
+			stable: manualStableReport.stable
 		} );
 	} catch ( error ) {
 		setStatus( error instanceof Error ? error.message : 'Manual corner pose solve failed.' );
@@ -772,11 +861,10 @@ function captureManualPhotoFrame(): void {
 	manualCaptureState.baseCanvas = baseCanvas;
 	manualCaptureState.imageWidth = captureWidth;
 	manualCaptureState.imageHeight = captureHeight;
-	manualCaptureState.points = [];
-	manualCaptureState.lastLocalization = null;
-	manualCaptureState.lastPose = null;
+	resetManualPoints( true );
 	manualCanvasElement.width = captureWidth;
 	manualCanvasElement.height = captureHeight;
+	hideManualMagnifier();
 	redrawManualCanvas();
 	updateManualCaptureUi();
 
@@ -785,11 +873,13 @@ function captureManualPhotoFrame(): void {
 function redrawManualCanvas(): void {
 
 	if ( manualCaptureState.baseCanvas === null ) {
+		hideManualMagnifier();
 		return;
 	}
 
 	const context = manualCanvasElement.getContext( '2d' );
 	if ( context === null ) {
+		hideManualMagnifier();
 		return;
 	}
 
@@ -804,12 +894,17 @@ function redrawManualCanvas(): void {
 		for ( let index = 1; index < manualCaptureState.points.length; index += 1 ) {
 			context.lineTo( manualCaptureState.points[ index ].x, manualCaptureState.points[ index ].y );
 		}
+		if ( manualCaptureState.points.length === 4 ) {
+			context.closePath();
+		}
 		context.stroke();
 	}
 
 	for ( let index = 0; index < manualCaptureState.points.length; index += 1 ) {
 		const point = manualCaptureState.points[ index ];
-		context.fillStyle = 'rgba(28, 151, 255, 0.95)';
+		context.fillStyle = manualCaptureState.activePointIndex === index
+			? 'rgba(255, 198, 64, 0.96)'
+			: 'rgba(28, 151, 255, 0.95)';
 		context.beginPath();
 		context.arc( point.x, point.y, 10, 0, Math.PI * 2 );
 		context.fill();
@@ -820,21 +915,29 @@ function redrawManualCanvas(): void {
 		context.fillText( `${index + 1}`, point.x, point.y );
 	}
 
+	drawManualMagnifier();
+
 }
 
 function updateManualCaptureUi(): void {
 
 	const pointCount = manualCaptureState.points.length;
 	const cornerNames = [ '左上', '右上', '右下', '左下' ];
+	const manualReport = manualStableReport ?? manualLocalizationStabilizer.getReport();
+	const sampleCount = manualReport.sampleCount;
 	manualStageElement.textContent = manualCaptureState.lastLocalization === null
-		? `已点 ${pointCount} / 4`
-		: '已完成解算';
+		? `已点 ${pointCount} / 4 · 样本 ${sampleCount} / ${MANUAL_SAMPLE_TARGET_COUNT}`
+		: `当前照片已解算 · 样本 ${sampleCount} / ${MANUAL_SAMPLE_TARGET_COUNT}`;
 	manualHintElement.textContent = manualCaptureState.lastLocalization === null
-		? `请按顺序点击 marker 四个角：${cornerNames.join( '、' )}。`
-		: '位姿已解出。你可以重新拍照、重置点位，或者直接保存结果。';
+		? `请按顺序点击 marker 四个角：${cornerNames.join( '、' )}。点完后可拖拽微调，放大镜会跟随显示局部。`
+		: '当前照片位姿已解算。你可以继续重新拍照累计样本，或直接保存稳定结果。';
 	manualStatusElement.textContent = manualCaptureState.lastLocalization === null
-		? ( pointCount < 4 ? `下一点：${cornerNames[ pointCount ] ?? '完成'}` : '已选满 4 点，可以开始计算位姿。' )
-		: `位姿已解出，当前点位数 ${pointCount}。`;
+		? (
+			pointCount < 4
+				? `下一点：${cornerNames[ pointCount ] ?? '完成'}`
+				: '已选满 4 点，可以开始计算位姿。'
+		)
+		: `当前重投影误差 ${manualCaptureState.lastReprojectionErrorPx?.toFixed( 2 ) ?? '-'} px。`;
 	manualSolveButton.disabled = pointCount !== 4;
 
 }
@@ -842,12 +945,178 @@ function updateManualCaptureUi(): void {
 function handleResetSamples(): void {
 
 	localizationStabilizer.reset();
+	manualLocalizationStabilizer.reset();
 	manualStableReport = null;
 	manualCaptureState.lastLocalization = null;
 	manualCaptureState.lastPose = null;
+	manualCaptureState.lastReprojectionErrorPx = null;
 	setStabilityState( getEffectiveStabilityReport() );
 	setSaveStatus( 'Sampling reset. Current saved result is still debug-only and not connected to main WebXR.' );
 	setStatus( 'Marker localization samples reset.' );
+	updateManualCaptureUi();
+
+}
+
+function resetManualPoints(clearCurrentSolve: boolean): void {
+
+	manualCaptureState.points = [];
+	manualCaptureState.activePointIndex = null;
+	manualCaptureState.draggingPointerId = null;
+	manualCaptureState.magnifierPoint = null;
+
+	if ( clearCurrentSolve ) {
+		invalidateManualSolveResult();
+	}
+
+}
+
+function invalidateManualSolveResult(): void {
+
+	manualCaptureState.lastLocalization = null;
+	manualCaptureState.lastPose = null;
+	manualCaptureState.lastReprojectionErrorPx = null;
+	if ( markerInputMode === 'manual-corners' ) {
+		setPoseState( null, false );
+		setLocalizationState( null, false );
+	}
+
+}
+
+function updateManualPoint(index: number, point: ManualMarkerCornerPoint, invalidateSolveResultForPointMove: boolean): void {
+
+	manualCaptureState.points[ index ] = point;
+	if ( invalidateSolveResultForPointMove ) {
+		invalidateManualSolveResult();
+	}
+
+}
+
+function mapPointerEventToManualPoint(event: PointerEvent): ManualMarkerCornerPoint | null {
+
+	const rect = manualCanvasElement.getBoundingClientRect();
+	if ( rect.width <= 0 || rect.height <= 0 ) {
+		return null;
+	}
+
+	const scaleX = manualCanvasElement.width / rect.width;
+	const scaleY = manualCanvasElement.height / rect.height;
+	const x = THREE.MathUtils.clamp( ( event.clientX - rect.left ) * scaleX, 0, manualCanvasElement.width );
+	const y = THREE.MathUtils.clamp( ( event.clientY - rect.top ) * scaleY, 0, manualCanvasElement.height );
+
+	return { x, y };
+
+}
+
+function findNearestManualPointIndex(
+	point: ManualMarkerCornerPoint,
+	maxDistancePx = MANUAL_CORNER_DRAG_RADIUS_PX
+): number | null {
+
+	let nearestIndex: number | null = null;
+	let nearestDistanceSquared = maxDistancePx * maxDistancePx;
+
+	for ( let index = 0; index < manualCaptureState.points.length; index += 1 ) {
+		const currentPoint = manualCaptureState.points[ index ];
+		const dx = currentPoint.x - point.x;
+		const dy = currentPoint.y - point.y;
+		const distanceSquared = dx * dx + dy * dy;
+		if ( distanceSquared <= nearestDistanceSquared ) {
+			nearestIndex = index;
+			nearestDistanceSquared = distanceSquared;
+		}
+	}
+
+	return nearestIndex;
+
+}
+
+function drawManualMagnifier(): void {
+
+	const baseCanvas = manualCaptureState.baseCanvas;
+	const centerPoint = manualCaptureState.magnifierPoint;
+	if (
+		manualCaptureState.isOpen === false
+		|| baseCanvas === null
+		|| centerPoint === null
+	) {
+		hideManualMagnifier();
+		return;
+	}
+
+	manualMagnifierElement.width = MANUAL_MAGNIFIER_SIZE_PX;
+	manualMagnifierElement.height = MANUAL_MAGNIFIER_SIZE_PX;
+	manualMagnifierElement.hidden = false;
+
+	const context = manualMagnifierElement.getContext( '2d' );
+	if ( context === null ) {
+		hideManualMagnifier();
+		return;
+	}
+
+	const sourceHalfSize = MANUAL_MAGNIFIER_SIZE_PX / ( 2 * MANUAL_MAGNIFIER_ZOOM );
+	const sx = THREE.MathUtils.clamp(
+		centerPoint.x - sourceHalfSize,
+		0,
+		Math.max( 0, baseCanvas.width - sourceHalfSize * 2 )
+	);
+	const sy = THREE.MathUtils.clamp(
+		centerPoint.y - sourceHalfSize,
+		0,
+		Math.max( 0, baseCanvas.height - sourceHalfSize * 2 )
+	);
+	const sw = Math.max( 1, sourceHalfSize * 2 );
+	const sh = Math.max( 1, sourceHalfSize * 2 );
+
+	context.clearRect( 0, 0, MANUAL_MAGNIFIER_SIZE_PX, MANUAL_MAGNIFIER_SIZE_PX );
+	context.drawImage(
+		baseCanvas,
+		sx,
+		sy,
+		sw,
+		sh,
+		0,
+		0,
+		MANUAL_MAGNIFIER_SIZE_PX,
+		MANUAL_MAGNIFIER_SIZE_PX
+	);
+
+	context.strokeStyle = 'rgba(255, 255, 255, 0.82)';
+	context.lineWidth = 1.5;
+	context.beginPath();
+	context.moveTo( MANUAL_MAGNIFIER_SIZE_PX / 2, 0 );
+	context.lineTo( MANUAL_MAGNIFIER_SIZE_PX / 2, MANUAL_MAGNIFIER_SIZE_PX );
+	context.moveTo( 0, MANUAL_MAGNIFIER_SIZE_PX / 2 );
+	context.lineTo( MANUAL_MAGNIFIER_SIZE_PX, MANUAL_MAGNIFIER_SIZE_PX / 2 );
+	context.stroke();
+
+	context.strokeStyle = 'rgba(112, 220, 255, 0.95)';
+	context.lineWidth = 2;
+	context.strokeRect( 4, 4, MANUAL_MAGNIFIER_SIZE_PX - 8, MANUAL_MAGNIFIER_SIZE_PX - 8 );
+
+	const rect = manualCanvasElement.getBoundingClientRect();
+	const displayX = rect.left + ( centerPoint.x / manualCanvasElement.width ) * rect.width;
+	const displayY = rect.top + ( centerPoint.y / manualCanvasElement.height ) * rect.height;
+	const offset = 18;
+	const left = THREE.MathUtils.clamp(
+		displayX + offset,
+		12,
+		window.innerWidth - MANUAL_MAGNIFIER_SIZE_PX - 12
+	);
+	const top = THREE.MathUtils.clamp(
+		displayY - MANUAL_MAGNIFIER_SIZE_PX - offset,
+		12,
+		window.innerHeight - MANUAL_MAGNIFIER_SIZE_PX - 12
+	);
+	manualMagnifierElement.style.left = `${left}px`;
+	manualMagnifierElement.style.top = `${top}px`;
+
+}
+
+function hideManualMagnifier(): void {
+
+	manualMagnifierElement.hidden = true;
+	manualMagnifierElement.style.left = '-9999px';
+	manualMagnifierElement.style.top = '-9999px';
 
 }
 
@@ -1887,3 +2156,4 @@ window.addEventListener( 'beforeunload', () => {
 	window.removeEventListener( 'resize', handleResize );
 	renderer?.dispose();
 } );
+

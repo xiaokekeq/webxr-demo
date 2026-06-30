@@ -1,8 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 480">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 480" shape-rendering="crispEdges">
   <rect width="480" height="480" fill="#ffffff"/>
   <rect x="40" y="40" width="400" height="400" fill="#111111"/>
-  <rect x="80" y="80" width="320" height="320" fill="#ffffff"/>
-  <g fill="#111111">
+  <rect x="120" y="120" width="240" height="240" fill="#ffffff"/>
+  <g fill="#111111" transform="translate(60 60) scale(0.75)">
     <rect x="160" y="80" width="20" height="20"/><rect x="180" y="80" width="20" height="20"/><rect x="200" y="80" width="20" height="20"/><rect x="220" y="80" width="20" height="20"/><rect x="240" y="80" width="20" height="20"/><rect x="260" y="80" width="20" height="20"/><rect x="280" y="80" width="20" height="20"/><rect x="300" y="80" width="20" height="20"/>
     <rect x="160" y="100" width="20" height="20"/><rect x="180" y="100" width="20" height="20"/><rect x="200" y="100" width="20" height="20"/><rect x="220" y="100" width="20" height="20"/><rect x="240" y="100" width="20" height="20"/><rect x="260" y="100" width="20" height="20"/><rect x="280" y="100" width="20" height="20"/><rect x="300" y="100" width="20" height="20"/>
     <rect x="160" y="120" width="20" height="20"/><rect x="180" y="120" width="20" height="20"/><rect x="260" y="120" width="20" height="20"/><rect x="280" y="120" width="20" height="20"/>

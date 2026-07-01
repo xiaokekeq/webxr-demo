@@ -47,14 +47,13 @@ export function RegistrationPanel(props: {
 	const showInlineManualPanel = ui.registrationView === 'manual' && engine.appMode !== 'ar-session';
 	const chain = engine.registrationChainDebug;
 	const markerCorrectionActive = chain.arSessionLocalization.source === 'marker';
+	const markerCalibration = engine.markerCalibration;
 	const markerResultTooOld = ( engine.savedMarkerLocalization.ageSeconds ?? 0 ) > MAX_MARKER_RESULT_AGE_SECONDS;
 	const markerTestConfig = resolveMarkerTestConfig( state );
-	const hasStableMarkerResult = engine.savedMarkerLocalization.available
-		&& engine.savedMarkerLocalization.stable !== false;
-	const canApplyMarkerCorrection = engine.appMode === 'ar-session'
-		&& hasStableMarkerResult
-		&& markerResultTooOld === false;
 	const canClearMarkerCorrection = engine.appMode === 'ar-session' && markerCorrectionActive;
+	const canStartCurrentSessionMarkerCalibration = engine.appMode === 'ar-session' && markerCalibration.markerId !== null;
+	const canCaptureCurrentSessionMarkerCorner = engine.appMode === 'ar-session' && markerCalibration.canCapture;
+	const canSolveCurrentSessionMarkerCalibration = engine.appMode === 'ar-session' && markerCalibration.canSolve;
 
 	function handleClearSavedRegistration(): void {
 
@@ -217,7 +216,71 @@ export function RegistrationPanel(props: {
 				) )}
 			</PanelSection>
 
-			<PanelSection title="Marker Result" subtitle="Stable marker localization state loaded from localStorage, with manual Apply / Clear controls.">
+			<PanelSection title="Current Session Marker" subtitle="正式 Marker 校正只在当前 WebXR ARSession 内完成，不再跨页面复用旧的 AR local。">
+				<p className="note-block">
+					currentArSessionId: {markerCalibration.currentSessionId ?? '-'}<br />
+					markerId: {markerCalibration.markerId ?? '-'}<br />
+					corners: {markerCalibration.capturedCornerCount} / {markerCalibration.expectedCornerCount}<br />
+					next corner: {markerCalibration.capturedCornerCount >= markerCalibration.expectedCornerCount
+						? '已完成'
+						: markerCalibration.nextCornerLabel}<br />
+					rmsErrorMeters: {markerCalibration.rmsErrorMeters?.toFixed( 6 ) ?? '-'}<br />
+					headingDeg: {markerCalibration.headingDeg?.toFixed( 4 ) ?? '-'}<br />
+					applied: {markerCalibration.applied ? 'yes' : 'no'}
+				</p>
+
+				<p className="note-block">
+					Marker 校正修正的是 ENU -&gt; AR local，不修改工程控制点配准。
+				</p>
+
+				{markerCalibration.corners.length > 0 ? (
+					<p className="note-block">
+						{markerCalibration.corners.map( ( corner ) => `${corner.label}: ${corner.positionText}` ).join( '\n' )}
+					</p>
+				) : (
+					<p className="note-block">
+						请在当前 AR 会话里，用 reticle 依次对准 marker 的左上角、右上角、右下角、左下角，再逐个采集。
+					</p>
+				)}
+
+				<div className="button-row">
+					<ActionButton
+						label="开始当前会话 Marker 校正"
+						onClick={actions.startCurrentSessionMarkerCalibration}
+						kind={markerCalibration.active ? 'secondary' : 'primary'}
+						disabled={!canStartCurrentSessionMarkerCalibration}
+					/>
+					<ActionButton
+						label="采集当前角点"
+						onClick={actions.captureCurrentSessionMarkerCorner}
+						kind="secondary"
+						disabled={!canCaptureCurrentSessionMarkerCorner}
+					/>
+				</div>
+
+				<div className="button-row">
+					<ActionButton
+						label="求解并应用 Marker 校正"
+						onClick={actions.solveAndApplyCurrentSessionMarkerCalibration}
+						kind="primary"
+						disabled={!canSolveCurrentSessionMarkerCalibration}
+					/>
+					<ActionButton
+						label="重置当前角点"
+						onClick={actions.resetCurrentSessionMarkerCalibration}
+						kind="secondary"
+						disabled={engine.appMode !== 'ar-session'}
+					/>
+					<ActionButton
+						label="清除 Marker 校正"
+						onClick={actions.clearMarkerLocalizationCorrection}
+						kind="secondary"
+						disabled={!canClearMarkerCorrection}
+					/>
+				</div>
+			</PanelSection>
+
+			<PanelSection title="Marker Debug Result" subtitle="`/marker-test/` 结果现在仅保留为调试信息，不再作为正式 Apply 来源。">
 				<p className="note-block">
 					Available: {engine.savedMarkerLocalization.available ? 'yes' : 'no'}<br />
 					markerId: {engine.savedMarkerLocalization.markerId ?? '-'}<br />
@@ -236,7 +299,7 @@ export function RegistrationPanel(props: {
 				</p>
 
 				<p className="note-block">
-					Current panel reads the stable marker localization result saved from `/marker-test/`. It is only applied after you click Apply marker correction.
+					`/marker-test/` 现在是调试页。它保存的 localStorage 结果不会直接作为正式 Marker 校正应用到新的 ARSession。
 				</p>
 
 				<p className="note-block">
@@ -246,35 +309,16 @@ export function RegistrationPanel(props: {
 
 				{markerResultTooOld ? (
 					<p className="note-block">
-						Warning: the saved marker result is older than {MAX_MARKER_RESULT_AGE_SECONDS}s. Refresh `/marker-test/` before applying.
+						Warning: the saved marker result is older than {MAX_MARKER_RESULT_AGE_SECONDS}s. Refresh `/marker-test/` only for debug inspection.
 					</p>
 				) : null}
-
-				<p className="note-block">
-					Marker results are passed through localStorage. `/marker-test/` and the main AR page must run on the same origin, protocol, and port.
-				</p>
 
 				<p className="note-block">
 					marker-test configMode: {markerTestConfig.configMode}
 				</p>
 
 				<div className="button-row">
-					<ActionButton
-						label="Apply marker correction"
-						onClick={actions.applyMarkerLocalizationCorrection}
-						kind={markerCorrectionActive ? 'primary' : 'secondary'}
-						disabled={!canApplyMarkerCorrection}
-					/>
-					<ActionButton
-						label="Clear marker correction"
-						onClick={actions.clearMarkerLocalizationCorrection}
-						kind="secondary"
-						disabled={!canClearMarkerCorrection}
-					/>
-				</div>
-
-				<div className="button-row">
-					<ActionButton label="Open marker test" onClick={handleOpenMarkerTest} kind="secondary" />
+					<ActionButton label="Open marker test (debug only)" onClick={handleOpenMarkerTest} kind="secondary" />
 					<ActionButton label="Refresh marker result" onClick={actions.refreshSavedMarkerLocalization} kind="secondary" />
 					<ActionButton label="Clear marker result" onClick={handleClearSavedMarkerLocalization} kind="secondary" />
 				</div>

@@ -53,7 +53,10 @@ export interface LoadModelArController {
 		enableCoarseRegistration(): Promise<void>;
 		refreshGeoLocation(): Promise<void>;
 		refreshSavedMarkerLocalization(): void;
-		applyMarkerLocalizationCorrection(): void;
+		startCurrentSessionMarkerCalibration(): void;
+		captureCurrentSessionMarkerCorner(): void;
+		resetCurrentSessionMarkerCalibration(): void;
+		solveAndApplyCurrentSessionMarkerCalibration(): void;
 		clearMarkerLocalizationCorrection(): void;
 		clearSavedMarkerLocalization(): void;
 		resetPlacement(): void;
@@ -306,9 +309,27 @@ export function createLoadModelArController(): LoadModelArController {
 
 			},
 
-			applyMarkerLocalizationCorrection() {
+			startCurrentSessionMarkerCalibration() {
 
-				engine.applySavedMarkerLocalizationCorrection();
+				engine.startCurrentSessionMarkerCalibration();
+
+			},
+
+			captureCurrentSessionMarkerCorner() {
+
+				engine.captureCurrentSessionMarkerCorner();
+
+			},
+
+			resetCurrentSessionMarkerCalibration() {
+
+				engine.resetCurrentSessionMarkerCalibration();
+
+			},
+
+			solveAndApplyCurrentSessionMarkerCalibration() {
+
+				engine.solveAndApplyCurrentSessionMarkerCalibration();
 
 			},
 

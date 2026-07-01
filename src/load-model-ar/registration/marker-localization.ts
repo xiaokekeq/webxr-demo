@@ -34,12 +34,19 @@ export interface MarkerPoseInEnu {
 	sizeMeters: number;
 }
 
+export interface MarkerCornerInEnu {
+	id: 'top-left' | 'top-right' | 'bottom-right' | 'bottom-left';
+	label: string;
+	position: THREE.Vector3;
+}
+
 export function solveMarkerLocalization(args: {
 	correspondences: MarkerLocalizationCorrespondence[];
 	orientation?: THREE.Quaternion;
 	headingDeg?: number;
 	accuracyMeters?: number;
 	yawAccuracyDegrees?: number;
+	sessionId?: string | null;
 	timestamp?: number;
 } | {
 	markerId: string;
@@ -93,6 +100,7 @@ export function solveMarkerLocalization(args: {
 		orientation,
 		headingDeg,
 		source: 'marker',
+		sessionId: args.sessionId ?? null,
 		accuracyMeters: args.accuracyMeters,
 		yawAccuracyDegrees: args.yawAccuracyDegrees,
 		timestamp: args.timestamp
@@ -158,6 +166,53 @@ export function resolveMarkerPoseInEnu(
 		matrix,
 		sizeMeters: markerConfig.sizeMeters
 	};
+
+}
+
+export function resolveMarkerCornersInEnu(
+	config: DemoModelConfig,
+	markerId: string
+): MarkerCornerInEnu[] {
+
+	const markerPoseInEnu = resolveMarkerPoseInEnu( config, markerId );
+	markerPoseInEnu.matrix.decompose(
+		tempMarkerEnuPosition,
+		tempMarkerEnuQuaternion,
+		tempMarkerEnuScale
+	);
+
+	const halfSize = markerPoseInEnu.sizeMeters * 0.5;
+	const corners: Array<Omit<MarkerCornerInEnu, 'position'> & { local: THREE.Vector3 }> = [
+		{
+			id: 'top-left',
+			label: '左上角',
+			local: new THREE.Vector3( - halfSize, halfSize, 0 )
+		},
+		{
+			id: 'top-right',
+			label: '右上角',
+			local: new THREE.Vector3( halfSize, halfSize, 0 )
+		},
+		{
+			id: 'bottom-right',
+			label: '右下角',
+			local: new THREE.Vector3( halfSize, - halfSize, 0 )
+		},
+		{
+			id: 'bottom-left',
+			label: '左下角',
+			local: new THREE.Vector3( - halfSize, - halfSize, 0 )
+		}
+	];
+
+	return corners.map( ( corner ) => ( {
+		id: corner.id,
+		label: corner.label,
+		position: corner.local
+			.clone()
+			.applyQuaternion( tempMarkerEnuQuaternion )
+			.add( tempMarkerEnuPosition )
+	} ) );
 
 }
 

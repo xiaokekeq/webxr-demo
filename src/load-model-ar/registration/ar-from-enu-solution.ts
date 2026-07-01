@@ -15,6 +15,7 @@ export interface ArFromEnuSolution {
 	orientation: THREE.Quaternion;
 	headingDeg: number;
 	source: ArLocalizationSource;
+	sessionId?: string | null;
 	accuracyMeters?: number;
 	yawAccuracyDegrees?: number;
 	timestamp: number;
@@ -25,6 +26,7 @@ export function createArFromEnuSolution(args: {
 	orientation: THREE.Quaternion;
 	headingDeg: number;
 	source?: ArLocalizationSource;
+	sessionId?: string | null;
 	accuracyMeters?: number;
 	yawAccuracyDegrees?: number;
 	timestamp?: number;
@@ -44,6 +46,7 @@ export function createArFromEnuSolution(args: {
 		orientation,
 		headingDeg: args.headingDeg,
 		source: args.source ?? 'gps-imu',
+		sessionId: args.sessionId ?? null,
 		accuracyMeters: args.accuracyMeters,
 		yawAccuracyDegrees: args.yawAccuracyDegrees,
 		timestamp: args.timestamp ?? Date.now()
@@ -82,6 +85,7 @@ export function createArFromEnuSolutionFromSavedMarkerResult(
 		orientation,
 		headingDeg: saved.headingDeg ?? extractHeadingDegFromEnuToArOrientation( orientation ),
 		source: 'marker',
+		sessionId: null,
 		accuracyMeters: saved.rmsErrorMeters,
 		timestamp: saved.timestamp
 	};

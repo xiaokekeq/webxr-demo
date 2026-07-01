@@ -95,6 +95,31 @@ export interface SavedMarkerLocalizationState {
 	stable?: boolean;
 }
 
+export interface MarkerCalibrationCornerState {
+	id: string;
+	label: string;
+	positionText: string;
+}
+
+export interface MarkerCalibrationState {
+	currentSessionId: string | null;
+	debugOnlySavedResultAvailable: boolean;
+	markerId: string | null;
+	markerConfigId: string | null;
+	active: boolean;
+	capturedCornerCount: number;
+	expectedCornerCount: number;
+	nextCornerLabel: string;
+	corners: MarkerCalibrationCornerState[];
+	canCapture: boolean;
+	canSolve: boolean;
+	solved: boolean;
+	applied: boolean;
+	rmsErrorMeters?: number;
+	headingDeg?: number;
+	lastUpdatedAt?: number;
+}
+
 export interface PlacementSummaryState {
 	positionText: string;
 	quaternionText: string;
@@ -158,6 +183,7 @@ export interface RegistrationStoreState {
 	modelScaleSummary: ModelScaleSummaryState;
 	registrationChainDebug: RegistrationChainDebugState;
 	savedMarkerLocalization: SavedMarkerLocalizationState;
+	markerCalibration: MarkerCalibrationState;
 	placementSummary: PlacementSummaryState;
 	targetGuidance: TargetGuidanceState;
 	annotationDetail: AnnotationDetailState;
@@ -306,6 +332,26 @@ export function createDefaultSavedMarkerLocalizationState(): SavedMarkerLocaliza
 
 	return {
 		available: false
+	};
+
+}
+
+export function createDefaultMarkerCalibrationState(): MarkerCalibrationState {
+
+	return {
+		currentSessionId: null,
+		debugOnlySavedResultAvailable: false,
+		markerId: null,
+		markerConfigId: null,
+		active: false,
+		capturedCornerCount: 0,
+		expectedCornerCount: 4,
+		nextCornerLabel: '左上角',
+		corners: [],
+		canCapture: false,
+		canSolve: false,
+		solved: false,
+		applied: false
 	};
 
 }

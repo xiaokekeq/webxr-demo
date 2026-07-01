@@ -1691,8 +1691,11 @@ export class ThreeEngine {
 		}
 
 		this.syncMarkerCalibrationState( {
+			active: false,
 			solved: true,
 			applied: true,
+			canCapture: false,
+			canSolve: false,
 			rmsErrorMeters: solution.rmsErrorMeters,
 			headingDeg: solution.headingDeg,
 			lastUpdatedAt: Date.now()

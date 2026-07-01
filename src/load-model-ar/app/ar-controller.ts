@@ -312,6 +312,12 @@ export function createLoadModelArController(): LoadModelArController {
 			startCurrentSessionMarkerCalibration() {
 
 				engine.startCurrentSessionMarkerCalibration();
+				if ( engine.getState().markerCalibration.active ) {
+					patchUiState( {
+						drawerOpen: false,
+						registrationView: 'overview'
+					} );
+				}
 
 			},
 
@@ -324,12 +330,22 @@ export function createLoadModelArController(): LoadModelArController {
 			resetCurrentSessionMarkerCalibration() {
 
 				engine.resetCurrentSessionMarkerCalibration();
+				patchUiState( {
+					drawerOpen: true,
+					registrationView: 'overview'
+				} );
 
 			},
 
 			solveAndApplyCurrentSessionMarkerCalibration() {
 
-				engine.solveAndApplyCurrentSessionMarkerCalibration();
+				const applied = engine.solveAndApplyCurrentSessionMarkerCalibration();
+				if ( applied ) {
+					patchUiState( {
+						drawerOpen: true,
+						registrationView: 'overview'
+					} );
+				}
 
 			},
 

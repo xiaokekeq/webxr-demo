@@ -1571,6 +1571,10 @@ textarea {
 	gap: 10px;
 }
 
+.precision-capture-bar__actions--marker {
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .mobile-ar-root--placement .primary-bar {
 	bottom: calc(max(12px, env(safe-area-inset-bottom, 0px)) + 104px);
 	z-index: 5;
